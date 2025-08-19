@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Payment Success | Shop Minimal{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <h2 class="text-success">Payment Successful 🎉</h2>
+  <p class="lead">Order #{{ order.id }} — Amount: ₹{{ order.amount|floatformat:-2 }}</p>
+  <p class="text-muted small">Payment ID: {{ order.razorpay_payment_id }}</p>
+  <a href="{% url 'home' %}" class="btn btn-primary mt-3">Continue Shopping</a>
+</div>
+{% endblock %}
+

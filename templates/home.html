@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Home | Shop Minimal{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <h1 class="fw-bold">Welcome to ShopMinimal</h1>
+    <p class="lead text-muted">Minimalist online shopping experience</p>
+    <a href="{% url 'product_list_page' %}" class="btn btn-lg btn-primary mt-2">Shop Now</a>
+</div>
+
+{% for category in categories %}
+    <h3 class="mt-5 mb-3">{{ category.name }}</h3>
+    <div class="row g-4">
+        {% for product in category.products.all %}
+        <div class="col-6 col-md-3">
+            <div class="card h-100 shadow-sm d-flex flex-column">
+                <a href="{% url 'product_detail_page' slug=product.slug %}" class="text-decoration-none">
+                    {% if product.image %}
+                        <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                    {% else %}
+                        <img src="/static/img/default.jpg" class="card-img-top" alt="{{ product.name }}">
+                    {% endif %}
+                </a>
+                <div class="card-body text-center d-flex flex-column">
+                    <h6 class="mb-1">{{ product.name }}</h6>
+                    <div class="text-muted mb-2">₹{{ product.price }}</div>
+                    <div class="mt-auto">
+                        <a href="{% url 'add_to_cart' product.id %}" class="btn btn-sm btn-primary">Add to Cart</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-muted">No products in this category yet.</p>
+        {% endfor %}
+    </div>
+{% endfor %}
+{% endblock %}

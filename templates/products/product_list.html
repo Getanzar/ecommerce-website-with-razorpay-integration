@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}All Products | Shop Minimal{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">All Products</h2>
+<div class="row g-4">
+    {% for product in products %}
+    <div class="col-6 col-md-3">
+        <div class="card h-100 shadow-sm">
+            <a href="{% url 'product_detail_page' slug=product.slug %}" class="text-decoration-none">
+                {% if product.image %}
+                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                {% else %}
+                    <img src="/static/img/default.jpg" class="card-img-top" alt="{{ product.name }}">
+                {% endif %}
+            </a>
+            <div class="card-body text-center">
+                <h6 class="mb-1">{{ product.name }}</h6>
+                <div class="text-muted">₹{{ product.price }}</div>
+                <a href="{% url 'add_to_cart' product.id %}" class="btn btn-sm btn-outline-primary mt-2">Add to Cart</a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">No products available.</p>
+    {% endfor %}
+</div>
+{% endblock %}

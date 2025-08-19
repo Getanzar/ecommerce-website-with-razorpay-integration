@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Checkout | Shop Minimal{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Checkout</h2>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Your Items</h5>
+        <ul class="list-group list-group-flush">
+          {% for it in items %}
+          <li class="list-group-item d-flex align-items-center justify-content-between">
+            <div>
+              <div class="fw-semibold">{{ it.product.name }}</div>
+              <div class="small text-muted">Qty: {{ it.qty }}</div>
+            </div>
+            <div class="fw-semibold">₹{{ it.line_total_paise|divisibleby:100|yesno:" , " }}{{ it.line_total_paise|floatformat:-2 }}</div>
+            <div class="fw-semibold">₹{{ it.line_total_paise|floatformat:-2|cut:".00"|default:it.line_total_paise }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <span class="fw-semibold">Total</span>
+          <span class="fw-bold">{{ amount_display }}</span>
+        </div>
+        <hr>
+        <!-- Razorpay Checkout button -->
+        <button id="rzp-button" class="btn btn-primary w-100">Pay with UPI / Card / Wallet</button>
+        <p class="text-muted small mt-2 mb-0">UPI (Google Pay, PhonePe, BHIM), cards and wallets supported.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form id="verify-form" action="{% url 'payment_verify' %}" method="POST" class="d-none">
+  {% csrf_token %}
+  <input type="hidden" name="razorpay_payment_id" id="rzp_payment_id">
+  <input type="hidden" name="razorpay_order_id" id="rzp_order_id">
+  <input type="hidden" name="razorpay_signature" id="rzp_signature">
+</form>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  const options = {
+    key: "{{ razorpay_key_id }}",
+    amount: "{{ total_paise|escapejs }}",
+    currency: "{{ currency }}",
+    name: "ShopMinimal",
+    description: "Order Payment",
+    order_id: "{{ razorpay_order_id }}",
+    theme: { color: "#0d6efd" },
+
+    // ✅ Enable UPI + other methods (Razorpay auto-detects)
+    method: {
+      upi: true,
+      card: true,
+      netbanking: true,
+      wallet: true
+    },
+
+    handler: function (response){
+      // Post back to server for verification
+      document.getElementById('rzp_payment_id').value = response.razorpay_payment_id;
+      document.getElementById('rzp_order_id').value = response.razorpay_order_id;
+      document.getElementById('rzp_signature').value = response.razorpay_signature;
+      document.getElementById('verify-form').submit();
+    },
+
+    prefill: {
+      name: "{{ request.user.get_full_name|default:request.user.username }}",
+      email: "{{ request.user.email }}",
+    },
+
+    notes: { cart: "session" },
+    modal: { ondismiss: function(){ /* optional: show message */ } }
+  };
+
+  const rzp = new Razorpay(options);
+  document.getElementById('rzp-button').onclick = function(e){
+    e.preventDefault();
+    rzp.open();
+  }
+</script>
+{% endblock %}
