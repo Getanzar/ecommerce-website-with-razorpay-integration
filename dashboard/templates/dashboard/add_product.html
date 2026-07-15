@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Add Product | ZIYA Admin</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <style>
+
+        body{
+            background:#f5f7fb;
+        }
+
+        .card{
+            border:none;
+            border-radius:16px;
+            box-shadow:0 8px 20px rgba(0,0,0,.08);
+        }
+
+        .section-title{
+            font-size:22px;
+            font-weight:700;
+            margin-bottom:20px;
+        }
+
+        .card-header{
+            background:#212529;
+            color:white;
+            font-weight:600;
+            border-radius:16px 16px 0 0 !important;
+        }
+
+        .color-row,
+        .size-row{
+
+            background:#fff;
+
+            border:1px solid #dee2e6;
+
+            border-radius:12px;
+
+            padding:15px;
+
+            margin-bottom:15px;
+
+        }
+
+        .required{
+            color:red;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container py-5">
+
+<div class="card">
+
+<div class="card-header">
+
+    <h3 class="mb-0">
+        <i class="bi bi-bag-plus-fill me-2"></i>
+        Add New Product
+    </h3>
+
+</div>
+
+<div class="card-body">
+
+<form method="POST"
+      enctype="multipart/form-data"
+      action="{% url 'add_product' %}">
+
+{% csrf_token %}
+
+<!-- ====================================== -->
+<!-- BASIC INFORMATION -->
+<!-- ====================================== -->
+
+<h4 class="section-title">
+
+Basic Information
+
+</h4>
+
+<div class="row">
+
+<div class="col-md-6 mb-3">
+
+<label class="form-label">
+
+Product Name
+
+<span class="required">*</span>
+
+</label>
+
+<input
+type="text"
+name="name"
+class="form-control"
+required>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<label class="form-label">
+
+Price
+
+<span class="required">*</span>
+
+</label>
+
+<input
+type="number"
+step="0.01"
+min="0"
+name="price"
+class="form-control"
+required>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<label class="form-label">
+
+Total Stock
+
+<span class="required">*</span>
+
+</label>
+
+<input
+type="number"
+min="0"
+name="stock"
+class="form-control"
+value="0"
+required>
+
+</div>
+
+</div>
+
+<div class="mb-4">
+
+<label class="form-label">
+
+Description
+
+</label>
+
+<textarea
+name="description"
+rows="5"
+class="form-control"></textarea>
+
+</div>
+
+<!-- ====================================== -->
+<!-- CATEGORY -->
+<!-- ====================================== -->
+
+<h4 class="section-title">
+
+Category Information
+
+</h4>
+
+<div class="row">
+
+<div class="col-md-4">
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+
+<label class="form-label mb-0">
+
+Category
+
+</label>
+
+<button
+type="button"
+class="btn btn-success btn-sm"
+data-bs-toggle="modal"
+data-bs-target="#categoryModal">
+
+<i class="bi bi-plus"></i>
+
+New
+
+</button>
+
+</div>
+
+<select
+class="form-select"
+name="category"
+id="categorySelect"
+required>
+
+{% for c in categories %}
+
+<option value="{{ c.id }}">
+
+{{ c.name }}
+
+</option>
+
+{% endfor %}
+
+</select>
+
+</div>
+
+<div class="col-md-4">
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+
+<label class="form-label mb-0">
+
+Subcategory
+
+</label>
+
+<button
+type="button"
+class="btn btn-success btn-sm"
+data-bs-toggle="modal"
+data-bs-target="#subcategoryModal">
+
+<i class="bi bi-plus"></i>
+
+New
+
+</button>
+
+</div>
+
+<select
+class="form-select"
+name="subcategory"
+id="subcategorySelect">
+
+<option value="">
+
+None
+
+</option>
+
+{% for s in subcategories %}
+
+<option value="{{ s.id }}">
+
+{{ s.name }}
+
+</option>
+
+{% endfor %}
+
+</select>
+
+</div>
+
+<div class="col-md-4">
+
+<label class="form-label">
+
+Product Type
+
+</label>
+
+<select
+class="form-select"
+name="product_type">
+
+<option value="shirt">Shirt</option>
+<option value="tshirt">T-Shirt</option>
+<option value="jeans">Jeans</option>
+<option value="dress">Dress</option>
+<option value="kidswear">Kids Wear</option>
+<option value="shoes">Shoes</option>
+<option value="accessory">Accessory</option>
+
+</select>
+
+</div>
+
+</div>
+
+<!-- ====================================== -->
+<!-- IMAGES -->
+<!-- ====================================== -->
+
+<h4 class="section-title mt-5">
+
+Images
+
+</h4>
+
+<div class="row">
+
+<div class="col-md-6 mb-3">
+
+<label class="form-label fw-bold">
+    Cover Image
+</label>
+
+<small class="text-muted d-block mb-2">
+This image will appear on the homepage, category page and search results.
+</small>
+
+<input
+type="file"
+class="form-control"
+name="image"
+accept="image/*">
+
+</div>
+
+
+</div>
+
+<hr class="my-5">
+
+<!-- PART 2 STARTS FROM HERE -->
+ <!-- ====================================== -->
+<!-- COLORS -->
+<!-- ====================================== -->
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+
+    <div>
+
+        <h4 class="fw-bold mb-1">
+            🎨 Product Colors
+        </h4>
+
+        <p class="text-muted mb-0">
+            Add every color available for this product.
+            Each color contains its own image gallery.
+        </p>
+
+    </div>
+
+</div>
+
+<div id="color-container">
+
+<div class="color-row card shadow-sm border-0 mb-3">
+
+    <div class="card-body">
+
+    <div class="row align-items-end">
+
+        <!-- Color Name -->
+        <div class="col-lg-3">
+            <label class="form-label fw-semibold">
+                Color Name
+            </label>
+
+            <input
+                type="text"
+                name="color_name[]"
+                class="form-control"
+                placeholder="Example: Cream">
+        </div>
+
+        <!-- Color Picker -->
+        <div class="col-lg-2">
+            <label class="form-label fw-semibold">
+                Color
+            </label>
+
+            <input
+                type="color"
+                name="color_hex[]"
+                class="form-control form-control-color w-100"
+                value="#000000">
+        </div>
+
+        <!-- Gallery -->
+        <div class="col-lg-6">
+            <label class="form-label fw-semibold">
+                Gallery Images
+            </label>
+
+            <input
+                type="file"
+                name="color_gallery_0"
+                class="form-control"
+                multiple
+                accept="image/*">
+
+            <small class="text-muted">
+                Upload Front, Back, Side, Zoom etc.
+                The first image will automatically become the default image for this color.
+            </small>
+        </div>
+
+        <!-- Remove -->
+        <div class="col-lg-1 text-end">
+
+            <button
+                type="button"
+                class="btn btn-outline-danger remove-color w-100">
+
+                <i class="bi bi-trash"></i>
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+</div>
+
+</div>
+
+
+<button
+    type="button"
+    id="addColor"
+    class="btn btn-dark">
+
+    <i class="bi bi-plus-circle me-2"></i>
+    Add Color
+
+</button>
+
+<hr class="my-5">
+
+<!-- ====================================== -->
+<!-- SIZES -->
+<!-- ====================================== -->
+
+<h4 class="section-title">
+
+Sizes & Stock
+
+</h4>
+
+<p class="text-muted mb-3">
+
+Every size has its own stock quantity.
+
+</p>
+
+<div id="size-container">
+
+    <div class="size-row">
+
+        <div class="row align-items-end">
+
+            <div class="col-md-5">
+
+                <label class="form-label">
+
+                    Size
+
+                </label>
+
+                <input
+                    type="text"
+                    name="sizes[]"
+                    class="form-control"
+                    placeholder="Example: M or 4 Years">
+
+            </div>
+
+            <div class="col-md-4">
+
+                <label class="form-label">
+
+                    Stock
+
+                </label>
+
+                <input
+                    type="number"
+                    name="stocks[]"
+                    class="form-control"
+                    min="0"
+                    value="0">
+
+            </div>
+
+            <div class="col-md-3">
+
+                <button
+                    type="button"
+                    class="btn btn-outline-danger remove-size w-100">
+
+                    <i class="bi bi-trash"></i>
+
+                    Remove
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<button
+    type="button"
+    id="addSize"
+    class="btn btn-primary">
+
+    <i class="bi bi-plus-circle"></i>
+
+    Add Another Size
+
+</button>
+
+<hr class="my-5">
+
+<!-- PART 3 STARTS FROM HERE -->
+ <!-- ====================================== -->
+<!-- ACTION BUTTONS -->
+<!-- ====================================== -->
+
+<div class="d-flex justify-content-end gap-3 mt-4">
+
+    <a href="{% url 'products_management' %}"
+       class="btn btn-secondary btn-lg">
+
+        <i class="bi bi-x-circle"></i>
+        Cancel
+
+    </a>
+
+    <button
+        type="submit"
+        class="btn btn-success btn-lg">
+
+        <i class="bi bi-check-circle"></i>
+        Save Product
+
+    </button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- ====================================== -->
+<!-- CATEGORY MODAL -->
+<!-- ====================================== -->
+
+<div class="modal fade"
+     id="categoryModal"
+     tabindex="-1">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+
+                    Add Category
+
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <label class="form-label">
+
+                    Category Name
+
+                </label>
+
+                <input
+                    type="text"
+                    id="newCategory"
+                    class="form-control"
+                    placeholder="Enter category">
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+
+                    Close
+
+                </button>
+
+                <button
+                    type="button"
+                    id="saveCategory"
+                    class="btn btn-success">
+
+                    Save Category
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ====================================== -->
+<!-- SUBCATEGORY MODAL -->
+<!-- ====================================== -->
+
+<div class="modal fade"
+     id="subcategoryModal"
+     tabindex="-1">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+
+                    Add Subcategory
+
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <label class="form-label">
+
+                    Subcategory Name
+
+                </label>
+
+                <input
+                    type="text"
+                    id="newSubcategory"
+                    class="form-control"
+                    placeholder="Enter subcategory">
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+
+                    Close
+
+                </button>
+
+                <button
+                    type="button"
+                    id="saveSubcategory"
+                    class="btn btn-success">
+
+                    Save Subcategory
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- PART 4 STARTS FROM HERE -->
+ <script>
+let colorIndex = 1;
+//
+// ===============================
+// ADD COLOR
+// ===============================
+//
+
+document.getElementById("addColor").addEventListener("click", function () {
+
+    document.getElementById("color-container").insertAdjacentHTML(
+        "beforeend",
+`
+<div class="color-row card shadow-sm border-0 mb-3">
+
+    <div class="card-body">
+
+        <div class="row align-items-end">
+
+            <div class="col-lg-3">
+
+                <label class="form-label fw-semibold">
+                    Color Name
+                </label>
+
+                <input
+                    type="text"
+                    name="color_name[]"
+                    class="form-control"
+                    placeholder="Example: Brown">
+
+            </div>
+
+            <div class="col-lg-2">
+
+                <label class="form-label fw-semibold">
+                    Color
+                </label>
+
+                <input
+                    type="color"
+                    name="color_hex[]"
+                    class="form-control form-control-color w-100"
+                    value="#000000">
+
+            </div>
+
+            <div class="col-lg-6">
+
+                <label class="form-label fw-semibold">
+                    Gallery Images
+                </label>
+
+                <input
+                    type="file"
+                    name="color_gallery[]"
+                    class="form-control"
+                    multiple
+                    accept="image/*">
+
+                <small class="text-muted">
+                    Upload Front, Back, Side, Zoom etc.
+                    First image becomes the default image.
+                </small>
+
+            </div>
+
+            <div class="col-lg-1 text-end">
+
+                <button
+                    type="button"
+                    class="btn btn-outline-danger remove-color w-100">
+
+                    <i class="bi bi-trash"></i>
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+`
+    );
+
+});
+
+//
+// ===============================
+// ADD SIZE
+// ===============================
+//
+
+document.getElementById("addSize").addEventListener("click", function () {
+
+    document.getElementById("size-container").insertAdjacentHTML(
+        "beforeend",
+        `
+<div class="size-row">
+
+    <div class="row align-items-end">
+
+        <div class="col-md-5">
+
+            <label class="form-label">
+                Size
+            </label>
+
+            <input
+                type="text"
+                name="sizes[]"
+                class="form-control"
+                placeholder="Example: M or 4 Years">
+
+        </div>
+
+        <div class="col-md-4">
+
+            <label class="form-label">
+                Stock
+            </label>
+
+            <input
+                type="number"
+                name="stocks[]"
+                class="form-control"
+                min="0"
+                value="0">
+
+        </div>
+
+        <div class="col-md-3">
+
+            <button
+                type="button"
+                class="btn btn-outline-danger remove-size w-100">
+
+                <i class="bi bi-trash"></i>
+                Remove
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+`
+    );
+
+});
+
+//
+// ===============================
+// REMOVE BUTTONS
+// ===============================
+//
+
+document.addEventListener("click", function (e) {
+
+    if (e.target.closest(".remove-color")) {
+
+        const rows = document.querySelectorAll(".color-row");
+
+        if (rows.length > 1) {
+
+            e.target.closest(".color-row").remove();
+
+        }
+
+    }
+
+    if (e.target.closest(".remove-size")) {
+
+        const rows = document.querySelectorAll(".size-row");
+
+        if (rows.length > 1) {
+
+            e.target.closest(".size-row").remove();
+
+        }
+
+    }
+
+});
+
+//
+// ===============================
+// ADD CATEGORY AJAX
+// ===============================
+//
+
+document.getElementById("saveCategory").onclick = function () {
+
+    const name = document.getElementById("newCategory").value.trim();
+
+    if (!name) {
+
+        alert("Enter category name.");
+
+        return;
+
+    }
+
+    fetch("{% url 'add_category_ajax' %}", {
+
+        method: "POST",
+
+        headers: {
+
+            "Content-Type": "application/json",
+
+            "X-CSRFToken": "{{ csrf_token }}"
+
+        },
+
+        body: JSON.stringify({
+
+            name: name
+
+        })
+
+    })
+
+    .then(res => res.json())
+
+    .then(data => {
+
+        let option = document.createElement("option");
+
+        option.value = data.id;
+
+        option.text = data.name;
+
+        option.selected = true;
+
+        document.getElementById("categorySelect").appendChild(option);
+
+        bootstrap.Modal.getInstance(document.getElementById("categoryModal")).hide();
+
+        document.getElementById("newCategory").value = "";
+
+    });
+
+};
+
+//
+// ===============================
+// ADD SUBCATEGORY AJAX
+// ===============================
+//
+
+document.getElementById("saveSubcategory").onclick = function () {
+
+    const name = document.getElementById("newSubcategory").value.trim();
+
+    if (!name) {
+
+        alert("Enter subcategory name.");
+
+        return;
+
+    }
+
+    fetch("{% url 'add_subcategory_ajax' %}", {
+
+        method: "POST",
+
+        headers: {
+
+            "Content-Type": "application/json",
+
+            "X-CSRFToken": "{{ csrf_token }}"
+
+        },
+
+        body: JSON.stringify({
+
+            name: name,
+
+            category: document.getElementById("categorySelect").value
+
+        })
+
+    })
+
+    .then(res => res.json())
+
+    .then(data => {
+
+        let option = document.createElement("option");
+
+        option.value = data.id;
+
+        option.text = data.name;
+
+        option.selected = true;
+
+        document.getElementById("subcategorySelect").appendChild(option);
+
+        bootstrap.Modal.getInstance(document.getElementById("subcategoryModal")).hide();
+
+        document.getElementById("newSubcategory").value = "";
+
+    });
+
+};
+
+</script>
+
+</body>
+
+</html>

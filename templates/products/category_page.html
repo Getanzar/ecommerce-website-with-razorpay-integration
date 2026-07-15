@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ category.name }} | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="text-center py-4">
+    <h2 class="fw-bold">{{ category.name }}</h2>
+    <p class="text-muted">Select a subcategory to explore products</p>
+</div>
+
+<div class="row g-4">
+
+    {% for sub in subcategories %}
+
+    <div class="col-6 col-md-3">
+
+        <a href="{% url 'subcategory_products' sub.id %}"
+           class="text-decoration-none text-dark">
+
+            <div class="card h-100 shadow-sm border-0 subcategory-card">
+
+                <div class="card-body text-center">
+
+                    <h6 class="fw-semibold">
+                        {{ sub.name }}
+                    </h6>
+
+                    <button class="btn btn-sm btn-outline-primary mt-2">
+                        View Products
+                    </button>
+
+                </div>
+
+            </div>
+
+        </a>
+
+    </div>
+
+    {% empty %}
+
+    <p class="text-muted text-center">
+        No subcategories available for this category.
+    </p>
+
+    {% endfor %}
+
+</div>
+
+<style>
+
+.subcategory-card:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

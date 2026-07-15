@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}My Reviews | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <h2 class="fw-bold mb-4">My Reviews & Ratings</h2>
+
+    {% if reviews %}
+
+        {% for review in reviews %}
+
+        <div class="card border-0 shadow-sm rounded-4 mb-3">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <h5 class="fw-bold">
+                            {{ review.product.name }}
+                        </h5>
+
+                        <div class="text-warning mb-2">
+
+                            {% for i in "12345" %}
+
+                                {% if forloop.counter <= review.rating %}
+                                    ★
+                                {% else %}
+                                    ☆
+                                {% endif %}
+
+                            {% endfor %}
+
+                        </div>
+
+                        {% if review.title %}
+                            <h6>{{ review.title }}</h6>
+                        {% endif %}
+
+                        <p class="mb-2">
+                            {{ review.review }}
+                        </p>
+
+                        {% if review.is_verified_purchase %}
+                        <span class="badge bg-success">
+                            Verified Purchase
+                        </span>
+                        {% endif %}
+
+                    </div>
+
+                    <small class="text-muted">
+                        {{ review.created_at|date:"d M Y" }}
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="card border-0 shadow-sm rounded-4">
+
+            <div class="card-body text-center py-5">
+
+                <h4>No Reviews Yet</h4>
+
+                <p class="text-muted">
+                    You haven't reviewed any products yet.
+                </p>
+
+                <a href="{% url 'product_list_page' %}"
+                   class="btn btn-dark rounded-pill px-4">
+
+                    Shop Now
+
+                </a>
+
+            </div>
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

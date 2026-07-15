@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+{% block title %}Checkout | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="text-center mb-4">
+  <h2 class="fw-bold">Secure Checkout</h2>
+  <p class="text-muted mb-0">
+    100% secure payment • Fast delivery • Easy returns
+  </p>
+</div>
+
+  <div class="row g-4">
+    <!-- Cart Items -->
+    <div class="col-lg-7">
+      <div class="card shadow-sm mb-4 border-0">
+  <div class="card-body">
+    <h5 class="mb-3 fw-bold">Your Items</h5>
+
+    <ul class="list-group list-group-flush">
+      {% for it in items %}
+      <li class="list-group-item px-0 d-flex align-items-center justify-content-between">
+
+        <div class="d-flex align-items-center gap-3">
+
+          {% if it.product.image %}
+            <img src="{{ it.product.image.url }}"
+                 class="rounded border"
+                 style="width:60px;height:60px;object-fit:cover;">
+          {% else %}
+            <img src="/static/img/default.jpg"
+                 class="rounded border"
+                 style="width:60px;height:60px;object-fit:cover;">
+          {% endif %}
+
+          <div>
+            <div class="fw-semibold">{{ it.product.name }}</div>
+            <div class="small text-muted">
+                <span class="badge bg-light text-dark border">
+                  Color: {{ it.color }}
+                </span>
+                <span class="badge bg-light text-dark border">
+                  Size: {{ it.size }}
+                </span>
+                <span class="badge bg-light text-dark border">
+                  Qty: {{ it.quantity }}
+                </span>
+              </div>
+            <div class="small text-muted">
+              ₹{{ it.price }} × {{ it.quantity }}
+            </div>
+          </div>
+
+        </div>
+
+        <div class="fw-bold">
+          ₹{{ it.subtotal }}
+        </div>
+
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+
+<!-- Shipping Address Form -->
+<div class="card shadow-sm">
+
+    <div class="card-body">
+
+        <h5 class="mb-3">Shipping Details</h5>
+
+        {% if addresses %}
+
+        <div class="card border-0 bg-light mb-4">
+
+            <div class="card-body">
+
+                <h6 class="fw-bold mb-3">
+                    Saved Addresses
+                </h6>
+
+                {% for address in addresses %}
+
+                <div class="form-check border rounded p-3 mb-3">
+
+                    <input
+                        class="form-check-input saved-address"
+                        type="radio"
+                        name="saved_address"
+                        id="address{{ address.id }}"
+
+                        data-name="{{ address.full_name }}"
+                        data-phone="{{ address.phone }}"
+                        data-address="{{ address.address_line_1 }}"
+                        data-city="{{ address.city }}"
+                        data-state="{{ address.state }}"
+                        data-pincode="{{ address.pincode }}"
+
+                        {% if address.is_default %}
+                        checked
+                        {% endif %}
+                    >
+
+                    <label
+                        class="form-check-label w-100"
+                        for="address{{ address.id }}"
+                    >
+
+                        <strong>{{ address.full_name }}</strong>
+
+                        {% if address.is_default %}
+                        <span class="badge bg-success">
+                            Default
+                        </span>
+                        {% endif %}
+
+                        <br>
+
+                        {{ address.phone }}
+
+                        <br>
+
+                        {{ address.address_line_1 }}
+
+                        {% if address.address_line_2 %}
+                        <br>
+                        {{ address.address_line_2 }}
+                        {% endif %}
+
+                        <br>
+
+                        {{ address.city }},
+                        {{ address.state }}
+                        -
+                        {{ address.pincode }}
+
+                    </label>
+
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+        <form method="post" id="checkout-form">
+
+            {% csrf_token %}
+
+            <div class="mb-3">
+                <label class="form-label">Full Name</label>
+                {{ form.full_name }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Phone</label>
+                {{ form.phone }}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Address</label>
+                {{ form.address }}
+            </div>
+
+            <div class="row">
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">City</label>
+                    {{ form.city }}
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">State</label>
+                    {{ form.state }}
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Pincode</label>
+                    {{ form.pincode }}
+                </div>
+
+            </div>
+
+            <!-- Payment Method -->
+            <h5 class="mt-4 mb-3 fw-bold">Payment Method</h5>
+
+            <div class="mb-4">
+
+                <div class="card border rounded-3 mb-3 payment-option">
+
+                    <div class="card-body">
+
+                        <div class="form-check m-0">
+
+                            <input
+                                class="form-check-input"
+                                type="radio"
+                                name="payment_method"
+                                id="payment_online"
+                                value="online"
+                                checked
+                            >
+
+                            <label class="form-check-label w-100 ms-2" for="payment_online">
+
+                                <div class="fw-semibold">
+                                    💳 Online Payment
+                                </div>
+
+                                <small class="text-muted">
+                                    UPI • Credit Card • Debit Card • Net Banking • Wallet
+                                </small>
+
+                            </label>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="card border rounded-3 payment-option">
+
+                    <div class="card-body">
+
+                        <div class="form-check m-0">
+
+                            <input
+                                class="form-check-input"
+                                type="radio"
+                                name="payment_method"
+                                id="payment_cod"
+                                value="cod"
+                            >
+
+                            <label class="form-check-label w-100 ms-2" for="payment_cod">
+
+                                <div class="fw-semibold">
+                                    💵 Cash on Delivery
+                                </div>
+
+                                <small class="text-muted">
+                                    Pay when your order arrives.
+                                </small>
+
+                            </label>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <button type="submit" class="btn btn-success w-100">
+                Confirm & Continue
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+    </div>
+
+    <!-- Order Summary -->
+<div class="col-lg-5">
+
+    <div class="card shadow-sm border-0 rounded-4 sticky-top" style="top:20px;">
+        <div class="card-body">
+
+            <h4 class="fw-bold mb-4">
+                Order Summary
+            </h4>
+
+            <!-- Subtotal -->
+            <div class="d-flex justify-content-between mb-3">
+                <span class="text-muted">Subtotal</span>
+                <span class="fw-semibold">
+                    ₹{{ subtotal|floatformat:2}}
+                </span>
+            </div>
+
+            <!-- Shipping -->
+            <div class="d-flex justify-content-between mb-3">
+                <span class="text-muted">Shipping</span>
+
+                {% if shipping %}
+                    <span class="fw-semibold">
+                        ₹{{ shipping|floatformat:2 }}
+                    </span>
+                {% else %}
+                    <span class="text-success fw-semibold">
+                        FREE
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- Tax -->
+            <div class="d-flex justify-content-between mb-3">
+                <span class="text-muted">GST (5%)</span>
+                <span class="fw-semibold">
+                    ₹{{ tax|floatformat:2 }}
+                </span>
+            </div>
+
+            <hr>
+
+            <!-- Total -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+
+                <span class="fs-5 fw-bold">
+                    Grand Total
+                </span>
+
+                <span class="fs-4 fw-bold text-success">
+                    {{ amount_display }}
+                </span>
+
+            </div>
+
+            <!-- Delivery -->
+            <div class="alert alert-light border d-flex align-items-center mb-3">
+                <span class="me-2">🚚</span>
+                <div>
+                    <strong>Estimated Delivery</strong><br>
+                    <small class="text-muted">
+                        {{ eta|default:"3–5 business days" }}
+                    </small>
+                </div>
+            </div>
+
+            <!-- Trust Badges -->
+            <div class="border rounded-3 p-3 bg-light">
+
+                <div class="small mb-2">
+                    ✅ 100% Secure Payment
+                </div>
+
+                <div class="small mb-2">
+                    🔄 Easy Returns
+                </div>
+
+                <div class="small mb-2">
+                    🚚 Fast Delivery
+                </div>
+
+                <div class="small">
+                    🔒 Your payment information is encrypted.
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+  <!-- Hidden form for payment verification -->
+<form id="verify-form" action="{% url 'payment_success' %}" method="POST" class="d-none">
+    {% csrf_token %}
+    <input type="hidden" name="razorpay_payment_id" id="rzp_payment_id">
+    <input type="hidden" name="razorpay_order_id" id="rzp_order_id">
+    <input type="hidden" name="razorpay_signature" id="rzp_signature">
+</form>
+</div>
+
+<!-- Razorpay Integration -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    // -----------------------------
+    // Switch form action for COD
+    // -----------------------------
+    const form = document.getElementById("checkout-form");
+
+    const radios = document.querySelectorAll(
+        'input[name="payment_method"]'
+    );
+
+    function updateAction() {
+
+        const selected = document.querySelector(
+            'input[name="payment_method"]:checked'
+        );
+
+        if (!selected) return;
+
+        if (selected.value === "cod") {
+            form.action = "{% url 'cod_checkout' %}";
+        } else {
+            // Online payment posts back to checkout()
+            form.action = "";
+        }
+    }
+
+    radios.forEach(function (radio) {
+        radio.addEventListener("change", updateAction);
+    });
+
+    updateAction();
+
+    // -----------------------------
+    // Auto-open Razorpay ONLY after
+    // checkout() has created an order
+    // -----------------------------
+    {% if razorpay_order_id %}
+
+      const options = {
+
+        key: "{{ razorpay_key_id }}",
+
+        amount: "{{ total_paise }}",
+
+        currency: "{{ currency }}",
+
+        name: "Z I Y A",
+
+        description: "Order Payment",
+
+        order_id: "{{ razorpay_order_id }}",
+
+        theme: {
+            color: "#198754"
+        },
+
+        prefill: {
+            name: "{{ request.user.get_full_name|default:request.user.username }}",
+            email: "{{ request.user.email }}"
+        },
+
+        handler: function (response) {
+
+            document.getElementById("rzp_payment_id").value =
+                response.razorpay_payment_id;
+
+            document.getElementById("rzp_order_id").value =
+                response.razorpay_order_id;
+
+            document.getElementById("rzp_signature").value =
+                response.razorpay_signature;
+
+            document.getElementById("verify-form").submit();
+        },
+
+        modal: {
+            ondismiss: function () {
+                window.location.reload();
+            }
+        }
+
+    };
+
+    const rzp = new Razorpay(options);
+
+    // Automatically open Razorpay popup
+    rzp.open();
+
+    {% endif %}
+
+    // ===============================
+// Saved Address Autofill
+// ===============================
+
+document.querySelectorAll(".saved-address").forEach(function(radio){
+
+    radio.addEventListener("change", function(){
+
+        document.getElementById("id_full_name").value = this.dataset.name;
+        document.getElementById("id_phone").value = this.dataset.phone;
+        document.getElementById("id_address").value = this.dataset.address;
+        document.getElementById("id_city").value = this.dataset.city;
+        document.getElementById("id_state").value = this.dataset.state;
+        document.getElementById("id_pincode").value = this.dataset.pincode;
+
+    });
+
+});
+
+document.querySelector(".saved-address:checked")?.dispatchEvent(
+    new Event("change")
+);
+
+});
+</script>
+{% endblock %}

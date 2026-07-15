@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Return Order{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+<div class="row justify-content-center">
+
+<div class="col-lg-8">
+
+<div class="card shadow border-0">
+
+<div class="card-header bg-warning">
+
+<h4 class="mb-0">
+
+Return Order #{{ order.id }}
+
+</h4>
+
+</div>
+
+<div class="card-body">
+
+<form method="POST" enctype="multipart/form-data">
+
+{% csrf_token %}
+<div class="mb-4">
+
+    <label class="form-label fw-bold">
+        Select Product to Return
+    </label>
+
+    {% for item in order.items.all %}
+
+    <div class="card mb-2">
+
+        <div class="card-body">
+
+            <div class="form-check d-flex align-items-center">
+
+                <input
+                    class="form-check-input me-3"
+                    type="radio"
+                    name="order_item"
+                    value="{{ item.id }}"
+                    required>
+
+                <img
+                    src="{{ item.product_image.url }}"
+                    width="70"
+                    height="70"
+                    class="rounded border me-3"
+                    style="object-fit:cover;">
+
+                <div>
+
+                    <strong>
+                        {{ item.product_name }}
+                    </strong>
+
+                    <br>
+
+                    <small class="text-muted">
+
+                        Color:
+                        {{ item.product_color }}
+
+                        |
+
+                        Size:
+                        {{ item.product_size }}
+
+                        |
+
+                        Qty:
+                        {{ item.quantity }}
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endfor %}
+
+</div>
+
+<div class="mb-3">
+
+<label class="form-label">
+
+Reason
+
+</label>
+
+<select
+name="reason"
+class="form-select"
+required>
+
+<option value="">
+Choose reason
+</option>
+
+<option value="Wrong Product">
+Wrong Product
+</option>
+
+<option value="Damaged Product">
+Damaged Product
+</option>
+
+<option value="Wrong Size">
+Wrong Size
+</option>
+
+<option value="Quality Issue">
+Quality Issue
+</option>
+
+<option value="Other">
+Other
+</option>
+
+</select>
+
+</div>
+
+<div class="mb-3">
+
+<label class="form-label">
+
+Description
+
+</label>
+
+<textarea
+name="description"
+rows="5"
+class="form-control"></textarea>
+
+</div>
+
+<div class="mb-3">
+
+<label class="form-label">
+
+Upload Photos (optional)
+
+</label>
+
+<input
+type="file"
+name="image"
+class="form-control">
+
+</div>
+
+<button
+class="btn btn-warning">
+
+Submit Return Request
+
+</button>
+
+<a
+href="{% url 'order_detail' order.id %}"
+class="btn btn-outline-secondary">
+
+Back
+
+</a>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endblock %}

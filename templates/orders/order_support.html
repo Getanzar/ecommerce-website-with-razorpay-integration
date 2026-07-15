@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Order Support{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+<div class="row justify-content-center">
+
+<div class="col-lg-7">
+
+<div class="card shadow border-0">
+
+<div class="card-header bg-dark text-white">
+
+<h4 class="mb-0">
+Help for Order #{{ order.id }}
+</h4>
+
+</div>
+
+<div class="card-body">
+
+<form method="post">
+
+{% csrf_token %}
+
+<div class="mb-3">
+
+<label class="form-label">
+Issue
+</label>
+
+<select
+class="form-select"
+name="issue"
+required>
+
+<option value="">
+Select Issue
+</option>
+
+<option>Order Delay</option>
+
+<option>Wrong Product</option>
+
+<option>Damaged Product</option>
+
+<option>Payment Issue</option>
+
+<option>Cancellation</option>
+
+<option>Return</option>
+
+<option>Refund</option>
+
+<option>Other</option>
+
+</select>
+
+</div>
+
+<div class="mb-3">
+
+<label class="form-label">
+Describe your issue
+</label>
+
+<textarea
+name="message"
+class="form-control"
+rows="5"
+required></textarea>
+
+</div>
+
+<button
+class="btn btn-dark">
+
+Submit Ticket
+
+</button>
+
+<a
+href="{% url 'order_detail' order.id %}"
+class="btn btn-outline-secondary">
+
+Back
+
+</a>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{% endblock %}

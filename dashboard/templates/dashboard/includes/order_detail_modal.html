@@ -1,0 +1,1145 @@
+<div class="container-fluid">
+
+    <!-- ================================================= -->
+    <!-- TOP SUMMARY -->
+    <!-- ================================================= -->
+
+    <div class="row g-4">
+
+        <!-- Customer Information -->
+
+        <div class="col-lg-6">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-header bg-dark text-white">
+
+                    <i class="bi bi-person-circle me-2"></i>
+
+                    Customer Information
+
+                </div>
+
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Customer Name
+                            </small>
+
+                            <strong>
+                                {{ order.full_name }}
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Phone Number
+                            </small>
+
+                            <strong>
+                                {{ order.phone }}
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Email
+                            </small>
+
+                            <strong>
+                                {{ order.user.email }}
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Customer Username
+                            </small>
+
+                            <strong>
+                                {{ order.user.username }}
+                            </strong>
+
+                        </div>
+
+                        <div class="col-12">
+
+                            <small class="text-muted d-block">
+                                Shipping Address
+                            </small>
+
+                            <strong>
+
+                                {{ order.address }}
+
+                                <br>
+
+                                {{ order.city }},
+
+                                {{ order.state }}
+
+                                - {{ order.pincode }}
+
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Order Overview -->
+
+        <div class="col-lg-6">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-header bg-primary text-white">
+
+                    <i class="bi bi-box-seam me-2"></i>
+
+                    Order Overview
+
+                </div>
+
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Order ID
+                            </small>
+
+                            <strong>
+
+                                #{{ order.id }}
+
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Order Date
+                            </small>
+
+                            <strong>
+
+                                {{ order.created_at|date:"d M Y" }}
+
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Order Time
+                            </small>
+
+                            <strong>
+
+                                {{ order.created_at|time:"h:i A" }}
+
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Order Value
+                            </small>
+
+                            <strong class="text-success">
+
+                                ₹{{ order.total_price }}
+
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Order Status
+                            </small>
+
+                            {% if order.status == "Pending" %}
+                                <span class="badge bg-warning text-dark px-3 py-2">
+                                    Pending Confirmation
+                                </span>
+
+                            {% elif order.status == "Processing" %}
+                                <span class="badge bg-primary px-3 py-2">
+                                    Processing
+                                </span>
+
+                            {% elif order.status == "Packed" %}
+                                <span class="badge bg-info text-dark px-3 py-2">
+                                    Packed
+                                </span>
+
+                            {% elif order.status == "Shipped" %}
+                                <span class="badge bg-secondary px-3 py-2">
+                                    Shipped
+                                </span>
+
+                            {% elif order.status == "Out for Delivery" %}
+                                <span class="badge bg-dark px-3 py-2">
+                                    Out for Delivery
+                                </span>
+
+                            {% elif order.status == "Delivered" %}
+                                <span class="badge bg-success px-3 py-2">
+                                    Delivered
+                                </span>
+
+                            {% elif order.status == "Cancelled" %}
+                                <span class="badge bg-danger px-3 py-2">
+                                    Cancelled
+                                </span>
+
+                            {% elif order.status == "Returned" %}
+                                <span class="badge bg-warning text-dark px-3 py-2">
+                                    Returned
+                                </span>
+
+                            {% endif %}
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+                                Payment Status
+                            </small>
+
+                            {% if order.payment_status == "Paid" %}
+
+                                <span class="badge bg-success px-3 py-2">
+
+                                    Paid
+
+                                </span>
+
+                            {% elif order.payment_status == "Pending" %}
+
+                                <span class="badge bg-warning text-dark px-3 py-2">
+
+                                    Pending
+
+                                </span>
+
+                            {% elif order.payment_status == "Failed" %}
+
+                                <span class="badge bg-danger px-3 py-2">
+
+                                    Failed
+
+                                </span>
+
+                            {% elif order.payment_status == "Refunded" %}
+
+                                <span class="badge bg-info px-3 py-2">
+
+                                    Refunded
+
+                                </span>
+
+                            {% endif %}
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+
+                                Payment Method
+
+                            </small>
+
+                            <strong>
+
+                                {{ order.get_payment_method_display }}
+
+                            </strong>
+
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <small class="text-muted d-block">
+
+                                Last Updated
+
+                            </small>
+
+                            <strong>
+
+                                {{ order.updated_at|date:"d M Y h:i A" }}
+
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+<!-- ================================================= -->
+<!-- SHIPPING + PAYMENT -->
+<!-- ================================================= -->
+
+<div class="row g-4 mt-1">
+
+    <!-- Shipping Information -->
+
+    <div class="col-lg-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-header bg-success text-white">
+
+                <i class="bi bi-truck me-2"></i>
+
+                Shipping Information
+
+            </div>
+
+            <div class="card-body">
+
+                <table class="table table-borderless align-middle mb-0">
+
+                    <tr>
+                        <td width="42%">
+                            Courier Partner
+                        </td>
+                        <td class="fw-semibold">
+                            {{ order.courier|default:"Delhivery" }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            AWB Number
+                        </td>
+                        <td class="fw-semibold">
+                            {{ order.awb_number|default:"Not Generated" }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            Tracking Number
+                        </td>
+                        <td class="fw-semibold">
+                            {{ order.tracking_number|default:"Waiting" }}
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            Delivery Status
+                        </td>
+                        <td>
+
+                            {% if order.delivery_status %}
+
+                                <span class="badge bg-success">
+
+                                    {{ order.delivery_status }}
+
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-secondary">
+
+                                    Pending Pickup
+
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Estimated Delivery
+
+                        </td>
+
+                        <td>
+
+                            {{ order.eta|default:"Will be available after shipment" }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Shipped At
+
+                        </td>
+
+                        <td>
+
+                            {% if order.shipped_at %}
+
+                                {{ order.shipped_at|date:"d M Y" }}
+
+                                <br>
+
+                                <small class="text-muted">
+
+                                    {{ order.shipped_at|time:"h:i A" }}
+
+                                </small>
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Delivered At
+
+                        </td>
+
+                        <td>
+
+                            {% if order.delivered_at %}
+
+                                {{ order.delivered_at|date:"d M Y" }}
+
+                                <br>
+
+                                <small class="text-muted">
+
+                                    {{ order.delivered_at|time:"h:i A" }}
+
+                                </small>
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Payment Information -->
+
+    <div class="col-lg-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-header bg-warning">
+
+                <i class="bi bi-credit-card-2-front me-2"></i>
+
+                Payment Information
+
+            </div>
+
+            <div class="card-body">
+
+                <table class="table table-borderless align-middle mb-0">
+
+                    <tr>
+
+                        <td width="42%">
+
+                            Payment Method
+
+                        </td>
+
+                        <td class="fw-semibold">
+
+                            {{ order.get_payment_method_display }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Payment Status
+
+                        </td>
+
+                        <td>
+
+                            {% if order.payment_status == "Paid" %}
+
+                                <span class="badge bg-success">
+
+                                    Paid
+
+                                </span>
+
+                            {% elif order.payment_status == "Pending" %}
+
+                                <span class="badge bg-warning text-dark">
+
+                                    Pending
+
+                                </span>
+
+                            {% elif order.payment_status == "Failed" %}
+
+                                <span class="badge bg-danger">
+
+                                    Failed
+
+                                </span>
+
+                            {% elif order.payment_status == "Refunded" %}
+
+                                <span class="badge bg-info">
+
+                                    Refunded
+
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Razorpay Order ID
+
+                        </td>
+
+                        <td class="small text-break">
+
+                            {{ order.razorpay_order_id|default:"Not Applicable" }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Razorpay Payment ID
+
+                        </td>
+
+                        <td class="small text-break">
+
+                            {{ order.razorpay_payment_id|default:"Not Applicable" }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Refund ID
+
+                        </td>
+
+                        <td class="small text-break">
+
+                            {{ order.refund_id|default:"Not Refunded" }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Refund Amount
+
+                        </td>
+
+                        <td class="fw-semibold">
+
+                            ₹{{ order.refund_amount }}
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td>
+
+                            Refunded At
+
+                        </td>
+
+                        <td>
+
+                            {% if order.refunded_at %}
+
+                                {{ order.refunded_at|date:"d M Y h:i A" }}
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- ================================================= -->
+<!-- ORDER QUICK SUMMARY -->
+<!-- ================================================= -->
+
+<div class="row g-3 mt-2">
+
+    <div class="col-md-3">
+
+        <div class="card border-0 bg-light">
+
+            <div class="card-body text-center">
+
+                <small class="text-muted">
+
+                    Total Items
+
+                </small>
+
+                <h4 class="fw-bold mb-0">
+
+                    {{ order.items.count }}
+
+                </h4>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="card border-0 bg-light">
+
+            <div class="card-body text-center">
+
+                <small class="text-muted">
+
+                    Total Quantity
+
+                </small>
+
+                <h4 class="fw-bold mb-0">
+
+                    {{ order.items.count }}
+
+                </h4>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="card border-0 bg-light">
+
+            <div class="card-body text-center">
+
+                <small class="text-muted">
+
+                    Grand Total
+
+                </small>
+
+                <h4 class="fw-bold text-success mb-0">
+
+                    ₹{{ order.total_price }}
+
+                </h4>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-3">
+
+        <div class="card border-0 bg-light">
+
+            <div class="card-body text-center">
+
+                <small class="text-muted">
+
+                    Current Status
+
+                </small>
+
+                <h6 class="fw-bold mb-0">
+
+                    {{ order.status }}
+
+                </h6>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
+<!-- ===================================== -->
+<!-- ORDER ITEMS -->
+<!-- ===================================== -->
+
+<div class="card border-0 shadow-sm mt-4">
+
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+        <h5 class="mb-0 fw-bold">
+
+            <i class="bi bi-bag-check me-2"></i>
+
+            Ordered Items
+
+        </h5>
+
+        <span class="badge bg-dark">
+
+            {{ order.items.count }} Item{{ order.items.count|pluralize }}
+
+        </span>
+
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th style="width:90px;">Image</th>
+
+                    <th>Product</th>
+
+                    <th class="text-center">Variant</th>
+
+                    <th class="text-center">Qty</th>
+
+                    <th class="text-end">Unit Price</th>
+
+                    <th class="text-end">Discount</th>
+
+                    <th class="text-end">Tax</th>
+
+                    <th class="text-end">Total</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for item in order.items.all %}
+
+                <tr>
+
+                    <td>
+
+                        {% if item.product_image %}
+
+                            <img
+                                src="{{ item.product_image.url }}"
+                                class="rounded border"
+                                style="width:70px;height:70px;object-fit:cover;">
+
+                        {% elif item.product.image %}
+
+                            <img
+                                src="{{ item.product.image.url }}"
+                                class="rounded border"
+                                style="width:70px;height:70px;object-fit:cover;">
+
+                        {% else %}
+
+                            <div
+                                class="border rounded bg-light d-flex align-items-center justify-content-center"
+                                style="width:70px;height:70px;">
+
+                                <i class="bi bi-image text-muted"></i>
+
+                            </div>
+
+                        {% endif %}
+
+                    </td>
+
+                    <td>
+
+                        <div class="fw-semibold">
+
+                            {{ item.product_name }}
+
+                        </div>
+
+                        {% if item.product_sku %}
+
+                            <small class="text-muted">
+
+                                SKU :
+                                {{ item.product_sku }}
+
+                            </small>
+
+                            <br>
+
+                        {% endif %}
+
+                        <small class="text-muted">
+
+                            Product ID :
+                            {{ item.product.id }}
+
+                        </small>
+
+                    </td>
+
+                    <td class="text-center">
+
+                        {% if item.product_color %}
+
+                            <span class="badge bg-light text-dark border me-1">
+
+                                {{ item.product_color }}
+
+                            </span>
+
+                        {% endif %}
+
+                        {% if item.product_size %}
+
+                            <span class="badge bg-dark">
+
+                                {{ item.product_size }}
+
+                            </span>
+
+                        {% endif %}
+
+                    </td>
+
+                    <td class="text-center">
+
+                        <span class="fw-bold">
+
+                            {{ item.quantity }}
+
+                        </span>
+
+                    </td>
+
+                    <td class="text-end">
+
+                        ₹{{ item.price }}
+
+                    </td>
+
+                    <td class="text-end">
+
+                        {% if item.discount %}
+
+                            <span class="text-danger">
+
+                                -₹{{ item.discount }}
+
+                            </span>
+
+                        {% else %}
+
+                            —
+
+                        {% endif %}
+
+                    </td>
+
+                    <td class="text-end">
+
+                        {% if item.tax %}
+
+                            ₹{{ item.tax }}
+
+                        {% else %}
+
+                            —
+
+                        {% endif %}
+
+                    </td>
+
+                    <td class="text-end">
+
+                        <strong>
+
+                            ₹{{ item.total }}
+
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            {% empty %}
+
+                <tr>
+
+                    <td colspan="8" class="text-center py-5">
+
+                        <i class="bi bi-bag-x fs-1 text-muted"></i>
+
+                        <h6 class="mt-3">
+
+                            No items found
+
+                        </h6>
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+
+<!-- ===================================== -->
+<!-- ORDER SUMMARY -->
+<!-- ===================================== -->
+
+<div class="row mt-4">
+
+    <div class="col-lg-5 ms-auto">
+
+        <div class="card border-0 shadow-sm">
+
+            <div class="card-header bg-dark text-white">
+
+                <i class="bi bi-receipt me-2"></i>
+
+                Order Summary
+
+            </div>
+
+            <div class="card-body">
+
+                <table class="table table-borderless mb-0">
+
+                    <tbody>
+
+                        <tr>
+
+                            <td>
+                                Items
+                            </td>
+
+                            <td class="text-end fw-semibold">
+
+                                {{ order.items.count }}
+
+                            </td>
+
+                        </tr>
+
+                        <tr>
+
+                            <td>
+                                Payment Method
+                            </td>
+
+                            <td class="text-end">
+
+                                {{ order.get_payment_method_display }}
+
+                            </td>
+
+                        </tr>
+
+                        <tr>
+
+                            <td>
+                                Payment Status
+                            </td>
+
+                            <td class="text-end">
+
+                                {% if order.payment_status == "Paid" %}
+
+                                    <span class="badge bg-success">
+                                        Paid
+                                    </span>
+
+                                {% elif order.payment_status == "Pending" %}
+
+                                    <span class="badge bg-warning text-dark">
+                                        Pending
+                                    </span>
+
+                                {% elif order.payment_status == "Failed" %}
+
+                                    <span class="badge bg-danger">
+                                        Failed
+                                    </span>
+
+                                {% elif order.payment_status == "Refunded" %}
+
+                                    <span class="badge bg-info">
+                                        Refunded
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                        <tr>
+
+                            <td>
+                                Shipping
+                            </td>
+
+                            <td class="text-end">
+
+                                ₹50.00
+
+                            </td>
+
+                        </tr>
+
+                        <tr>
+
+                            <td>
+                                Tax
+                            </td>
+
+                            <td class="text-end">
+
+                                Included
+
+                            </td>
+
+                        </tr>
+
+                        <tr class="border-top">
+
+                            <td class="fw-bold fs-5">
+
+                                Grand Total
+
+                            </td>
+
+                            <td class="text-end fw-bold fs-4 text-success">
+
+                                ₹{{ order.total_price }}
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>

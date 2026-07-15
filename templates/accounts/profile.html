@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+{% block title %}My Account | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="col-lg-9">
+
+<div class="col-lg-12">
+
+    <h2 class="fw-bold mb-1">My Account</h2>
+
+    <p class="text-muted mb-4">
+        Welcome back,
+        <strong>{{ request.user.first_name|default:request.user.username }}</strong>
+    </p>
+
+    <div class="card border-0 shadow-sm rounded-4">
+
+        <div class="list-group list-group-flush">
+
+            <!-- Personal Information -->
+            <a href="{% url 'profile_detail' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-person fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Personal Information
+                            </h6>
+
+                            <small class="text-muted">
+                                Manage your account details
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Orders -->
+
+            <a href="{% url 'my_orders' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-box-seam fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                My Orders
+                            </h6>
+
+                            <small class="text-muted">
+                                Track, cancel and return orders
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Addresses -->
+
+            <a href="{% url 'address_list' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-geo-alt fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Saved Addresses
+                            </h6>
+
+                            <small class="text-muted">
+                                Add and manage addresses
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Wishlist -->
+
+            <a href="{% url 'wishlist_page' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-heart fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Wishlist
+                            </h6>
+
+                            <small class="text-muted">
+                                View your saved products
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Reviews -->
+
+            <a href="{% url 'my_reviews' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-star fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Reviews & Ratings
+                            </h6>
+
+                            <small class="text-muted">
+                                View your product reviews
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Returns -->
+
+            <a href="{% url 'my_returns' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-arrow-counterclockwise fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Returns & Refunds
+                            </h6>
+
+                            <small class="text-muted">
+                                Track your return requests
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Support -->
+
+            <a href="{% url 'help_support' %}"
+               class="list-group-item list-group-item-action py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-headset fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Help & Support
+                            </h6>
+
+                            <small class="text-muted">
+                                Need help with an order?
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+            <!-- Logout -->
+
+            <a href="{% url 'logout' %}"
+               class="list-group-item list-group-item-action text-danger py-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div class="d-flex align-items-center">
+
+                        <i class="bi bi-box-arrow-right fs-3 me-3"></i>
+
+                        <div>
+
+                            <h6 class="mb-1 fw-bold">
+                                Logout
+                            </h6>
+
+                        </div>
+
+                    </div>
+
+                    <i class="bi bi-chevron-right"></i>
+
+                </div>
+
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+    </div>
+
+</div>
+
+</div>
+{% endblock %}

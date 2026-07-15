@@ -1,0 +1,155 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+
+{% block title %}
+Edit Inventory
+{% endblock %}
+
+
+{% block page_title %}
+Edit Inventory
+{% endblock %}
+
+
+
+{% block content %}
+
+
+<div class="card shadow-sm">
+
+<div class="card-header">
+
+<h5>
+<i class="bi bi-box-seam"></i>
+Edit Variant
+</h5>
+
+</div>
+
+
+<div class="card-body">
+
+
+<div class="mb-4">
+
+<h5>
+{{ variant.product.name }}
+</h5>
+
+<p class="text-muted">
+
+Color:
+{{ variant.color.name }}
+
+<br>
+
+Size:
+{{ variant.size }}
+
+</p>
+
+</div>
+
+
+
+<form method="POST">
+
+{% csrf_token %}
+
+
+
+<div class="mb-3">
+
+<label class="form-label">
+Stock Quantity
+</label>
+
+
+<input 
+type="number"
+name="stock"
+class="form-control"
+value="{{ variant.stock }}"
+min="0"
+required>
+
+</div>
+
+
+
+<div class="mb-3">
+
+<label class="form-label">
+SKU
+</label>
+
+
+<input 
+type="text"
+name="sku"
+class="form-control"
+value="{{ variant.sku|default:'' }}">
+
+</div>
+
+
+
+<div class="form-check mb-3">
+
+
+<input 
+class="form-check-input"
+type="checkbox"
+name="is_active"
+id="activeCheck"
+
+{% if variant.is_active %}
+checked
+{% endif %}
+
+>
+
+
+<label 
+class="form-check-label"
+for="activeCheck">
+
+Variant Active
+
+</label>
+
+
+</div>
+
+
+
+
+<button class="btn btn-success">
+
+<i class="bi bi-check-circle"></i>
+
+Save Changes
+
+</button>
+
+
+
+<a 
+href="{% url 'inventory_management' %}"
+class="btn btn-secondary">
+
+Cancel
+
+</a>
+
+
+
+</form>
+
+
+</div>
+
+</div>
+
+
+{% endblock %}

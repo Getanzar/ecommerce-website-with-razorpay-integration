@@ -1,0 +1,579 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}
+Support Management
+{% endblock %}
+
+{% block page_title %}
+Support Management
+{% endblock %}
+
+
+
+{% block content %}
+
+<!-- ========================================= -->
+<!-- SUMMARY CARDS -->
+<!-- ========================================= -->
+
+<div class="row g-4 mb-4">
+
+    <div class="col-xl col-md-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-body text-center">
+
+                <h3 class="fw-bold mb-1">
+                    {{ total_tickets }}
+                </h3>
+
+                <small class="text-muted">
+                    Total Tickets
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-xl col-md-6">
+
+        <div class="card border-0 shadow-sm h-100 border-start border-danger border-4">
+
+            <div class="card-body text-center">
+
+                <h3 class="fw-bold text-danger mb-1">
+                    {{ open_tickets }}
+                </h3>
+
+                <small class="text-muted">
+                    Open
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-xl col-md-6">
+
+        <div class="card border-0 shadow-sm h-100 border-start border-warning border-4">
+
+            <div class="card-body text-center">
+
+                <h3 class="fw-bold text-warning mb-1">
+                    {{ progress_tickets }}
+                </h3>
+
+                <small class="text-muted">
+                    In Progress
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-xl col-md-6">
+
+        <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+
+            <div class="card-body text-center">
+
+                <h3 class="fw-bold text-success mb-1">
+                    {{ resolved_tickets }}
+                </h3>
+
+                <small class="text-muted">
+                    Resolved
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-xl col-md-6">
+
+        <div class="card border-0 shadow-sm h-100 border-start border-primary border-4">
+
+            <div class="card-body text-center">
+
+                <h3 class="fw-bold text-primary mb-1">
+                    {{ unread_tickets }}
+                </h3>
+
+                <small class="text-muted">
+                    Unread
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ========================================= -->
+<!-- MAIN CARD -->
+<!-- ========================================= -->
+
+<div class="card shadow-sm border-0">
+
+    <div class="card-header bg-white">
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+            <h5 class="mb-0">
+
+                <i class="bi bi-headset me-2"></i>
+
+                Customer Support Tickets
+
+            </h5>
+
+            <span class="badge bg-dark fs-6">
+
+                {{ total_tickets }} Tickets
+
+            </span>
+
+        </div>
+
+    </div>
+
+    <div class="card-body">
+
+        <!-- ============================ -->
+        <!-- SEARCH + FILTERS -->
+        <!-- ============================ -->
+
+        <form method="GET" class="row g-3 mb-4">
+
+            <div class="col-lg-6">
+
+                <input
+                    type="text"
+                    name="search"
+                    class="form-control"
+                    placeholder="Search Ticket ID, Order ID, Customer, Email, Subject..."
+                    value="{{ search }}">
+
+            </div>
+
+            <div class="col-lg-2">
+
+                <select
+                    name="status"
+                    class="form-select">
+
+                    <option value="">
+                        All Status
+                    </option>
+
+                    <option value="Open"
+                        {% if selected_status == "Open" %}selected{% endif %}>
+                        Open
+                    </option>
+
+                    <option value="In Progress"
+                        {% if selected_status == "In Progress" %}selected{% endif %}>
+                        In Progress
+                    </option>
+
+                    <option value="Resolved"
+                        {% if selected_status == "Resolved" %}selected{% endif %}>
+                        Resolved
+                    </option>
+
+                </select>
+
+            </div>
+
+            <div class="col-lg-2">
+
+                <select
+                    name="read"
+                    class="form-select">
+
+                    <option value="">
+                        All Tickets
+                    </option>
+
+                    <option value="Unread"
+                        {% if selected_read == "Unread" %}selected{% endif %}>
+                        Unread
+                    </option>
+
+                    <option value="Read"
+                        {% if selected_read == "Read" %}selected{% endif %}>
+                        Read
+                    </option>
+
+                </select>
+
+            </div>
+
+            <div class="col-lg-2 d-grid">
+
+                <button
+                    class="btn btn-dark">
+
+                    <i class="bi bi-search"></i>
+
+                    Search
+
+                </button>
+
+            </div>
+
+        </form>
+
+        <!-- ============================ -->
+        <!-- TABLE -->
+        <!-- ============================ -->
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle">
+
+                <thead class="table-dark">
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>Customer</th>
+
+                        <th>Order</th>
+
+                        <th>Subject</th>
+
+                        <th>Message</th>
+
+                        <th>Date</th>
+
+                        <th>Status</th>
+
+                        <th>Read</th>
+
+                        <th width="170">
+                            Action
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                
+
+<tbody>
+{% for ticket in tickets %}
+
+<tr>
+
+    <td>
+
+        <strong>#{{ ticket.id }}</strong>
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- CUSTOMER -->
+    <!-- ========================= -->
+
+    <td style="min-width:250px;">
+
+        <div class="fw-semibold">
+
+            {% if ticket.user.first_name or ticket.user.last_name %}
+
+                {{ ticket.user.first_name }} {{ ticket.user.last_name }}
+
+            {% else %}
+
+                {{ ticket.user.username }}
+
+            {% endif %}
+
+        </div>
+
+        <div class="small text-muted">
+
+            <i class="bi bi-envelope me-1"></i>
+
+            {{ ticket.user.email }}
+
+        </div>
+
+        <div class="small text-muted">
+
+            <i class="bi bi-telephone me-1"></i>
+
+            {{ ticket.user.profile.phone|default:"Not Available" }}
+
+        </div>
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- ORDER -->
+    <!-- ========================= -->
+
+    <td>
+
+        {% if ticket.order %}
+
+            <span class="badge bg-secondary">
+
+                #{{ ticket.order.id }}
+
+            </span>
+
+        {% else %}
+
+            <span class="text-muted">
+
+                —
+
+            </span>
+
+        {% endif %}
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- SUBJECT -->
+    <!-- ========================= -->
+
+    <td style="min-width:180px;">
+
+        <strong>
+
+            {{ ticket.subject }}
+
+        </strong>
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- MESSAGE -->
+    <!-- ========================= -->
+
+    <td style="max-width:320px;">
+
+        {{ ticket.message|truncatechars:90 }}
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- DATE -->
+    <!-- ========================= -->
+
+    <td>
+
+        {{ ticket.created_at|date:"d M Y" }}
+
+        <br>
+
+        <small class="text-muted">
+
+            {{ ticket.created_at|time:"h:i A" }}
+
+        </small>
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- STATUS -->
+    <!-- ========================= -->
+
+    <td>
+
+        {% if ticket.status == "Open" %}
+
+            <span class="badge bg-danger">
+
+                Open
+
+            </span>
+
+        {% elif ticket.status == "In Progress" %}
+
+            <span class="badge bg-warning text-dark">
+
+                In Progress
+
+            </span>
+
+        {% elif ticket.status == "Resolved" %}
+
+            <span class="badge bg-success">
+
+                Resolved
+
+            </span>
+
+        {% else %}
+
+            <span class="badge bg-secondary">
+
+                {{ ticket.status }}
+
+            </span>
+
+        {% endif %}
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- READ STATUS -->
+    <!-- ========================= -->
+
+    <td>
+
+        {% if ticket.is_read %}
+
+            <span class="badge bg-success">
+
+                Read
+
+            </span>
+
+        {% else %}
+
+            <span class="badge bg-danger">
+
+                New
+
+            </span>
+
+        {% endif %}
+
+    </td>
+
+    <!-- ========================= -->
+    <!-- ACTION -->
+    <!-- ========================= -->
+
+    <td>
+
+        <a href="{% url 'support_ticket_detail' ticket.id %}"
+           class="btn btn-primary btn-sm w-100">
+
+            <i class="bi bi-chat-dots"></i>
+
+            View Conversation
+
+        </a>
+
+    </td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+
+    <td colspan="9" class="text-center py-5">
+
+        <i class="bi bi-headset display-5 text-muted"></i>
+
+        <h5 class="mt-3 text-muted">
+
+            No support tickets found
+
+        </h5>
+
+        <p class="text-muted mb-0">
+
+            Customer support requests will appear here.
+
+        </p>
+
+    </td>
+
+</tr>
+
+{% endfor %}
+
+                </tbody>
+
+                            </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- ========================================= -->
+        <!-- PAGINATION -->
+        <!-- ========================================= -->
+
+        {% if tickets.has_other_pages %}
+
+        <nav class="mt-4">
+
+            <ul class="pagination justify-content-center">
+
+                {% if tickets.has_previous %}
+
+                <li class="page-item">
+
+                    <a class="page-link"
+                       href="?page={{ tickets.previous_page_number }}&search={{ search }}&status={{ selected_status }}&read={{ selected_read }}">
+
+                        Previous
+
+                    </a>
+
+                </li>
+
+                {% endif %}
+
+                {% for num in tickets.paginator.page_range %}
+
+                <li class="page-item {% if tickets.number == num %}active{% endif %}">
+
+                    <a class="page-link"
+                       href="?page={{ num }}&search={{ search }}&status={{ selected_status }}&read={{ selected_read }}">
+
+                        {{ num }}
+
+                    </a>
+
+                </li>
+
+                {% endfor %}
+
+                {% if tickets.has_next %}
+
+                <li class="page-item">
+
+                    <a class="page-link"
+                       href="?page={{ tickets.next_page_number }}&search={{ search }}&status={{ selected_status }}&read={{ selected_read }}">
+
+                        Next
+
+                    </a>
+
+                </li>
+
+                {% endif %}
+
+            </ul>
+
+        </nav>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

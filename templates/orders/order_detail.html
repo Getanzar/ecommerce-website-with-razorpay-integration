@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+{% block title %}Order #{{ order.id }} | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <!-- Order Header -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                Order #{{ order.id }}
+            </h2>
+
+            <p class="text-muted mb-0">
+                Placed on {{ order.created_at|date:"d M Y • h:i A" }}
+            </p>
+        </div>
+
+        <div>
+
+    {% if order.status == "Pending" %}
+        <span class="badge bg-warning text-dark px-3 py-2">
+            Pending
+        </span>
+
+    {% elif order.status == "Processing" %}
+        <span class="badge bg-info px-3 py-2">
+            Processing
+        </span>
+
+    {% elif order.status == "Packed" %}
+        <span class="badge bg-primary px-3 py-2">
+            Packed
+        </span>
+
+    {% elif order.status == "Shipped" %}
+        <span class="badge bg-primary px-3 py-2">
+            Shipped
+        </span>
+
+    {% elif order.status == "Out for Delivery" %}
+        <span class="badge bg-primary px-3 py-2">
+            Out for Delivery
+        </span>
+
+    {% elif order.status == "Delivered" %}
+        <span class="badge bg-success px-3 py-2">
+            Delivered
+        </span>
+
+    {% elif order.status == "Cancelled" %}
+        <span class="badge bg-danger px-3 py-2">
+            Cancelled
+        </span>
+
+    {% elif order.status == "Returned" %}
+        <span class="badge bg-dark px-3 py-2">
+            Returned
+        </span>
+
+    {% else %}
+        <span class="badge bg-secondary px-3 py-2">
+            {{ order.status }}
+        </span>
+    {% endif %}
+
+    {% if order.return_requests.exists %}
+
+        {% with return_request=order.return_requests.first %}
+
+            <div class="mt-2">
+
+                {% if return_request.status == "Pending" %}
+                    <span class="badge bg-warning">
+                        Return Requested
+                    </span>
+
+                {% elif return_request.status == "Approved" %}
+                    <span class="badge bg-success">
+                        Return Approved
+                    </span>
+
+                {% elif return_request.status == "Rejected" %}
+                    <span class="badge bg-danger">
+                        Return Rejected
+                    </span>
+
+                {% elif return_request.status == "Completed" %}
+                    <span class="badge bg-dark">
+                        Return Completed
+                    </span>
+
+                {% endif %}
+
+            </div>
+
+        {% endwith %}
+
+    {% endif %}
+
+</div>
+    </div>
+
+
+    <div class="row g-4">
+
+        <!-- LEFT -->
+        <div class="col-lg-8">
+
+            <!-- Order Items -->
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 fw-bold">
+                        Order Items
+                    </h5>
+                </div>
+
+                <div class="card-body">
+
+                    {% for item in order.items.all %}
+
+                    <div class="row align-items-center mb-4">
+
+                        <!-- Image -->
+                        <div class="col-3 col-md-2">
+
+                            {% if item.product.image %}
+                            <img src="{{ item.product.image.url }}"
+                                 class="img-fluid rounded"
+                                 alt="{{ item.product.name }}">
+                            {% endif %}
+
+                        </div>
+
+                        <!-- Details -->
+                        <div class="col-9 col-md-6">
+
+                            <h6 class="fw-bold mb-1">
+                                {{ item.product.name }}
+                            </h6>
+
+                            {% if item.product_color %}
+                            <div class="small text-muted">
+                                Color :
+                                <span class="badge bg-dark">
+                                    {{ item.product_color }}
+                                </span>
+                            </div>
+                            {% endif %}
+
+                            {% if item.product_size %}
+                            <div class="small text-muted">
+                                Size :
+                                {{ item.product_size }}
+                            </div>
+                            {% endif %}
+
+                            <div class="small text-muted">
+                                Qty : {{ item.quantity }}
+                            </div>
+
+                        </div>
+
+                        <!-- Price -->
+                        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+
+                            <div class="fw-bold">
+                                ₹{{ item.price }}
+                            </div>
+
+                            <small class="text-muted">
+                                Subtotal:
+                                ₹{{ item.price|floatformat:2 }}
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                    {% if not forloop.last %}
+                    <hr>
+                    {% endif %}
+
+                    {% endfor %}
+
+                </div>
+
+            </div>
+
+
+            <!-- Delivery Tracking -->
+
+            <div class="card shadow-sm border-0 rounded-4 mt-4">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="fw-bold mb-0">
+                        Delivery Tracking
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    {% if order.awb_number %}
+
+                        <p>
+                            <strong>Tracking ID</strong><br>
+                            {{ order.awb_number }}
+                        </p>
+
+                        <p>
+                            <strong>Status</strong><br>
+                            {{ order.delivery_status|default:"Shipment Created" }}
+                        </p>
+
+                        <p>
+                            <strong>Estimated Delivery</strong><br>
+                            {{ order.eta|default:"Will be updated soon" }}
+                        </p>
+
+                        <a href="https://www.delhivery.com/track/package/{{ order.awb_number }}"
+                           target="_blank"
+                           class="btn btn-dark">
+
+                            Track Shipment
+
+                        </a>
+
+                    {% else %}
+
+                        <div class="alert alert-light border">
+
+                            Your shipment has not been created yet.
+                            Tracking information will appear here.
+
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- RIGHT -->
+        <div class="col-lg-4">
+
+            <!-- Order Summary -->
+
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="fw-bold mb-0">
+                        Order Summary
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total</span>
+                        <strong>₹{{ order.total_price }}</strong>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Payment</span>
+                        <span>{{ order.payment_method }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <span>Status</span>
+                        <span>{{ order.status }}</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Shipping -->
+
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="fw-bold mb-0">
+
+                        Shipping Address
+
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    <strong>{{ order.full_name }}</strong>
+
+                    <br>
+
+                    {{ order.phone }}
+
+                    <hr>
+
+                    {{ order.address }}
+
+                    <br>
+
+                    {{ order.city }}
+
+                    <br>
+
+                    {{ order.state }}
+
+                    <br>
+
+                    {{ order.pincode }}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+<!-- Buttons -->
+
+<div class="text-center mt-5">
+
+    <a href="{% url 'my_orders' %}"
+       class="btn btn-outline-dark">
+        ← My Orders
+    </a>
+
+    <a href="{% url 'home' %}"
+       class="btn btn-dark ms-2">
+        Continue Shopping
+    </a>
+
+    {% if order.status == "Pending" or order.status == "Processing" or order.status == "Packed" %}
+
+        <a href="{% url 'cancel_order' order.id %}"
+           class="btn btn-outline-danger ms-2">
+            Cancel Order
+        </a>
+
+    {% endif %}
+
+      {% if order.status == "Delivered" %}
+
+        <a href="{% url 'return_order' order.id %}"
+        class="btn btn-outline-warning ms-2">
+            Return Order
+        </a>
+
+      {% endif %}
+        
+        
+
+    <a href="{% url 'order_support' order.id %}"
+       class="btn btn-outline-secondary ms-2">
+        Need Help
+    </a>
+    <a href="{% url 'download_invoice' order.id %}"
+   class="btn btn-outline-secondary ms-2">
+
+    Download Invoice
+
+</a>
+
+</div>
+
+</div>
+{% endblock %}

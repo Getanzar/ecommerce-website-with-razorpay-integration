@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+My Wishlist | Z I Y A
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2 class="fw-bold">
+
+            ❤️ My Wishlist
+
+        </h2>
+
+        <a href="{% url 'product_list_page' %}" class="btn btn-dark">
+
+            Continue Shopping
+
+        </a>
+
+    </div>
+
+    {% if wishlist_items %}
+
+    <div class="row g-4">
+
+        {% for item in wishlist_items %}
+
+        <div class="col-6 col-md-4 col-lg-3">
+
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+
+                <a href="{% url 'product_detail_page' item.product.slug %}">
+
+                    {% if item.product.image %}
+
+                    <img
+                        src="{{ item.product.image.url }}"
+                        class="card-img-top"
+                        style="height:320px;object-fit:cover;">
+
+                    {% else %}
+
+                    <img
+                        src="{% static 'img/default.jpg' %}"
+                        class="card-img-top"
+                        style="height:320px;object-fit:cover;">
+
+                    {% endif %}
+
+                </a>
+
+                <div class="card-body text-center d-flex flex-column">
+
+                    <h6 class="fw-bold">
+
+                        {{ item.product.name }}
+
+                    </h6>
+
+                    <p class="text-success fs-5">
+
+                        ₹{{ item.product.price }}
+
+                    </p>
+
+                    <a
+                        href="{% url 'product_detail_page' item.product.slug %}"
+                        class="btn btn-dark mt-auto">
+
+                        View Product
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="text-center py-5">
+
+        <h3>
+
+            Your wishlist is empty ❤️
+
+        </h3>
+
+        <p class="text-muted">
+
+            Save products you love and they'll appear here.
+
+        </p>
+
+        <a href="{% url 'product_list_page' %}" class="btn btn-dark">
+
+            Start Shopping
+
+        </a>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

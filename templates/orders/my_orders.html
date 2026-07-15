@@ -1,0 +1,390 @@
+{% extends 'base.html' %}
+{% block title %}My Orders | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <!-- Heading -->
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+
+            <h2 class="fw-bold mb-1">
+                My Orders
+            </h2>
+
+            <p class="text-muted mb-0">
+                View, track and manage all your orders.
+            </p>
+
+        </div>
+
+        <a href="{% url 'profile' %}"
+           class="btn btn-outline-dark">
+
+            Back to Account
+
+        </a>
+
+    </div>
+
+
+    <!-- Statistics -->
+
+    <div class="row g-3 mb-5">
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Total
+                </small>
+
+                <h3 class="fw-bold mb-0">
+                    {{ total_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Processing
+                </small>
+
+                <h3 class="fw-bold text-warning mb-0">
+                    {{ processing_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Shipped
+                </small>
+
+                <h3 class="fw-bold text-primary mb-0">
+                    {{ shipped_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Delivered
+                </small>
+
+                <h3 class="fw-bold text-success mb-0">
+                    {{ delivered_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Cancelled
+                </small>
+
+                <h3 class="fw-bold text-danger mb-0">
+                    {{ cancelled_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-2 col-md-4 col-6">
+
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3">
+
+                <small class="text-muted">
+                    Returned
+                </small>
+
+                <h3 class="fw-bold mb-0">
+                    {{ returned_orders }}
+                </h3>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Filter Chips -->
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+
+        <div class="card-body">
+
+            <div class="d-flex flex-wrap gap-2">
+
+                <a href="{% url 'my_orders' %}"
+                   class="btn {% if not selected_status %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill">
+
+                    All Orders
+
+                </a>
+
+                <a href="?status=Pending"
+                   class="btn {% if selected_status == 'Pending' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill">
+
+                    Pending
+
+                </a>
+
+                <a href="?status=Processing"
+                   class="btn {% if selected_status == 'Processing' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill">
+
+                    Processing
+
+                </a>
+
+                <a href="?status=Packed"
+                   class="btn {% if selected_status == 'Packed' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill">
+
+                    Packed
+
+                </a>
+
+                <a href="?status=Shipped"
+                   class="btn {% if selected_status == 'Shipped' %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+
+                    Shipped
+
+                </a>
+
+                <a href="?status=Out for Delivery"
+                   class="btn {% if selected_status == 'Out for Delivery' %}btn-primary{% else %}btn-outline-primary{% endif %} rounded-pill">
+
+                    Out for Delivery
+
+                </a>
+
+                <a href="?status=Delivered"
+                   class="btn {% if selected_status == 'Delivered' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill">
+
+                    Delivered
+
+                </a>
+
+                <a href="?status=Cancelled"
+                   class="btn {% if selected_status == 'Cancelled' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill">
+
+                    Cancelled
+
+                </a>
+
+                <a href="?status=Returned"
+                   class="btn {% if selected_status == 'Returned' %}btn-secondary{% else %}btn-outline-secondary{% endif %} rounded-pill">
+
+                    Returned
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Step 2 starts here -->
+
+{% if orders %}
+
+<div class="d-flex flex-column gap-4">
+
+{% for order in orders %}
+
+<div class="card border-0 shadow-sm rounded-4">
+
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+
+            <div>
+
+                <h5 class="fw-bold mb-1">
+                    Order #{{ order.id }}
+                </h5>
+
+                <small class="text-muted">
+                    Placed on {{ order.created_at|date:"d M Y, h:i A" }}
+                </small>
+
+            </div>
+
+            <span class="badge bg-dark px-3 py-2">
+                {{ order.status }}
+            </span>
+
+        </div>
+
+        {% for item in order.items.all %}
+
+        <div class="row align-items-center py-3 border-top">
+
+            <div class="col-md-2 text-center">
+
+{% if item.product_image %}
+
+<img
+    src="{{ item.product_image.url }}"
+    class="img-fluid rounded"
+    style="max-height:90px;object-fit:cover;">
+
+{% elif item.product %}
+
+<img
+    src="{{ item.product.image.url }}"
+    class="img-fluid rounded"
+    style="max-height:90px;object-fit:cover;">
+
+{% else %}
+
+<div class="border rounded d-flex align-items-center justify-content-center"
+     style="height:90px;width:90px;">
+    <small class="text-muted">No Image</small>
+</div>
+
+{% endif %}
+
+            </div>
+
+            <div class="col-md-6">
+
+                <h6 class="fw-bold mb-1">
+                    {{ item.product_name }}
+                </h6>
+
+                <small class="text-muted">
+
+                    Color:
+                    {{ item.product_color }}
+
+                    |
+
+                    Size:
+                    {{ item.product_size }}
+
+                    |
+
+                    Qty:
+                    {{ item.quantity }}
+
+                </small>
+
+            </div>
+
+            <div class="col-md-2 text-end">
+
+                <strong>
+                    ₹{{ item.price }}
+                </strong>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+        <hr>
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <div>
+
+                <strong>
+                    Total :
+                </strong>
+
+                ₹{{ order.total_price }}
+
+            </div>
+
+            <div class="d-flex gap-2">
+
+                <a href="{% url 'order_detail' order.id %}"
+                   class="btn btn-dark">
+
+                    View Details
+
+                </a>
+
+                <a href="{% url 'download_invoice' order.id %}"
+                   class="btn btn-outline-dark">
+
+                    Invoice
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% else %}
+
+<div class="card border-0 shadow-sm rounded-4">
+
+    <div class="card-body text-center py-5">
+
+        <i class="bi bi-box-seam display-4 text-muted"></i>
+
+        <h4 class="mt-3">
+            No Orders Found
+        </h4>
+
+        <p class="text-muted">
+
+            You haven't placed any orders yet.
+
+        </p>
+
+        <a href="{% url 'home' %}"
+           class="btn btn-dark">
+
+            Start Shopping
+
+        </a>
+
+    </div>
+
+</div>
+
+{% endif %}
+
+</div>
+
+{% endblock %}

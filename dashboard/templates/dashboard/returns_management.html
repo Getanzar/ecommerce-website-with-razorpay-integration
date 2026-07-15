@@ -1,0 +1,568 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}
+Returns Management
+{% endblock %}
+
+{% block page_title %}
+Returns Management
+{% endblock %}
+
+{% block content %}
+
+<!-- ================================================= -->
+<!-- RETURN SUMMARY -->
+<!-- ================================================= -->
+
+<div class="row g-4 mb-4">
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-repeat fs-2 text-primary"></i>
+                <h3 class="fw-bold mt-2">{{ total_requests }}</h3>
+                <small class="text-muted">Total Returns</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-hourglass-split fs-2 text-warning"></i>
+                <h3 class="fw-bold mt-2">{{ pending_requests }}</h3>
+                <small class="text-muted">Pending</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle fs-2 text-success"></i>
+                <h3 class="fw-bold mt-2">{{ approved_requests }}</h3>
+                <small class="text-muted">Approved</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-x-circle fs-2 text-danger"></i>
+                <h3 class="fw-bold mt-2">{{ rejected_requests }}</h3>
+                <small class="text-muted">Rejected</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-wallet2 fs-2 text-warning"></i>
+                <h3 class="fw-bold mt-2">{{ refund_pending }}</h3>
+                <small class="text-muted">Refund Pending</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-cash-stack fs-2 text-success"></i>
+                <h3 class="fw-bold mt-2">{{ refund_processed }}</h3>
+                <small class="text-muted">Refunded</small>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card shadow-sm">
+
+    <div class="card-header d-flex justify-content-between align-items-center">
+
+        <h5 class="mb-0">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            Return Requests
+        </h5>
+
+        <span class="badge bg-dark">
+            {{ returns|length }} Requests
+        </span>
+
+    </div>
+
+    <div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <form method="GET">
+
+            <div class="row g-3">
+
+                <div class="col-lg-6">
+
+                    <input
+                        type="text"
+                        name="search"
+                        value="{{ request.GET.search }}"
+                        class="form-control"
+                        placeholder="Search by Return ID, Order ID, Customer or Product">
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <select
+                        name="status"
+                        class="form-select">
+
+                        <option value="">All Status</option>
+
+                        <option value="Pending"
+                            {% if request.GET.status == "Pending" %}selected{% endif %}>
+                            Pending
+                        </option>
+
+                        <option value="Approved"
+                            {% if request.GET.status == "Approved" %}selected{% endif %}>
+                            Approved
+                        </option>
+
+                        <option value="Rejected"
+                            {% if request.GET.status == "Rejected" %}selected{% endif %}>
+                            Rejected
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <select
+                        name="refund"
+                        class="form-select">
+
+                        <option value="">All Refunds</option>
+
+                        <option value="Pending"
+                            {% if request.GET.refund == "Pending" %}selected{% endif %}>
+                            Pending
+                        </option>
+
+                        <option value="Processed"
+                            {% if request.GET.refund == "Processed" %}selected{% endif %}>
+                            Refunded
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2 d-grid">
+
+                    <button
+                        class="btn btn-dark">
+
+                        <i class="bi bi-search"></i>
+
+                        Search
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+    <div class="card-body">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle">
+
+                <thead class="table-dark">
+
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Product</th>
+                        <th>Amount</th>
+                        <th>Payment</th>
+                        <th>Reason</th>
+                        <th>Evidence</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Refund</th>
+                        <th>Admin Note</th>
+                        <th width="260">Action</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                {% for request in returns %}
+
+                    <tr>
+
+                        <td>#{{ request.id }}</td>
+
+<td style="min-width:220px;">
+
+    <div>
+
+        <strong>
+            {{ request.user.get_full_name|default:request.user.username }}
+        </strong>
+
+        <br>
+
+        <small class="text-muted">
+
+            <i class="bi bi-envelope"></i>
+
+            {{ request.user.email|default:"No Email" }}
+
+        </small>
+
+        <br>
+
+        <small class="text-muted">
+
+            <i class="bi bi-telephone"></i>
+
+            {% if request.user.profile.phone %}
+
+                {{ request.user.profile.phone }}
+
+            {% else %}
+
+                Not Available
+
+            {% endif %}
+
+        </small>
+
+    </div>
+
+</td>
+
+                        <td>
+
+    {% if request.order_item %}
+
+    <div class="d-flex align-items-center">
+
+        {% if request.order_item.product_image %}
+
+        <img
+            src="{{ request.order_item.product_image.url }}"
+            class="rounded border me-3"
+            width="65"
+            height="65"
+            style="object-fit:cover;">
+
+        {% endif %}
+
+        <div>
+
+            <strong>
+                {{ request.order_item.product_name|title }}
+            </strong>
+
+            <br>
+
+            <small class="text-muted">
+
+                Order #{{ request.order.id }}
+
+                <br>
+
+                Color:
+                {{ request.order_item.product_color|default:"-" }}
+
+                |
+
+                Size:
+                {{ request.order_item.product_size|default:"-" }}
+
+                |
+
+                Qty:
+                {{ request.order_item.quantity }}
+
+            </small>
+
+        </div>
+
+    </div>
+
+    {% else %}
+
+    <span class="text-muted">
+        Legacy Return
+    </span>
+
+    {% endif %}
+
+</td>
+
+<td>
+
+    <strong class="text-success">
+
+        ₹{{ request.order.total_price }}
+
+    </strong>
+
+</td>
+<td>
+
+    <span class="badge bg-dark">
+
+        {{ request.order.payment_method }}
+
+    </span>
+
+    <br>
+
+    {% if request.order.payment_status == "Paid" %}
+
+        <span class="badge bg-success mt-1">
+
+            Paid
+
+        </span>
+
+    {% elif request.order.payment_status == "Pending" %}
+
+        <span class="badge bg-warning text-dark mt-1">
+
+            Pending
+
+        </span>
+
+    {% else %}
+
+        <span class="badge bg-secondary mt-1">
+
+            {{ request.order.payment_status }}
+
+        </span>
+
+    {% endif %}
+
+</td>
+                        <td style="max-width:300px;">
+                            {{ request.reason|truncatechars:80 }}
+                        </td>
+
+                        <td>
+
+    {% if request.image %}
+
+        <a
+            href="{{ request.image.url }}"
+            target="_blank"
+            class="btn btn-outline-primary btn-sm">
+
+            <i class="bi bi-image"></i>
+
+            View
+
+        </a>
+
+    {% else %}
+
+        <span class="text-muted">
+            No Image
+        </span>
+
+    {% endif %}
+
+</td>
+
+                        <td>
+                            {{ request.created_at|date:"d M Y" }}
+                        </td>
+
+                        <td>
+
+                            {% if request.status == "Pending" %}
+
+                                <span class="badge bg-warning text-dark">
+                                    Pending
+                                </span>
+
+                            {% elif request.status == "Approved" %}
+
+                                <span class="badge bg-success">
+                                    Approved
+                                </span>
+
+                            {% elif request.status == "Rejected" %}
+
+                                <span class="badge bg-danger">
+                                    Rejected
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-secondary">
+                                    {{ request.status }}
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {% if request.refund_status == "Processed" %}
+
+                                <span class="badge bg-success">
+                                    Refunded
+                                </span>
+
+                            {% elif request.refund_status == "Pending" %}
+
+                                <span class="badge bg-warning text-dark">
+                                    Pending
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-danger">
+                                    Rejected
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {{ request.admin_note|default:"-" }}
+
+                        </td>
+
+                        <td>
+
+                            {% if request.status == "Pending" %}
+
+                                <form method="POST"
+                                      action="{% url 'approve_return' request.id %}"
+                                      class="mb-2">
+
+                                    {% csrf_token %}
+
+                                    <textarea
+                                        name="admin_note"
+                                        class="form-control form-control-sm mb-2"
+                                        rows="2"
+                                        placeholder="Admin note"></textarea>
+
+                                    <select
+                                        name="refund_status"
+                                        class="form-select form-select-sm mb-2">
+
+                                        <option value="Pending">
+                                            Refund Pending
+                                        </option>
+
+                                        <option value="Processed">
+                                            Refund Processed
+                                        </option>
+
+                                    </select>
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-success btn-sm w-100">
+
+                                        <i class="bi bi-check-circle"></i>
+                                        Approve
+
+                                    </button>
+
+                                </form>
+
+                                <form method="POST"
+                                      action="{% url 'reject_return' request.id %}">
+
+                                    {% csrf_token %}
+
+                                    <textarea
+                                        name="admin_note"
+                                        class="form-control form-control-sm mb-2"
+                                        rows="2"
+                                        placeholder="Reason for rejection"></textarea>
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-danger btn-sm w-100">
+
+                                        <i class="bi bi-x-circle"></i>
+                                        Reject
+
+                                    </button>
+
+                                </form>
+
+                            {% else %}
+
+                                {% if request.status == "Approved" %}
+
+                                    <span class="badge bg-success">
+                                        Approved
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="badge bg-danger">
+                                        Rejected
+                                    </span>
+
+                                {% endif %}
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+
+                        <td colspan="9" class="text-center py-4">
+
+                            <h5 class="text-muted">
+                                No return requests found
+                            </h5>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

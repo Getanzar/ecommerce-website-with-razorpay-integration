@@ -1,0 +1,948 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Order Management{% endblock %}
+
+{% block page_title %}
+Order Management
+{% endblock %}
+
+{% block page_subtitle %}
+Manage every customer order from one place.
+{% endblock %}
+
+{% block content %}
+
+<!-- ========================= -->
+<!-- ORDER HEADER -->
+<!-- ========================= -->
+
+<div class="row g-4 mb-4">
+
+    <div class="col-xl-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">New Orders</small>
+
+                        <h2 class="fw-bold text-danger mb-0">
+                            {{ new_orders }}
+                        </h2>
+
+                        <small class="text-danger">
+                            Needs attention
+                        </small>
+                    </div>
+
+                    <div class="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-bell-fill fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">Action Required</small>
+
+                        <h2 class="fw-bold text-warning mb-0">
+                            {{ action_required }}
+                        </h2>
+
+                        <small class="text-warning">
+                            Pending workflow
+                        </small>
+                    </div>
+
+                    <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">Processing</small>
+
+                        <h2 class="fw-bold text-primary mb-0">
+                            {{ processing }}
+                        </h2>
+
+                        <small class="text-primary">
+                            Being prepared
+                        </small>
+                    </div>
+
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-box-seam fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">Out for Delivery</small>
+
+                        <h2 class="fw-bold text-info mb-0">
+                            {{ out_for_delivery }}
+                        </h2>
+
+                        <small class="text-info">
+                            Delivering today
+                        </small>
+                    </div>
+
+                    <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-truck fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-6 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">Today's Revenue</small>
+
+                        <h4 class="fw-bold text-success mb-0">
+                            ₹{{ today_revenue }}
+                        </h4>
+
+                        <small class="text-success">
+                            {{ today_orders }} Orders
+                        </small>
+                    </div>
+
+                    <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-currency-rupee fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-2 col-md-6 col-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <div>
+                        <small class="text-muted">High Value</small>
+
+                        <h2 class="fw-bold text-dark mb-0">
+                            {{ high_value_orders }}
+                        </h2>
+
+                        <small class="text-muted">
+                            ₹5000+
+                        </small>
+                    </div>
+
+                    <div class="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:58px;height:58px;">
+                        <i class="bi bi-star-fill fs-4"></i>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================= -->
+<!-- FILTER CARD -->
+<!-- ========================= -->
+
+<div class="card border-0 shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+
+                <h4 class="fw-bold mb-1">
+
+                    Order Management
+
+                </h4>
+
+                <small class="text-muted">
+
+                    Search, filter and manage all customer orders.
+
+                </small>
+
+            </div>
+
+            <span class="badge bg-dark fs-6 px-3 py-2">
+
+                {{ orders.count }} Orders
+
+            </span>
+
+        </div>
+
+        <form method="GET">
+
+            <div class="row g-3">
+
+                <div class="col-lg-5">
+
+                    <input
+                        type="text"
+                        name="search"
+                        class="form-control"
+                        placeholder="Search Order ID, Customer, Phone..."
+                        value="{{ search }}">
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <select
+                        name="status"
+                        class="form-select">
+
+                        <option value="">
+                            All Status
+                        </option>
+
+                        <option value="Pending"
+                        {% if selected_status == "Pending" %}selected{% endif %}>
+                            Pending
+                        </option>
+
+                        <option value="Processing"
+                        {% if selected_status == "Processing" %}selected{% endif %}>
+                            Processing
+                        </option>
+
+                        <option value="Packed"
+                        {% if selected_status == "Packed" %}selected{% endif %}>
+                            Packed
+                        </option>
+
+                        <option value="Shipped"
+                        {% if selected_status == "Shipped" %}selected{% endif %}>
+                            Shipped
+                        </option>
+
+                        <option value="Delivered"
+                        {% if selected_status == "Delivered" %}selected{% endif %}>
+                            Delivered
+                        </option>
+
+                        <option value="Cancelled"
+                        {% if selected_status == "Cancelled" %}selected{% endif %}>
+                            Cancelled
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <select
+                        name="payment"
+                        class="form-select">
+
+                        <option value="">
+                            Payment
+                        </option>
+
+                        <option value="Pending"
+                        {% if selected_payment == "Pending" %}selected{% endif %}>
+                            Pending
+                        </option>
+
+                        <option value="Paid"
+                        {% if selected_payment == "Paid" %}selected{% endif %}>
+                            Paid
+                        </option>
+
+                        <option value="Failed"
+                        {% if selected_payment == "Failed" %}selected{% endif %}>
+                            Failed
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-3 d-grid">
+
+                    <button class="btn btn-dark">
+
+                        <i class="bi bi-search me-2"></i>
+
+                        Search Orders
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- ========================= -->
+<!-- ORDER TABLE -->
+<!-- ========================= -->
+
+<div class="card border-0 shadow-sm">
+
+<div class="card-body p-0">
+
+<div class="table-responsive">
+
+<table class="table table-hover align-middle mb-0">
+
+<thead class="table-light">
+
+<tr>
+
+<th style="width:70px;">#</th>
+
+<th>Customer</th>
+
+<th>Total</th>
+
+<th>Payment</th>
+
+<th>Status</th>
+
+<th>Date</th>
+
+<th class="text-center" style="width:180px;">Actions</th>
+
+</tr>
+
+</thead>
+
+{% for order in orders %}
+
+<tr>
+
+    <td>
+
+        <div class="d-flex flex-column">
+
+            <span class="fw-bold fs-6">
+                #{{ order.id }}
+            </span>
+
+            {% if order.is_new %}
+                <span class="badge bg-danger mt-1">
+                    NEW
+                </span>
+            {% endif %}
+
+            {% if order.total_price >= 5000 %}
+                <span class="badge bg-dark mt-1">
+                    HIGH VALUE
+                </span>
+            {% endif %}
+
+            {% if order.payment_method == "cod" %}
+                <span class="badge bg-warning text-dark mt-1">
+                    COD
+                </span>
+            {% endif %}
+
+        </div>
+
+    </td>
+
+    <td>
+
+        <div class="d-flex align-items-center">
+
+            <div
+                class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center me-3"
+                style="width:45px;height:45px;">
+
+                {{ order.full_name|slice:":1"|upper }}
+
+            </div>
+
+            <div>
+
+                <div class="fw-semibold">
+
+                    {{ order.full_name }}
+
+                </div>
+
+                <small class="text-muted">
+
+                    {{ order.phone }}
+
+                </small>
+
+                <br>
+
+                <small class="text-muted">
+
+                    {{ order.city }}
+
+                </small>
+
+            </div>
+
+        </div>
+
+    </td>
+
+    <td>
+
+        <span class="fw-bold fs-6">
+
+            ₹{{ order.total_price }}
+
+        </span>
+
+    </td>
+
+    <td>
+
+        {% if order.payment_status == "Paid" %}
+
+            <span class="badge bg-success">
+
+                Paid
+
+            </span>
+
+        {% elif order.payment_status == "Pending" %}
+
+            <span class="badge bg-warning text-dark">
+
+                Pending
+
+            </span>
+
+        {% elif order.payment_status == "Failed" %}
+
+            <span class="badge bg-danger">
+
+                Failed
+
+            </span>
+
+        {% else %}
+
+            <span class="badge bg-secondary">
+
+                {{ order.payment_status }}
+
+            </span>
+
+        {% endif %}
+
+        <br>
+
+        <small class="text-muted">
+
+            {{ order.get_payment_method_display }}
+
+        </small>
+
+    </td>
+
+<td>
+
+    <div class="d-flex flex-column">
+
+        {% if order.status == "Pending" %}
+            <span class="badge bg-warning text-dark">
+                <i class="bi bi-clock-history me-1"></i>
+                Pending
+            </span>
+
+        {% elif order.status == "Processing" %}
+            <span class="badge bg-primary">
+                <i class="bi bi-arrow-repeat me-1"></i>
+                Processing
+            </span>
+
+        {% elif order.status == "Packed" %}
+            <span class="badge bg-info text-dark">
+                <i class="bi bi-box-seam me-1"></i>
+                Packed
+            </span>
+
+        {% elif order.status == "Shipped" %}
+            <span class="badge bg-secondary">
+                <i class="bi bi-truck me-1"></i>
+                Shipped
+            </span>
+
+        {% elif order.status == "Out for Delivery" %}
+            <span class="badge bg-dark">
+                <i class="bi bi-geo-alt-fill me-1"></i>
+                Out for Delivery
+            </span>
+
+        {% elif order.status == "Delivered" %}
+            <span class="badge bg-success">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                Delivered
+            </span>
+
+        {% elif order.status == "Cancelled" %}
+            <span class="badge bg-danger">
+                <i class="bi bi-x-circle-fill me-1"></i>
+                Cancelled
+            </span>
+
+        {% elif order.status == "Returned" %}
+            <span class="badge bg-warning text-dark">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>
+                Returned
+            </span>
+
+        {% endif %}
+
+        {% if order.is_new %}
+            <small class="text-danger fw-semibold mt-1">
+                ● Awaiting Review
+            </small>
+
+        {% elif order.status == "Pending" %}
+            <small class="text-warning mt-1">
+                Waiting for confirmation
+            </small>
+
+        {% elif order.status == "Processing" %}
+            <small class="text-primary mt-1">
+                Preparing package
+            </small>
+
+        {% elif order.status == "Packed" %}
+            <small class="text-info mt-1">
+                Ready to ship
+            </small>
+
+        {% elif order.status == "Shipped" %}
+            <small class="text-secondary mt-1">
+                In transit
+            </small>
+
+        {% elif order.status == "Out for Delivery" %}
+            <small class="text-dark mt-1">
+                Reaching customer
+            </small>
+
+        {% elif order.status == "Delivered" %}
+            <small class="text-success mt-1">
+                Order completed
+            </small>
+
+        {% endif %}
+
+    </div>
+
+</td>
+
+    <td>
+
+        {{ order.created_at|date:"d M Y" }}
+
+        <br>
+
+        <small class="text-muted">
+
+            {{ order.created_at|time:"h:i A" }}
+
+        </small>
+
+    </td>
+
+<td class="text-center">
+
+    <div class="d-flex justify-content-center gap-1 flex-wrap">
+
+        <button
+            class="btn btn-sm btn-dark view-order-btn"
+            data-id="{{ order.id }}"
+            data-bs-toggle="modal"
+            data-bs-target="#orderModal"
+            title="View Order">
+
+            <i class="bi bi-eye"></i>
+
+        </button>
+
+        <button
+            class="btn btn-sm btn-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#editOrder{{ order.id }}"
+            title="Update Order">
+
+            <i class="bi bi-pencil-square"></i>
+
+        </button>
+
+        <a
+            href="{% url 'download_invoice' order.id %}"
+            class="btn btn-sm btn-success"
+            title="Print Invoice">
+
+            <i class="bi bi-printer"></i>
+
+        </a>
+
+        {% if order.is_new %}
+            <span class="badge bg-danger align-self-center">
+                NEW
+            </span>
+        {% endif %}
+
+    </div>
+
+</td>
+
+</tr>
+<!-- ========================= -->
+<!-- EDIT ORDER MODAL -->
+<!-- ========================= -->
+
+<div class="modal fade"
+     id="editOrder{{ order.id }}"
+     tabindex="-1">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content border-0 shadow">
+
+            <form method="POST"
+                  action="{% url 'update_order_status' order.id %}">
+
+                {% csrf_token %}
+
+                <div class="modal-header">
+
+                    <h5 class="modal-title">
+
+                        Update Order #{{ order.id }}
+
+                    </h5>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                    </button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+
+                            Order Status
+
+                        </label>
+
+                        <select
+                            name="status"
+                            class="form-select">
+
+                            <option value="Pending" {% if order.status == "Pending" %}selected{% endif %}>Pending</option>
+
+                            <option value="Processing" {% if order.status == "Processing" %}selected{% endif %}>Processing</option>
+
+                            <option value="Packed" {% if order.status == "Packed" %}selected{% endif %}>Packed</option>
+
+                            <option value="Shipped" {% if order.status == "Shipped" %}selected{% endif %}>Shipped</option>
+
+                            <option value="Out for Delivery" {% if order.status == "Out for Delivery" %}selected{% endif %}>Out for Delivery</option>
+
+                            <option value="Delivered" {% if order.status == "Delivered" %}selected{% endif %}>Delivered</option>
+
+                            <option value="Cancelled" {% if order.status == "Cancelled" %}selected{% endif %}>Cancelled</option>
+
+                            <option value="Returned" {% if order.status == "Returned" %}selected{% endif %}>Returned</option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+
+                            Payment Status
+
+                        </label>
+
+                        <select
+                            name="payment_status"
+                            class="form-select">
+
+                            <option value="Pending" {% if order.payment_status == "Pending" %}selected{% endif %}>Pending</option>
+
+                            <option value="Paid" {% if order.payment_status == "Paid" %}selected{% endif %}>Paid</option>
+
+                            <option value="Failed" {% if order.payment_status == "Failed" %}selected{% endif %}>Failed</option>
+
+                            <option value="Refunded" {% if order.payment_status == "Refunded" %}selected{% endif %}>Refunded</option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+
+                        Cancel
+
+                    </button>
+
+                    <button
+                        class="btn btn-primary">
+
+                        <i class="bi bi-check-circle me-1"></i>
+
+                        Save Changes
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% empty %}
+
+<tr>
+
+    <td colspan="7" class="text-center py-5">
+
+        <i class="bi bi-inbox fs-1 text-muted"></i>
+
+        <h5 class="mt-3">
+
+            No Orders Found
+
+        </h5>
+
+        <p class="text-muted mb-0">
+
+            No customer orders match your filters.
+
+        </p>
+
+    </td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- ========================= -->
+<!-- TABLE FOOTER -->
+<!-- ========================= -->
+
+<div class="card border-0 shadow-sm mt-4">
+
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <small class="text-muted">
+
+                Showing
+
+                <strong>{{ orders.count }}</strong>
+
+                order{{ orders.count|pluralize }}
+
+            </small>
+
+            <a href="?"
+               class="btn btn-outline-secondary btn-sm">
+
+                <i class="bi bi-arrow-clockwise me-1"></i>
+
+                Refresh
+
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- ========================= -->
+<!-- ORDER DETAILS MODAL -->
+<!-- ========================= -->
+
+<div class="modal fade"
+     id="orderModal"
+     tabindex="-1">
+
+    <div class="modal-dialog modal-xl">
+
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header">
+
+                <h5 class="modal-title">
+
+                    <i class="bi bi-box-seam me-2"></i>
+
+                    Order Details
+
+                </h5>
+
+                <button
+                    class="btn-close"
+                    data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+            <div class="modal-body">
+
+                <div id="orderModalContent">
+
+                    <div class="text-center py-5">
+
+                        <div class="spinner-border text-dark"></div>
+
+                        <p class="mt-3 text-muted">
+
+                            Order details will appear here.
+
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+document.querySelectorAll(".view-order-btn").forEach(function(button){
+
+    button.addEventListener("click", function(){
+
+        const orderId = this.dataset.id;
+
+        const content = document.getElementById("orderModalContent");
+
+        content.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-dark"></div>
+                <p class="mt-3">Loading order...</p>
+            </div>
+        `;
+
+        fetch(`/dashboard/orders/${orderId}/`)
+        .then(response => response.json())
+        .then(data => {
+            content.innerHTML = data.html;
+        })
+        .catch(error => {
+            content.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to load order details.
+                </div>
+            `;
+        });
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,439 @@
+{% extends 'base.html' %}
+{% block title %}Personal Information | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <div class="row justify-content-center">
+
+        <div class="col-lg-9">
+
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-body p-5">
+
+                    <!-- Heading -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+
+                        <div>
+
+                            <h3 class="fw-bold mb-1">
+                                Personal Information
+                            </h3>
+
+                            <p class="text-muted mb-0">
+                                Manage your Z I Y A account details
+                            </p>
+
+                        </div>
+
+                        <a href="{% url 'profile' %}" class="btn btn-outline-dark">
+                            Back
+                        </a>
+
+                    </div>
+
+                    <!-- Messages -->
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Profile Header -->
+
+                    <div class="row align-items-center mb-5">
+
+<div class="col-md-3 text-center">
+
+    {% if request.user.profile.profile_picture %}
+
+        <img src="{{ request.user.profile.profile_picture.url }}"
+             class="rounded-circle shadow border"
+             style="width:120px;height:120px;object-fit:cover;">
+
+    {% else %}
+
+        <div class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center mx-auto"
+             style="width:120px;height:120px;font-size:42px;font-weight:600;">
+
+            {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+
+        </div>
+
+    {% endif %}
+
+
+
+</div>
+
+                        <div class="col-md-9">
+
+                            <h4 class="fw-bold mb-1">
+
+                                {% if request.user.first_name %}
+                                    {{ request.user.first_name }} {{ request.user.last_name }}
+                                {% else %}
+                                    {{ request.user.username }}
+                                {% endif %}
+
+                            </h4>
+
+                            <p class="text-muted mb-2">
+                                {{ request.user.email }}
+                            </p>
+
+                            <span class="badge bg-success">
+                                Active Account
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Account Information -->
+
+                    <div class="row mb-5">
+
+                        <div class="col-md-4">
+
+                            <div class="border rounded-4 p-3 h-100">
+
+                                <small class="text-muted">
+                                    Member Since
+                                </small>
+
+                                <h6 class="mt-2 mb-0 fw-bold">
+                                    {{ request.user.date_joined|date:"d M Y" }}
+                                </h6>
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-md-4 mt-3 mt-md-0">
+
+                            <div class="border rounded-4 p-3 h-100">
+
+                                <small class="text-muted">
+                                    Last Login
+                                </small>
+
+                                <h6 class="mt-2 mb-0 fw-bold">
+
+                                    {% if request.user.last_login %}
+                                        {{ request.user.last_login|date:"d M Y, h:i A" }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+
+                                </h6>
+
+                            </div>
+
+                        </div>
+
+                        <div class="col-md-4 mt-3 mt-md-0">
+
+                            <div class="border rounded-4 p-3 h-100">
+
+                                <small class="text-muted">
+                                    Username
+                                </small>
+
+                                <h6 class="mt-2 mb-0 fw-bold">
+                                    {{ request.user.username }}
+                                </h6>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                    <div class="row g-3 mb-5">
+
+    <div class="col-md-6">
+
+        <div class="border rounded-4 p-3 h-100">
+
+            <small class="text-muted">
+                Mobile Number
+            </small>
+
+            <h6 class="mt-2 mb-0 fw-bold">
+
+                {% if request.user.profile.phone %}
+                    {{ request.user.profile.phone }}
+                {% else %}
+                    Not Added
+                {% endif %}
+
+            </h6>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-6">
+
+        <div class="border rounded-4 p-3 h-100">
+
+            <small class="text-muted">
+                Gender
+            </small>
+
+            <h6 class="mt-2 mb-0 fw-bold">
+
+                {% if request.user.profile.gender %}
+                    {{ request.user.profile.gender }}
+                {% else %}
+                    Not Added
+                {% endif %}
+
+            </h6>
+
+        </div>
+
+    </div>
+    
+
+    <div class="col-md-6">
+
+    <div class="border rounded-4 p-3 h-100">
+
+        <small class="text-muted">
+            Date of Birth
+        </small>
+
+        <h6 class="mt-2 mb-0 fw-bold">
+
+            {% if request.user.profile.date_of_birth %}
+
+                {{ request.user.profile.date_of_birth|date:"d M Y" }}
+
+            {% else %}
+
+                Not Added
+
+            {% endif %}
+
+        </h6>
+
+    </div>
+
+</div>
+
+</div>
+
+                    <hr class="mb-5">
+
+                    <!-- Edit Form -->
+
+<form method="POST" enctype="multipart/form-data">
+
+    {% csrf_token %}
+
+    <!-- Profile Picture -->
+
+    <div class="mb-5">
+
+        <label class="form-label fw-semibold">
+            Profile Picture
+        </label>
+
+        <input
+            type="file"
+            name="profile_picture"
+            class="form-control">
+
+        <small class="text-muted">
+            JPG, PNG or WEBP. Max size 5 MB.
+        </small>
+
+    </div>
+
+    <hr class="mb-5">
+
+    <!-- Personal Information -->
+
+    <h4 class="fw-bold mb-4">
+        Personal Information
+    </h4>
+
+    <div class="row">
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                First Name
+            </label>
+
+            <input
+                type="text"
+                name="first_name"
+                class="form-control"
+                value="{{ request.user.first_name }}">
+
+        </div>
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Last Name
+            </label>
+
+            <input
+                type="text"
+                name="last_name"
+                class="form-control"
+                value="{{ request.user.last_name }}">
+
+        </div>
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Username
+            </label>
+
+            <input
+                type="text"
+                name="username"
+                class="form-control"
+                value="{{ request.user.username }}">
+
+            <small class="text-muted">
+                This username is used for login.
+            </small>
+
+        </div>
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Email Address
+            </label>
+
+            <input
+                type="email"
+                name="email"
+                class="form-control"
+                value="{{ request.user.email }}">
+
+        </div>
+
+    </div>
+
+    <hr class="my-5">
+
+    <!-- Contact Information -->
+
+    <h4 class="fw-bold mb-4">
+        Contact Information
+    </h4>
+
+    <div class="row">
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Mobile Number
+            </label>
+
+            <input
+                type="text"
+                name="phone"
+                class="form-control"
+                placeholder="+91 XXXXX XXXXX"
+                value="{{ request.user.profile.phone }}">
+
+        </div>
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Gender
+            </label>
+
+            <select
+                name="gender"
+                class="form-select">
+
+                <option value="">Select Gender</option>
+
+                <option value="Male"
+                    {% if request.user.profile.gender == "Male" %}selected{% endif %}>
+                    Male
+                </option>
+
+                <option value="Female"
+                    {% if request.user.profile.gender == "Female" %}selected{% endif %}>
+                    Female
+                </option>
+
+                <option value="Other"
+                    {% if request.user.profile.gender == "Other" %}selected{% endif %}>
+                    Other
+                </option>
+
+                <option value="Prefer not to say"
+                    {% if request.user.profile.gender == "Prefer not to say" %}selected{% endif %}>
+                    Prefer not to say
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="col-md-6 mb-4">
+
+            <label class="form-label fw-semibold">
+                Date of Birth
+            </label>
+
+            <input
+                type="date"
+                name="date_of_birth"
+                class="form-control"
+                value="{% if request.user.profile.date_of_birth %}{{ request.user.profile.date_of_birth|date:'Y-m-d' }}{% endif %}">
+
+        </div>
+
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+
+        <a href="{% url 'password_change' %}"
+           class="btn btn-outline-secondary">
+
+            Change Password
+
+        </a>
+
+        <button
+            type="submit"
+            class="btn btn-dark px-4">
+
+            Save Changes
+
+        </button>
+
+    </div>
+
+</form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

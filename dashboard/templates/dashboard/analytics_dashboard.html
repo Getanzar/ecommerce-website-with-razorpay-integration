@@ -1,0 +1,497 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block page_title %}
+Analytics Dashboard
+{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <!-- Statistics -->
+
+    <div class="row g-4 mb-4">
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        Revenue
+                    </h6>
+
+                    <h2 class="fw-bold text-success">
+                        ₹{{ total_revenue }}
+                    </h2>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        Orders
+                    </h6>
+
+                    <h2 class="fw-bold">
+                        {{ total_orders }}
+                    </h2>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        Customers
+                    </h6>
+
+                    <h2 class="fw-bold">
+                        {{ total_customers }}
+                    </h2>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+
+                    <h6 class="text-muted">
+                        Products
+                    </h6>
+
+                    <h2 class="fw-bold">
+                        {{ total_products }}
+                    </h2>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Order Status -->
+
+    <div class="row g-4 mb-4">
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Pending</h6>
+                    <h3>{{ pending_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Processing</h6>
+                    <h3>{{ processing_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Packed</h6>
+                    <h3>{{ packed_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Shipped</h6>
+                    <h3>{{ shipped_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Delivered</h6>
+                    <h3>{{ delivered_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-2">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Returned</h6>
+                    <h3>{{ returned_orders }}</h3>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Charts -->
+
+    <div class="row g-4">
+
+        <div class="col-lg-8">
+
+            <div class="card shadow-sm">
+
+                <div class="card-header">
+
+                    <strong>
+                        Monthly Revenue
+                    </strong>
+
+                </div>
+
+                <div class="card-body">
+
+                    <canvas id="salesChart"></canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm">
+
+                <div class="card-header">
+
+                    <strong>
+                        Order Status
+                    </strong>
+
+                </div>
+
+                <div class="card-body">
+
+                    <canvas id="statusChart"></canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+<!-- Top Products & Latest Orders -->
+
+<div class="row g-4 mt-2">
+
+    <!-- Top Selling Products -->
+
+    <div class="col-lg-5">
+
+        <div class="card shadow-sm">
+
+            <div class="card-header bg-dark text-white">
+
+                <strong>
+                    Top Selling Products
+                </strong>
+
+            </div>
+
+            <div class="card-body p-0">
+
+                <div class="table-responsive">
+
+                    <table class="table table-hover mb-0">
+
+                        <thead class="table-light">
+
+                            <tr>
+                                <th>Product</th>
+                                <th class="text-end">Sold</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                        {% for product in top_products %}
+
+                            <tr>
+
+                                <td>
+
+                                    {{ product.product_name }}
+
+                                </td>
+
+                                <td class="text-end">
+
+                                    <span class="badge bg-success">
+
+                                        {{ product.quantity }}
+
+                                    </span>
+
+                                </td>
+
+                            </tr>
+
+                        {% empty %}
+
+                            <tr>
+
+                                <td colspan="2" class="text-center py-4 text-muted">
+
+                                    No sales yet.
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Latest Orders -->
+
+    <div class="col-lg-7">
+
+        <div class="card shadow-sm">
+
+            <div class="card-header bg-dark text-white">
+
+                <strong>
+                    Latest Orders
+                </strong>
+
+            </div>
+
+            <div class="card-body p-0">
+
+                <div class="table-responsive">
+
+                    <table class="table table-hover mb-0">
+
+                        <thead class="table-light">
+
+                            <tr>
+
+                                <th>ID</th>
+                                <th>Customer</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Date</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                        {% for order in latest_orders %}
+
+                            <tr>
+
+                                <td>
+
+                                    #{{ order.id }}
+
+                                </td>
+
+                                <td>
+
+                                    {{ order.full_name }}
+
+                                </td>
+
+                                <td>
+
+                                    ₹{{ order.total_price }}
+
+                                </td>
+
+                                <td>
+
+                                    {% if order.status == "Delivered" %}
+                                        <span class="badge bg-success">{{ order.status }}</span>
+
+                                    {% elif order.status == "Pending" %}
+                                        <span class="badge bg-warning text-dark">{{ order.status }}</span>
+
+                                    {% elif order.status == "Cancelled" %}
+                                        <span class="badge bg-danger">{{ order.status }}</span>
+
+                                    {% elif order.status == "Returned" %}
+                                        <span class="badge bg-secondary">{{ order.status }}</span>
+
+                                    {% else %}
+                                        <span class="badge bg-primary">{{ order.status }}</span>
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    {{ order.created_at|date:"d M Y" }}
+
+                                </td>
+
+                            </tr>
+
+                        {% empty %}
+
+                            <tr>
+
+                                <td colspan="5" class="text-center py-4 text-muted">
+
+                                    No orders available.
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+{{ monthly_sales|json_script:"monthly-sales-data" }}
+
+<script>
+
+const salesData = JSON.parse(
+    document.getElementById("monthly-sales-data").textContent
+);
+
+const months = salesData.map(item => {
+
+    const d = new Date(item.month);
+
+    return d.toLocaleString("default", {
+        month: "short",
+        year: "2-digit"
+    });
+
+});
+
+const revenue = salesData.map(item => item.total);
+
+new Chart(
+    document.getElementById("salesChart"),
+    {
+
+        type: "line",
+
+        data: {
+
+            labels: months,
+
+            datasets: [{
+
+                label: "Revenue",
+
+                data: revenue,
+
+                tension: .35,
+
+                fill: true,
+
+            }]
+
+        },
+
+        options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+        }
+
+    }
+);
+
+new Chart(
+    document.getElementById("statusChart"),
+    {
+
+        type: "doughnut",
+
+        data: {
+
+            labels: [
+
+                "Pending",
+                "Processing",
+                "Packed",
+                "Shipped",
+                "Delivered",
+                "Returned"
+
+            ],
+
+            datasets: [{
+
+                data: [
+
+                    {{ pending_orders }},
+                    {{ processing_orders }},
+                    {{ packed_orders }},
+                    {{ shipped_orders }},
+                    {{ delivered_orders }},
+                    {{ returned_orders }}
+
+                ]
+
+            }]
+
+        },
+
+        options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+        }
+
+    }
+);
+
+</script>
+
+{% endblock %}

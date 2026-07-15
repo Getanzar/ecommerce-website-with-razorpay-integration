@@ -1,0 +1,609 @@
+{% load static tz %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}Z I Y A{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+:root{
+    --primary:#111827;
+    --secondary:#6b7280;
+    --light:#f8f9fa;
+    --border:#e5e7eb;
+    --danger:#ff3f6c;
+    --success:#16a34a;
+    --warning:#f59e0b;
+    --white:#ffffff;
+    --shadow:0 10px 30px rgba(0,0,0,.08);
+    --radius:18px;
+}
+
+body{
+    background:#fafafa;
+    color:#222;
+    font-family:Inter,Segoe UI,Arial,sans-serif;
+}
+
+body.dark{
+    background:#111;
+    color:#eee;
+}
+
+/* Navbar */
+
+.navbar{
+    background:#fff!important;
+    border-bottom:1px solid var(--border);
+    position:sticky;
+    top:0;
+    z-index:999;
+}
+
+.navbar-brand{
+    font-size:28px;
+    font-weight:800;
+    letter-spacing:4px;
+}
+
+.nav-link{
+    font-weight:600;
+    color:#333!important;
+}
+
+/* Search */
+
+.input-group{
+    border-radius:30px;
+    overflow:hidden;
+}
+
+.input-group .form-control{
+    border-left:0;
+    border-right:0;
+    box-shadow:none;
+}
+
+.input-group-text{
+    background:#fff;
+}
+
+/* Buttons */
+
+.btn{
+    border-radius:30px;
+    transition:.25s;
+}
+
+.btn:hover{
+    transform:translateY(-2px);
+}
+
+.btn-dark{
+    background:#111;
+}
+
+.btn-outline-dark:hover{
+    background:#111;
+}
+
+/* Cards */
+
+.card{
+    border:none;
+    border-radius:18px;
+    overflow:hidden;
+    transition:.35s;
+    box-shadow:0 4px 12px rgba(0,0,0,.05);
+}
+
+.card:hover{
+    transform:translateY(-6px);
+    box-shadow:var(--shadow);
+}
+
+/* Product Images */
+
+.card-img-top{
+    height:340px;
+    object-fit:cover;
+    transition:.45s;
+}
+
+.card:hover .card-img-top{
+    transform:scale(1.08);
+}
+
+/* Badges */
+
+.sale-badge{
+    position:absolute;
+    top:15px;
+    left:15px;
+    background:var(--danger);
+    color:#fff;
+    padding:5px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:700;
+}
+
+.new-badge{
+    position:absolute;
+    top:15px;
+    left:15px;
+    background:var(--success);
+    color:#fff;
+    padding:5px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:700;
+}
+
+/* Wishlist */
+
+.wishlist-btn{
+    position:absolute;
+    top:12px;
+    right:12px;
+    width:42px;
+    height:42px;
+    border-radius:50%;
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);
+    transition:.3s;
+    color:#555;
+}
+
+.wishlist-btn:hover{
+    background:var(--danger);
+    color:#fff;
+    transform:scale(1.1);
+}
+
+/* Quick View */
+
+.quick-view{
+    position:absolute;
+    left:50%;
+    bottom:18px;
+    transform:translateX(-50%);
+    opacity:0;
+    transition:.3s;
+}
+
+.card:hover .quick-view{
+    opacity:1;
+}
+
+/* Category Buttons */
+
+.category-btn{
+    border-radius:40px;
+    padding:12px 24px;
+    font-weight:700;
+    transition:.3s;
+}
+
+.category-btn:hover{
+    background:#111;
+    color:#fff;
+}
+
+/* Section Title */
+
+.section-title{
+    font-size:34px;
+    font-weight:800;
+    margin-bottom:30px;
+}
+
+/* Footer */
+
+footer{
+    margin-top:80px;
+    border-top:1px solid var(--border);
+    background:#fff;
+}
+
+/* Dark Mode */
+
+body.dark .navbar,
+body.dark footer,
+body.dark .card{
+    background:#1d1d1d!important;
+}
+
+body.dark .form-control,
+body.dark .input-group-text{
+    background:#2a2a2a;
+    color:#fff;
+}
+
+body.dark .wishlist-btn{
+    background:#333;
+}
+
+body.dark .navbar-brand,
+body.dark .nav-link{
+    color:#fff!important;
+}
+
+/* Responsive */
+
+@media(max-width:768px){
+
+.card-img-top{
+height:240px;
+}
+
+.navbar-brand{
+font-size:22px;
+}
+
+.section-title{
+font-size:28px;
+}
+
+}
+/* HERO */
+
+.hero-section{
+
+height:650px;
+
+border-radius:24px;
+
+overflow:hidden;
+
+background:url("/static/images/hero-banner.png") center center;
+
+background-size:cover;
+
+position:relative;
+
+margin-bottom:60px;
+
+}
+
+.hero-overlay{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    background:linear-gradient(
+        90deg,
+        rgba(0,0,0,.78) 0%,
+        rgba(0,0,0,.55) 35%,
+        rgba(0,0,0,.10) 70%,
+        rgba(0,0,0,0) 100%
+    );
+}
+
+.hero-section h1{
+    font-size:72px;
+    font-weight:800;
+    line-height:1.05;
+}
+
+.hero-section p{
+    max-width:500px;
+    font-size:22px;
+}
+
+@media(max-width:768px){
+
+.hero-section{
+
+height:500px;
+
+}
+
+.hero-section h1{
+
+font-size:42px;
+
+}
+
+}
+/* CATEGORY CARDS */
+
+.category-card{
+
+height:320px;
+
+border-radius:24px;
+
+overflow:hidden;
+
+background-size:cover;
+
+background-position:center;
+
+position:relative;
+
+transition:.45s;
+
+cursor:pointer;
+
+}
+
+.category-card:hover{
+
+transform:translateY(-8px);
+
+box-shadow:0 20px 50px rgba(0,0,0,.18);
+
+}
+
+.category-card::before{
+
+content:"";
+
+position:absolute;
+
+inset:0;
+
+background:linear-gradient(
+180deg,
+rgba(0,0,0,.15),
+rgba(0,0,0,.65)
+);
+
+transition:.35s;
+
+}
+
+.category-card:hover::before{
+
+background:linear-gradient(
+180deg,
+rgba(0,0,0,.05),
+rgba(0,0,0,.75)
+);
+
+}
+
+.category-overlay{
+
+position:absolute;
+
+left:30px;
+
+bottom:30px;
+
+color:#fff;
+
+z-index:5;
+
+}
+
+.category-overlay h3{
+
+font-size:34px;
+
+font-weight:800;
+
+margin-bottom:8px;
+
+}
+
+.category-overlay p{
+
+font-size:18px;
+
+margin:0;
+
+opacity:.9;
+
+}
+/* PREMIUM PRODUCT CARD */
+
+.product-card{
+    border-radius:22px;
+    overflow:hidden;
+    transition:.35s;
+}
+
+.product-card:hover{
+    transform:translateY(-8px);
+    box-shadow:0 18px 45px rgba(0,0,0,.15);
+}
+
+.product-image{
+    height:360px;
+    object-fit:cover;
+    transition:.45s;
+}
+
+.product-card:hover .product-image{
+    transform:scale(1.08);
+}
+
+.product-card .card-body{
+    padding:18px;
+}
+
+.product-card h6{
+    min-height:48px;
+    font-size:15px;
+}
+
+.product-card .btn-dark{
+    border-radius:30px;
+}
+
+.text-warning{
+    color:#f7b500 !important;
+}
+</style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg shadow-sm">
+    <div class="container">
+
+        <!-- Logo -->
+        <a class="navbar-brand" href="{% url 'home' %}">
+            Z I Y A
+        </a>
+
+        <button class="navbar-toggler" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#mainNavbar">
+
+            <span class="navbar-toggler-icon"></span>
+
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNavbar">
+
+            <!-- Left Menu -->
+
+            <ul class="navbar-nav ms-4">
+
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold"
+                       href="{% url 'product_list_page' %}">
+                        Shop
+                    </a>
+                </li>
+
+                {% for category in categories|slice:":5" %}
+                <li class="nav-item">
+                    <a class="nav-link"
+                       href="{% url 'category_page' category.id %}">
+                        {{ category.name }}
+                    </a>
+                </li>
+                {% endfor %}
+
+            </ul>
+
+            <!-- Search -->
+
+            <form class="d-flex mx-auto"
+                  style="max-width:500px;width:100%;"
+                  action="{% url 'search' %}"
+                  method="GET">
+
+                <div class="input-group">
+
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+
+                    <input
+                        class="form-control"
+                        type="search"
+                        name="q"
+                        placeholder="Search for products..."
+                        value="{{ request.GET.q }}">
+
+                    <button class="btn btn-dark px-4">
+                        Search
+                    </button>
+
+                </div>
+
+            </form>
+
+            <!-- Right Icons -->
+
+            <div class="d-flex align-items-center gap-2 ms-3">
+
+                <a href="{% url 'wishlist_page' %}"
+                   class="btn btn-light rounded-circle">
+
+                    <i class="bi bi-heart"></i>
+
+                </a>
+
+                <a href="{% url 'cart_detail' %}"
+                   class="btn btn-light rounded-circle">
+
+                    <i class="bi bi-bag"></i>
+
+                </a>
+
+                {% if request.user.is_authenticated %}
+
+                <a href="{% url 'profile' %}"
+                   class="btn btn-light rounded-circle">
+
+                    <i class="bi bi-person"></i>
+
+                </a>
+
+                <a href="{% url 'logout' %}"
+                   class="btn btn-dark">
+
+                    Logout
+
+                </a>
+
+                {% else %}
+
+                <a href="{% url 'login' %}"
+                   class="btn btn-outline-dark">
+
+                    Login
+
+                </a>
+
+                <a href="{% url 'signup' %}"
+                   class="btn btn-dark">
+
+                    Sign Up
+
+                </a>
+
+                {% endif %}
+
+                <button
+                    class="btn btn-outline-secondary rounded-circle"
+                    id="themeToggle">
+
+                    <i class="bi bi-moon"></i>
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+</nav>
+
+<main class="container py-4">{% block content %}{% endblock %}</main>
+
+<footer class="text-center py-4 small">© {% now "Y" %} Z I Y A. All rights reserved.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const saved = localStorage.getItem('theme');
+
+if (saved === 'dark') {
+    document.body.classList.add('dark');
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem(
+        'theme',
+        document.body.classList.contains('dark') ? 'dark' : 'light'
+    );
+});
+</script>
+
+{% block scripts %}
+{% endblock %}
+
+</body>
+</html>

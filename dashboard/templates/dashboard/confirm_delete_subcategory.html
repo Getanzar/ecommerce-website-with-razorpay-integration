@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Delete SubCategory | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="fw-bold mb-4">Delete SubCategory</h2>
+    <p>Are you sure you want to delete the subcategory <strong>{{ subcategory.name }}</strong>?</p>
+
+    <form method="POST">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Yes, Delete</button>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

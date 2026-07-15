@@ -1,0 +1,220 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Support Ticket{% endblock %}
+
+{% block page_title %}
+Support Ticket #{{ ticket.id }}
+{% endblock %}
+
+{% block content %}
+
+<div class="row">
+
+    <!-- Left -->
+    <div class="col-lg-8">
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">
+                    Customer Conversation
+                </h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="mb-4">
+
+                    <div class="border rounded p-3 bg-light">
+
+                        <strong>
+                            {{ ticket.user.username }}
+                        </strong>
+
+                        <small class="text-muted float-end">
+                            {{ ticket.created_at|date:"d M Y H:i" }}
+                        </small>
+
+                        <hr>
+
+                        <p class="mb-0">
+                            {{ ticket.message }}
+                        </p>
+
+                    </div>
+
+                </div>
+
+                {% for reply in replies %}
+
+                <div class="mb-3">
+
+                    <div class="border rounded p-3 {% if reply.is_staff %}bg-warning-subtle{% else %}bg-white{% endif %}">
+
+                        <strong>
+
+                            {% if reply.is_staff %}
+                                Admin
+                            {% else %}
+                                {{ reply.user.username }}
+                            {% endif %}
+
+                        </strong>
+
+                        <small class="text-muted float-end">
+                            {{ reply.created_at|date:"d M Y H:i" }}
+                        </small>
+
+                        <hr>
+
+                        {{ reply.message|linebreaks }}
+
+                    </div>
+
+                </div>
+
+                {% empty %}
+
+                <div class="alert alert-secondary">
+                    No replies yet.
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        <!-- Reply -->
+
+        <div class="card shadow-sm">
+
+            <div class="card-header">
+
+                <h5 class="mb-0">
+                    Reply to Customer
+                </h5>
+
+            </div>
+
+            <div class="card-body">
+
+                <form method="POST"
+                      action="{% url 'reply_support_ticket' ticket.id %}">
+
+                    {% csrf_token %}
+
+                    <textarea
+                        name="message"
+                        rows="6"
+                        class="form-control mb-3"
+                        required></textarea>
+
+                    <button class="btn btn-primary">
+
+                        <i class="bi bi-send"></i>
+
+                        Send Reply
+
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Right -->
+
+    <div class="col-lg-4">
+
+        <div class="card shadow-sm">
+
+            <div class="card-header bg-dark text-white">
+
+                Ticket Details
+
+            </div>
+
+            <div class="card-body">
+
+                <p>
+                    <strong>Customer</strong><br>
+                    {{ ticket.user.username }}
+                </p>
+
+                <p>
+                    <strong>Order</strong><br>
+                    #{{ ticket.order.id }}
+                </p>
+
+                <p>
+                    <strong>Issue</strong><br>
+                    {{ ticket.issue }}
+                </p>
+
+                <hr>
+
+                <form method="POST"
+                      action="{% url 'update_support_status' ticket.id %}">
+
+                    {% csrf_token %}
+
+                    <label class="form-label">
+                        Status
+                    </label>
+
+                    <select
+                        name="status"
+                        class="form-select mb-3">
+
+                        <option value="Open"
+                        {% if ticket.status == "Open" %}selected{% endif %}>
+                        Open
+                        </option>
+
+                        <option value="In Progress"
+                        {% if ticket.status == "In Progress" %}selected{% endif %}>
+                        In Progress
+                        </option>
+
+                        <option value="Resolved"
+                        {% if ticket.status == "Resolved" %}selected{% endif %}>
+                        Resolved
+                        </option>
+
+                        <option value="Closed"
+                        {% if ticket.status == "Closed" %}selected{% endif %}>
+                        Closed
+                        </option>
+
+                    </select>
+
+                    <label class="form-label">
+                        Internal Admin Note
+                    </label>
+
+                    <textarea
+                        name="admin_note"
+                        rows="5"
+                        class="form-control mb-3">{{ ticket.admin_note }}</textarea>
+
+                    <button class="btn btn-success w-100">
+
+                        Save Changes
+
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

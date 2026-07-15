@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}My Addresses | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2 class="fw-bold">
+            My Addresses
+        </h2>
+
+        <a href="{% url 'add_address' %}"
+           class="btn btn-dark">
+            + Add Address
+        </a>
+
+    </div>
+
+    {% if addresses %}
+
+        <div class="row">
+
+        {% for address in addresses %}
+
+            <div class="col-lg-6 mb-4">
+
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+
+                            <h5>
+
+                                {{ address.full_name }}
+
+                            </h5>
+
+                            {% if address.is_default %}
+
+                                <span class="badge bg-success">
+
+                                    Default
+
+                                </span>
+
+                            {% endif %}
+
+                        </div>
+
+                        <p class="mb-1">
+
+                            {{ address.phone }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            {{ address.address_line_1 }}
+
+                        </p>
+
+                        {% if address.address_line_2 %}
+
+                            <p class="mb-1">
+
+                                {{ address.address_line_2 }}
+
+                            </p>
+
+                        {% endif %}
+
+                        <p class="mb-1">
+
+                            {{ address.city }}
+
+                        </p>
+
+                        <p class="mb-1">
+
+                            {{ address.state }}
+
+                        </p>
+
+                        <p>
+
+                            {{ address.pincode }}
+
+                        </p>
+
+                        <span class="badge bg-dark">
+
+                            {{ address.address_type }}
+
+                        </span>
+
+                        <hr>
+
+                        <div class="d-flex gap-2">
+
+                            <a href="{% url 'edit_address' address.id %}"
+                               class="btn btn-outline-dark btn-sm">
+
+                                Edit
+
+                            </a>
+
+                            <a href="{% url 'delete_address' address.id %}"
+                               class="btn btn-outline-danger btn-sm">
+
+                                Delete
+
+                            </a>
+
+                            {% if not address.is_default %}
+
+                            <a href="{% url 'default_address' address.id %}"
+                               class="btn btn-success btn-sm">
+
+                                Set Default
+
+                            </a>
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        {% endfor %}
+
+        </div>
+
+    {% else %}
+
+        <div class="alert alert-info">
+
+            No saved addresses yet.
+
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

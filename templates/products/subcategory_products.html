@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ subcategory.name }} | Z I Y A{% endblock %}
+
+{% block content %}
+
+<!-- ================= HEADER ================= -->
+<div class="text-center py-4 mb-4">
+
+    <h2 class="fw-bold">{{ subcategory.name }}</h2>
+
+    <p class="text-muted">
+        Explore all products in this category
+    </p>
+
+</div>
+
+<!-- ================= PRODUCTS GRID ================= -->
+<div class="row g-4">
+
+    {% for product in products %}
+
+    <div class="col-6 col-md-3">
+
+        <div class="card h-100 shadow-sm border-0 product-card">
+
+            <!-- PRODUCT IMAGE -->
+            <a href="{% url 'product_detail_page' slug=product.slug %}">
+
+                {% if product.image %}
+
+                    <img src="{{ product.image.url }}"
+                         class="card-img-top product-img"
+                         alt="{{ product.name }}">
+
+                {% else %}
+
+                    <img src="/static/img/default.jpg"
+                         class="card-img-top product-img"
+                         alt="{{ product.name }}">
+
+                {% endif %}
+
+            </a>
+
+            <!-- PRODUCT INFO -->
+            <div class="card-body text-center">
+
+                <h6 class="fw-semibold mb-1">
+                    {{ product.name }}
+                </h6>
+
+                <div class="text-muted mb-2">
+                    ₹{{ product.price }}
+                </div>
+
+                <a href="{% url 'product_detail_page' slug=product.slug %}"
+                   class="btn btn-outline-dark btn-sm w-100">
+                    View Product
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% empty %}
+
+    <div class="text-center text-muted">
+        No products found in this subcategory.
+    </div>
+
+    {% endfor %}
+
+</div>
+
+<!-- ================= STYLES ================= -->
+<style>
+
+.product-card {
+    transition: 0.3s ease;
+    border-radius: 12px;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+.product-img {
+    height: 220px;
+    object-fit: cover;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+</style>
+
+{% endblock %}

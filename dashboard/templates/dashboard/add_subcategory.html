@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Add SubCategory | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="fw-bold mb-4">Add SubCategory</h2>
+    <form method="POST">
+        {% csrf_token %}
+        
+        <!-- SubCategory Name -->
+        <div class="mb-3">
+            <label for="name" class="form-label">SubCategory Name</label>
+            <input type="text" name="name" id="name" class="form-control" required>
+        </div>
+
+        <!-- Parent Category -->
+        <div class="mb-3">
+            <label for="category" class="form-label">Parent Category</label>
+            <select name="category" id="category" class="form-select" required>
+                {% for c in categories %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Buttons -->
+        <button type="submit" class="btn btn-success">Add SubCategory</button>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

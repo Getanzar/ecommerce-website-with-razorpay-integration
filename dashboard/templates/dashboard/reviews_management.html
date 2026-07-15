@@ -1,0 +1,339 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+
+{% block title %}
+Reviews Management
+{% endblock %}
+
+
+
+{% block page_title %}
+Reviews Management
+{% endblock %}
+
+
+
+{% block content %}
+
+
+
+<div class="card shadow-sm">
+
+
+    <div class="card-header d-flex justify-content-between align-items-center">
+
+
+        <h5 class="mb-0">
+
+            <i class="bi bi-star"></i>
+            Product Reviews
+
+        </h5>
+
+
+        <span class="badge bg-dark">
+
+            {{ reviews|length }} Reviews
+
+        </span>
+
+
+    </div>
+
+
+
+
+
+    <div class="card-body">
+
+
+        <div class="table-responsive">
+
+
+            <table class="table table-hover align-middle">
+
+
+                <thead class="table-dark">
+
+
+                    <tr>
+
+                        <th>
+                            Customer
+                        </th>
+
+
+                        <th>
+                            Product
+                        </th>
+
+
+                        <th>
+                            Rating
+                        </th>
+
+
+                        <th>
+                            Review
+                        </th>
+
+
+                        <th>
+                            Status
+                        </th>
+
+
+                        <th>
+                            Action
+                        </th>
+
+
+                    </tr>
+
+
+                </thead>
+
+
+
+
+                <tbody>
+
+
+
+                {% for review in reviews %}
+
+
+
+                <tr>
+
+
+
+                    <td>
+
+
+                        <strong>
+
+                            {{ review.user.username }}
+
+                        </strong>
+
+
+                        <br>
+
+
+                        <small class="text-muted">
+
+                            {{ review.created_at|date:"d M Y" }}
+
+                        </small>
+
+
+                    </td>
+
+
+
+
+
+                    <td>
+
+
+                        <strong>
+
+                            {{ review.product.name }}
+
+                        </strong>
+
+
+                    </td>
+
+
+
+
+
+                    <td>
+
+
+                        {% for i in "12345" %}
+
+
+                            {% if forloop.counter <= review.rating %}
+
+
+                                <i class="bi bi-star-fill text-warning"></i>
+
+
+                            {% else %}
+
+
+                                <i class="bi bi-star text-muted"></i>
+
+
+                            {% endif %}
+
+
+                        {% endfor %}
+
+
+
+                    </td>
+
+
+
+
+
+                    <td>
+
+
+                        <div style="max-width:300px;">
+
+
+                            {{ review.comment|truncatechars:80 }}
+
+
+                        </div>
+
+
+                    </td>
+
+
+
+
+
+                    <td>
+
+
+                        {% if review.is_approved %}
+
+
+                            <span class="badge bg-success">
+
+                                Approved
+
+                            </span>
+
+
+                        {% else %}
+
+
+                            <span class="badge bg-warning text-dark">
+
+                                Pending
+
+                            </span>
+
+
+                        {% endif %}
+
+
+
+                        <br>
+
+
+                        {% if review.is_verified_purchase %}
+
+
+                            <span class="badge bg-primary mt-1">
+
+                                Verified Purchase
+
+                            </span>
+
+
+                        {% endif %}
+
+
+
+                    </td>
+
+
+
+
+
+                    <td>
+
+
+
+{% if not review.is_approved %}
+
+<a
+href="{% url 'approve_review' review.id %}"
+class="btn btn-sm btn-success">
+
+    <i class="bi bi-check-circle"></i>
+    Approve
+
+</a>
+
+{% endif %}
+
+
+
+<a
+href="{% url 'delete_review' review.id %}"
+class="btn btn-sm btn-danger"
+onclick="return confirm('Delete this review permanently?');">
+
+    <i class="bi bi-trash"></i>
+    Delete
+
+</a>
+
+
+
+                    </td>
+
+
+
+                </tr>
+
+
+
+
+                {% empty %}
+
+
+
+                <tr>
+
+
+                    <td colspan="6" class="text-center py-4">
+
+
+                        <h5 class="text-muted">
+
+                            No reviews found
+
+                        </h5>
+
+
+                    </td>
+
+
+                </tr>
+
+
+
+                {% endfor %}
+
+
+
+
+                </tbody>
+
+
+
+            </table>
+
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+
+
+{% endblock %}

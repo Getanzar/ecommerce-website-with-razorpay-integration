@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Order Success | Z I Y A{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center">
+  <div class="card shadow-sm p-4">
+    <h2 class="text-success mb-3">✅ Order Confirmed</h2>
+    <p class="lead">Your payment was successful. Thank you for shopping with <strong>Z I Y A</strong>!</p>
+    <hr>
+    <p class="mb-4">We’ll notify you when your order ships. You can track all your purchases anytime.</p>
+
+    <!-- Tracking Section -->
+    <div class="mt-4 text-start">
+      <h5 class="fw-bold">📦 Delivery Tracking</h5>
+      {% if order.awb_number %}
+        <p><strong>Tracking ID:</strong> {{ order.awb_number }}</p>
+        <p><strong>Status:</strong> {{ order.delivery_status|default:"Pending Shipment" }}</p>
+        <p><strong>Estimated Delivery:</strong> {{ order.eta|default:"Not available yet" }}</p>
+        <a href="https://www.delhivery.com/track/package/{{ order.awb_number }}" 
+           target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+          Track on Delhivery
+        </a>
+      {% else %}
+        <p class="text-muted">Tracking will be available once shipment is created.</p>
+      {% endif %}
+    </div>
+
+    <hr>
+    <a href="{% url 'my_orders' %}" class="btn btn-primary mt-3">View My Orders</a>
+  </div>
+</div>
+{% endblock %}

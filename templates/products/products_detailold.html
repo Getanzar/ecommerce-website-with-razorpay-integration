@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+{% load cart_extras %}
+{% block title %}{{ product.name }} | Shop Minimal{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Product Image -->
+  <div class="col-md-5">
+    <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
+      <div class="carousel-inner">
+        {% if product.image %}
+          <div class="carousel-item active">
+            <img src="{{ product.image.url }}" class="d-block w-100" alt="{{ product.name }}">
+          </div>
+        {% endif %}
+        {% for img in product.images.all %}
+          <div class="carousel-item {% if not product.image and forloop.first %}active{% endif %}">
+            <img src="{{ img.image.url }}" class="d-block w-100" alt="{{ product.name }}">
+          </div>
+        {% endfor %}
+      </div>
+      <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+      </button>
+      <div class="carousel-indicators">
+        {% if product.image %}
+          <button type="button" data-bs-target="#productCarousel" data-bs-slide-to="0" class="active"></button>
+        {% endif %}
+        {% for img in product.images.all %}
+          <button type="button" data-bs-target="#productCarousel" data-bs-slide-to="{% if product.image %}{{ forloop.counter }}{% else %}{{ forloop.counter0 }}{% endif %}" {% if not product.image and forloop.first %}class="active"{% endif %}></button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Details -->
+  <!-- Product Details -->
+<div class="col-md-7">
+
+    <h2 class="fw-bold">{{ product.name }}</h2>
+
+    <div class="d-flex align-items-center mb-3">
+
+    <div class="text-warning fs-5 me-2">
+
+        {% for i in "12345" %}
+
+            {% if forloop.counter <= product.average_rating %}
+
+                ★
+
+            {% else %}
+
+                ☆
+
+            {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+    <span class="text-muted">
+
+        {{ product.average_rating }}
+
+        ({{ product.review_count }} Reviews)
+
+    </span>
+
+</div>
+
+    <h3 class="text-success fw-bold mb-3">
+        ₹{{ product.price }}
+    </h3>
+
+    <p class="text-muted">
+        {{ product.description }}
+    </p>
+
+    <hr>
+
+    <h6 class="fw-bold">
+        Category
+    </h6>
+
+    <p>{{ product.category.name }}</p>
+
+{% if colors %}
+
+<h6 class="fw-bold mt-4">Select Color</h6>
+
+<div class="d-flex flex-wrap gap-3">
+
+    {% for color in colors %}
+
+    <div class="text-center">
+
+        <button
+            type="button"
+            class="color-option border border-2 rounded-circle"
+            data-color-id="{{ color.id }}"
+            title="{{ color.name }}"
+            style="
+                width:45px;
+                height:45px;
+                background: {{ color.hex_code }};
+                cursor:pointer;
+            ">
+        </button>
+
+        <small class="d-block mt-1">
+            {{ color.name }}
+        </small>
+
+    </div>
+
+    {% endfor %}
+
+</div>
+
+{% endif %}
+
+    <hr>
+
+    <h6 class="fw-bold">
+        Available Sizes
+    </h6>
+
+    <div class="d-flex flex-wrap gap-2">
+
+        {% for variant in variants %}
+
+        <button
+              type="button"
+              class="btn btn-outline-dark size-btn"
+              data-variant="{{ variant.id }}"
+              data-color="{{ variant.color.id }}"
+              data-size="{{ variant.size }}"
+              data-stock="{{ variant.stock }}">
+
+              {{ variant.size }}
+
+          </button>
+
+        {% endfor %}
+
+    </div>
+
+    <div class="mt-3">
+
+        <span
+            id="stockText"
+            class="badge bg-success">
+
+            Select a size
+
+        </span>
+
+    </div>
+
+    <hr>
+
+    <form action="{% url 'add_to_cart' product.id %}" method="post">
+
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="variant_id"
+            id="selectedVariant">
+
+        <button
+            class="btn btn-warning btn-lg w-100">
+
+            Add To Cart
+
+        </button>
+
+    </form>
+
+    <div class="mt-4">
+
+        <button class="btn btn-outline-danger">
+
+            ❤ Add to Wishlist
+
+        </button>
+
+    </div>
+
+    <hr>
+
+    <div class="row text-center">
+
+        <div class="col">
+
+            🚚
+
+            <br>
+
+            Free Shipping
+
+        </div>
+
+        <div class="col">
+
+            🔄
+
+            <br>
+
+            Easy Returns
+
+        </div>
+
+        <div class="col">
+
+            🔒
+
+            <br>
+
+            Secure Payment
+
+        </div>
+
+    </div>
+
+  </div>
+  <hr>
+
+  <!-- Related Products -->
+  <h4 class="mt-5">Related Products</h4>
+  <div class="row g-4">
+    {% for related in related_products %}
+      <div class="col-6 col-md-3">
+        <div class="card h-100 shadow-sm">
+          <a href="{% url 'product_detail_page' slug=related.slug %}">
+            {% if related.image %}
+              <img src="{{ related.image.url }}" class="card-img-top" alt="{{ related.name }}">
+            {% else %}
+              <img src="/static/img/default.jpg" class="card-img-top" alt="{{ related.name }}">
+            {% endif %}
+          </a>
+          <div class="card-body text-center">
+            <h6 class="mb-1">{{ related.name }}</h6>
+            <div class="text-muted">₹{{ related.price }}</div>
+            <a href="{% url 'product_detail_page' related.slug %}"
+   class="btn btn-sm btn-success w-100 mt-2">
+    View Product
+</a>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <p class="text-muted">No related products found.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const colorOptions = document.querySelectorAll(".color-option");
+    const sizeButtons = document.querySelectorAll(".size-btn");
+
+    const selectedVariant = document.getElementById("selectedVariant");
+    const stockText = document.getElementById("stockText");
+
+    let activeColor = null;
+
+    // Hide all sizes initially
+    sizeButtons.forEach(btn => {
+        btn.style.display = "none";
+    });
+
+    // -----------------------
+    // COLOR CLICK
+    // -----------------------
+    colorOptions.forEach(color => {
+
+        color.addEventListener("click", function () {
+
+            // remove border from every color
+            colorOptions.forEach(c => {
+            c.classList.remove("border-dark");
+            });
+
+            // highlight selected color
+            this.classList.add("border-dark");
+
+            activeColor = this.dataset.colorId;
+
+            selectedVariant.value = "";
+
+            stockText.innerHTML = "Select a size";
+            stockText.className = "badge bg-secondary";
+
+            // hide all sizes
+            sizeButtons.forEach(btn => {
+
+                btn.classList.remove("active");
+
+                if (btn.dataset.color === activeColor) {
+                    btn.style.display = "inline-block";
+                } else {
+                    btn.style.display = "none";
+                }
+
+            });
+
+        });
+
+    });
+
+   // -----------------------
+// SIZE CLICK
+// -----------------------
+sizeButtons.forEach(btn => {
+
+    btn.addEventListener("click", function () {
+
+        sizeButtons.forEach(b => b.classList.remove("active"));
+
+        this.classList.add("active");
+
+        selectedVariant.value = this.dataset.variant;
+
+        const stock = parseInt(this.dataset.stock);
+
+        if (stock > 0) {
+
+            stockText.innerHTML = stock + " in stock";
+            stockText.className = "badge bg-success";
+
+        } else {
+
+            stockText.innerHTML = "Out of Stock";
+            stockText.className = "badge bg-danger";
+
+        }
+
+    });
+
+});
+
+
+// -----------------------
+// VALIDATE BEFORE ADDING TO CART
+// -----------------------
+const cartForm = document.querySelector('form[action*="/orders/cart/add/"]');
+
+cartForm.addEventListener("submit", function (e) {
+
+    if (!selectedVariant.value) {
+
+    e.preventDefault();
+    alert("Please select a color and size.");
+
+}
+
+});
+
+});
+</script>
+{% endblock %}

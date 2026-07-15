@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}Help & Support | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+
+        <div>
+            <h2 class="fw-bold mb-1">
+                Help & Support
+            </h2>
+
+            <p class="text-muted mb-0">
+                Track all your support requests and replies from our team.
+            </p>
+        </div>
+
+        <a href="{% url 'my_orders' %}"
+           class="btn btn-outline-dark rounded-pill">
+            <i class="bi bi-bag"></i>
+            My Orders
+        </a>
+
+    </div>
+
+    {% if tickets %}
+
+    <!-- SUMMARY -->
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center h-100">
+                <div class="card-body">
+                    <h3 class="fw-bold">{{ tickets|length }}</h3>
+                    <div class="text-muted">Total Tickets</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center h-100">
+                <div class="card-body">
+                    <h3 class="fw-bold text-danger">
+                        {{ open_count }}
+                    </h3>
+                    <div class="text-muted">Open</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center h-100">
+                <div class="card-body">
+                    <h3 class="fw-bold text-warning">
+                        {{ progress_count }}
+                    </h3>
+                    <div class="text-muted">
+                        In Progress
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm text-center h-100">
+                <div class="card-body">
+                    <h3 class="fw-bold text-success">
+                        {{ resolved_count }}
+                    </h3>
+                    <div class="text-muted">
+                        Resolved
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {% for ticket in tickets %}
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
+
+                <div>
+
+                    <h5 class="fw-bold mb-2">
+
+                        {{ ticket.subject }}
+
+                    </h5>
+
+                    <div class="text-muted small">
+
+                        Order #{{ ticket.order.id }}
+
+                        •
+
+                        {{ ticket.created_at|date:"d M Y, h:i A" }}
+
+                    </div>
+
+                </div>
+
+                <div>
+
+                    {% if ticket.status == "Open" %}
+
+                        <span class="badge bg-danger px-3 py-2">
+
+                            Open
+
+                        </span>
+
+                    {% elif ticket.status == "In Progress" %}
+
+                        <span class="badge bg-warning text-dark px-3 py-2">
+
+                            In Progress
+
+                        </span>
+
+                    {% elif ticket.status == "Resolved" %}
+
+                        <span class="badge bg-success px-3 py-2">
+
+                            Resolved
+
+                        </span>
+
+                    {% else %}
+
+                        <span class="badge bg-secondary px-3 py-2">
+
+                            {{ ticket.status }}
+
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <div class="bg-light rounded-3 p-3 mb-3">
+
+                <div class="small text-muted mb-1">
+
+                    Your Message
+
+                </div>
+
+                {{ ticket.message }}
+
+            </div>
+
+            {% if ticket.admin_note %}
+
+            <div class="alert alert-success mb-3">
+
+                <strong>
+
+                    Support Team Reply
+
+                </strong>
+
+                <hr>
+
+                {{ ticket.admin_note }}
+
+            </div>
+
+            {% endif %}
+
+            <div class="d-flex gap-2 flex-wrap">
+
+            <a href="{% url 'customer_support_ticket' ticket.id %}"
+            class="btn btn-dark rounded-pill">
+
+                <i class="bi bi-chat-dots"></i>
+
+                View Conversation
+
+            </a>
+
+                <a href="{% url 'order_detail' ticket.order.id %}"
+                   class="btn btn-outline-secondary rounded-pill">
+
+                    <i class="bi bi-bag"></i>
+
+                    View Order
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% endfor %}
+
+    {% else %}
+
+    <div class="card border-0 shadow rounded-4">
+
+        <div class="card-body text-center py-5">
+
+            <i class="bi bi-headset display-2 text-muted"></i>
+
+            <h3 class="fw-bold mt-3">
+
+                No Support Requests Yet
+
+            </h3>
+
+            <p class="text-muted">
+
+                Need help with an order?
+
+                Open your order and click
+
+                <strong>Need Help</strong>
+
+                to contact our support team.
+
+            </p>
+
+            <a href="{% url 'my_orders' %}"
+               class="btn btn-dark rounded-pill px-4">
+
+                My Orders
+
+            </a>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Create Account | Z I Y A{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <div class="row justify-content-center">
+
+        <div class="col-lg-6 col-md-8">
+
+            <div class="card shadow border-0 rounded-4">
+
+                <div class="card-body p-5">
+
+                    <h2 class="fw-bold text-center mb-2">
+                        Create Your Account
+                    </h2>
+
+                    <p class="text-muted text-center mb-4">
+                        Join Z I Y A and start shopping.
+                    </p>
+
+                    <form method="POST" id="signupForm">
+
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="row">
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">First Name</label>
+                                {{ form.first_name }}
+                                <div class="text-danger small">
+                                    {{ form.first_name.errors }}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Last Name</label>
+                                {{ form.last_name }}
+                                <div class="text-danger small">
+                                    {{ form.last_name.errors }}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            {{ form.username }}
+                            <div class="text-danger small">
+                                {{ form.username.errors }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email Address</label>
+                            {{ form.email }}
+                            <div class="text-danger small">
+                                {{ form.email.errors }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mobile Number</label>
+                            {{ form.phone }}
+                            <small class="text-muted">
+                                Enter a valid 10-digit Indian mobile number.
+                            </small>
+                            <div class="text-danger small">
+                                {{ form.phone.errors }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">Password</label>
+
+                            {{ form.password1 }}
+
+                            <div id="passwordStrength" class="small mt-2"></div>
+
+                            <div class="text-danger small">
+                                {{ form.password1.errors }}
+                            </div>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Confirm Password
+                            </label>
+
+                            {{ form.password2 }}
+
+                            <div id="passwordMatch"
+                                 class="small mt-2">
+                            </div>
+
+                            <div class="text-danger small">
+                                {{ form.password2.errors }}
+                            </div>
+
+                        </div>
+
+                        <div class="form-check mb-4">
+
+                            {{ form.terms }}
+
+                            <label class="form-check-label">
+
+                                I agree to the
+                                <a href="#">Terms & Conditions</a>
+
+                            </label>
+
+                            <div class="text-danger small">
+                                {{ form.terms.errors }}
+                            </div>
+
+                        </div>
+
+                        <button
+                            class="btn btn-dark w-100 py-2"
+                            type="submit"
+                        >
+                            Create Account
+                        </button>
+
+                    </form>
+
+                    <hr>
+
+                    <p class="text-center mb-0">
+
+                        Already have an account?
+
+                        <a href="{% url 'login' %}">
+                            Login
+                        </a>
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const password =
+document.getElementById("id_password1");
+
+const confirmPassword =
+document.getElementById("id_password2");
+
+const strength =
+document.getElementById("passwordStrength");
+
+const match =
+document.getElementById("passwordMatch");
+
+
+password.addEventListener("input", function(){
+
+    let value = password.value;
+
+    let score = 0;
+
+    if(value.length >= 8) score++;
+    if(/[A-Z]/.test(value)) score++;
+    if(/[a-z]/.test(value)) score++;
+    if(/[0-9]/.test(value)) score++;
+    if(/[^A-Za-z0-9]/.test(value)) score++;
+
+    if(score <=2){
+
+        strength.innerHTML =
+        "<span class='text-danger'>Weak Password</span>";
+
+    }
+
+    else if(score==3 || score==4){
+
+        strength.innerHTML =
+        "<span class='text-warning'>Medium Password</span>";
+
+    }
+
+    else{
+
+        strength.innerHTML =
+        "<span class='text-success'>Strong Password</span>";
+
+    }
+
+});
+
+
+confirmPassword.addEventListener("input", function(){
+
+    if(confirmPassword.value==password.value){
+
+        match.innerHTML =
+        "<span class='text-success'>Passwords match</span>";
+
+    }
+
+    else{
+
+        match.innerHTML =
+        "<span class='text-danger'>Passwords do not match</span>";
+
+    }
+
+});
+
+</script>
+
+{% endblock %}
