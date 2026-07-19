@@ -86,6 +86,12 @@ DATABASES = {
     }
 }
 
+# Only require SSL for Neon/production
+if os.getenv("DB_HOST") and "neon.tech" in os.getenv("DB_HOST"):
+    DATABASES["default"]["OPTIONS"] = {
+        "sslmode": "require",
+    }
+
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True

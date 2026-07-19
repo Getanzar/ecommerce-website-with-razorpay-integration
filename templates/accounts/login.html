@@ -1,12 +1,28 @@
 {% extends 'base.html' %}
-{% block title %}Login{% endblock %}
+{% block title %}Login - Ziyamart{% endblock %}
 {% block content %}
-<div class="container py-5">
-    <h2 class="mb-4">Login</h2>
-    <form method="POST">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-primary">Login</button>
-    </form>
+<div class="container d-flex justify-content-center align-items-center py-5" style="min-height: 80vh; background-color: #f8f9fa;">
+    <div class="card shadow-sm p-4" style="width: 400px; background-color: #ffffff; border: 1px solid #dee2e6;">
+        <h2 class="text-center mb-4" style="color: #000;">Welcome Back</h2>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group mb-3">
+                {{ form.username.label_tag }}
+                {{ form.username }}
+            </div>
+            <div class="form-group mb-3">
+                {{ form.password.label_tag }}
+                {{ form.password }}
+            </div>
+            <button type="submit" class="btn w-100" style="background-color: #000; color: #fff;">Login</button>
+        </form>
+        <div class="text-center mt-3">
+            <a href="{% url 'password_reset' %}" style="color: #6c757d; text-decoration: none;">Forgot Password?</a>
+        </div>
+        <div class="text-center mt-2">
+            <span style="color: #6c757d;">Don't have an account?</span>
+            <a href="{% url 'signup' %}" style="color: #000; font-weight: 500; text-decoration: none;">Sign Up</a>
+        </div>
+    </div>
 </div>
 {% endblock %}
