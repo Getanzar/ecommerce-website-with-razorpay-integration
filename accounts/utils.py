@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
-
+import traceback
 from .models import EmailOTP
 
 
@@ -57,7 +57,6 @@ def send_email_otp(user):
         return True
 
     except Exception as e:
-
-        print("EMAIL OTP ERROR:", e)
-
+        print("EMAIL OTP ERROR:", repr(e))
+        traceback.print_exc()
         return False
