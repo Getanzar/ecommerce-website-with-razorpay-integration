@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Verify Email | ZIYAMART{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <div class="row justify-content-center">
+
+        <div class="col-lg-5 col-md-7">
+
+            <div class="card shadow border-0 rounded-4">
+
+                <div class="card-body p-5">
+
+                    <h2 class="fw-bold text-center mb-3">
+                        Verify Your Email
+                    </h2>
+
+                    <p class="text-muted text-center mb-4">
+                        We've sent a <strong>6-digit verification code</strong>
+                        to
+                        <br>
+                        <strong>{{ email }}</strong>
+                    </p>
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="POST">
+
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+
+                            <label class="form-label">
+                                Verification Code
+                            </label>
+
+                            <input
+                                type="text"
+                                name="otp"
+                                maxlength="6"
+                                class="form-control form-control-lg text-center"
+                                placeholder="Enter 6-digit OTP"
+                                required
+                                autocomplete="one-time-code"
+                            >
+
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="btn btn-dark w-100 py-2"
+                        >
+                            Verify Account
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

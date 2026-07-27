@@ -1,21 +1,14 @@
 from django.shortcuts import render, redirect
-from .forms import SignUpForm
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from orders.models import Order
-from django.contrib import messages
 from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from .models import UserProfile
-from django.conf import settings
-from django.contrib.sites.shortcuts import get_current_site
-from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.urls import reverse
-from .tokens import email_verification_token
+
+from orders.models import Order
+
+from .forms import SignUpForm
+from .models import UserProfile, EmailOTP
+from .utils import send_email_otp
 
 def signup_view(request):
 
@@ -27,52 +20,34 @@ def signup_view(request):
 
             user = form.save()
 
-            current_site = get_current_site(request)
+            # Store email in session for OTP verification
+            request.session["pending_verification_email"] = user.email
 
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-
-            token = email_verification_token.make_token(user)
-
-            verification_link = request.build_absolute_uri(
-                reverse(
-                    "verify_email",
-                    kwargs={
-                        "uidb64": uid,
-                        "token": token,
-                    },
-                )
-            )
-
-            html_message = render_to_string(
-                "emails/verify_email.html",
-                {
-                    "user": user,
-                    "verification_link": verification_link,
-                    "domain": current_site.domain,
-                },
-            )
-
-            email = EmailMultiAlternatives(
-                subject="Verify your ZIYAMART account",
-                body="Please verify your email.",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[user.email],
-            )
-
-            email.attach_alternative(html_message, "text/html")
             try:
-                email.send(fail_silently=False)
-                print("✅ Email sent successfully")
-            except Exception as e:
-                print("❌ Email error:", e)
-                raise
+                send_email_otp(user)
+
+            except Exception:
+                messages.error(
+                    request,
+                    "We couldn't send the verification code. Please try again."
+                )
+
+                # Remove the inactive user if email sending failed
+                user.delete()
+
+                request.session.pop(
+                    "pending_verification_email",
+                    None,
+                )
+
+                return redirect("signup")
 
             messages.success(
                 request,
-                "Verification email sent. Please check your inbox."
+                "We've sent a verification code to your email."
             )
 
-            return redirect("login")
+            return redirect("verify_otp")
 
     else:
 
@@ -211,34 +186,94 @@ def profile_detail(request):
         "accounts/profile_detail.html"
     )
 
-def verify_email(request, uidb64, token):
+def verify_otp(request):
+
+    email = request.session.get("pending_verification_email")
+
+    if not email:
+        messages.error(
+            request,
+            "Your verification session has expired. Please sign up again."
+        )
+        return redirect("signup")
 
     try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(pk=uid)
+        user = User.objects.get(email=email)
+        otp_record = EmailOTP.objects.get(user=user)
 
-    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-        user = None
+    except (User.DoesNotExist, EmailOTP.DoesNotExist):
+        messages.error(
+            request,
+            "Verification record not found."
+        )
+        request.session.pop("pending_verification_email", None)
+        return redirect("signup")
 
-    if user and email_verification_token.check_token(user, token):
+    if user.is_active:
+        request.session.pop("pending_verification_email", None)
 
+        messages.info(
+            request,
+            "Your account is already verified. Please login."
+        )
+        return redirect("login")
+
+    if request.method == "POST":
+
+        entered_otp = request.POST.get("otp", "").strip()
+
+        if otp_record.is_expired():
+
+            otp_record.delete()
+
+            messages.error(
+                request,
+                "Your OTP has expired. Please request a new one."
+            )
+
+            return redirect("verify_otp")
+
+        if entered_otp != otp_record.otp:
+
+            otp_record.attempts += 1
+            otp_record.save(update_fields=["attempts"])
+
+            messages.error(
+                request,
+                "Invalid OTP."
+            )
+
+            return redirect("verify_otp")
+
+        # Activate account
         user.is_active = True
-        user.save()
+        user.save(update_fields=["is_active"])
 
-        profile, created = UserProfile.objects.get_or_create(user=user)
+        # Update profile
+        profile = user.profile
         profile.email_verified = True
-        profile.save()
+        profile.save(update_fields=["email_verified"])
+
+        # Remove OTP record
+        otp_record.delete()
+
+        # Automatically login
+        login(request, user)
+
+        # Clear session
+        request.session.pop("pending_verification_email", None)
 
         messages.success(
             request,
-            "Your email has been verified successfully. You can now login."
+            "Your account has been verified successfully."
         )
 
-        return redirect("login")
+        return redirect("home")
 
-    messages.error(
+    return render(
         request,
-        "Verification link is invalid or has expired."
+        "accounts/verify_otp.html",
+        {
+            "email": email,
+        },
     )
-
-    return redirect("signup")
