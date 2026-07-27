@@ -33,6 +33,8 @@ def send_email_otp(user):
         },
     )
 
+    print("BREVO_API_KEY:", repr(settings.BREVO_API_KEY))
+
     headers = {
         "accept": "application/json",
         "api-key": settings.BREVO_API_KEY,
