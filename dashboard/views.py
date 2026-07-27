@@ -113,12 +113,13 @@ def add_category(request):
 
 
 # ✅ Delete Category
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def delete_category(request, id):
     category = get_object_or_404(Category, id=id)
-    if request.method == "POST":
-        category.delete()
-        return redirect("admin_dashboard")
-    return render(request, "dashboard/confirm_delete_category.html", {"category": category})
+    category.delete()
+    messages.success(request, "Category deleted successfully.")
+    return redirect("admin_dashboard")
+
 
 
 # ✅ Add SubCategory
@@ -134,12 +135,13 @@ def add_subcategory(request):
 
 
 # ✅ Delete SubCategory
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def delete_subcategory(request, id):
     subcategory = get_object_or_404(SubCategory, id=id)
-    if request.method == "POST":
-        subcategory.delete()
-        return redirect("admin_dashboard")
-    return render(request, "dashboard/confirm_delete_subcategory.html", {"subcategory": subcategory})
+    subcategory.delete()
+    messages.success(request, "Subcategory deleted successfully.")
+    return redirect("admin_dashboard")
+
 
 
 
