@@ -1,10 +1,9 @@
 import random
-import traceback
+import requests
 
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -12,11 +11,8 @@ from .models import EmailOTP
 
 
 def send_email_otp(user):
-    """
-    Generate OTP, save it, and send verification email.
-    """
-
     otp = str(random.randint(100000, 999999))
+
     expires_at = timezone.now() + timedelta(minutes=5)
 
     EmailOTP.objects.update_or_create(
@@ -29,7 +25,7 @@ def send_email_otp(user):
         },
     )
 
-    html_message = render_to_string(
+    html = render_to_string(
         "emails/email_otp.html",
         {
             "user": user,
@@ -37,34 +33,40 @@ def send_email_otp(user):
         },
     )
 
-    email = EmailMultiAlternatives(
-        subject="Your ZIYAMART Verification Code",
-        body=f"Your OTP is {otp}",
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[user.email],
-    )
+    headers = {
+        "accept": "application/json",
+        "api-key": settings.BREVO_API_KEY,
+        "content-type": "application/json",
+    }
 
-    email.attach_alternative(html_message, "text/html")
-
-    # -------- DEBUG --------
-    print("=" * 50)
-    print("EMAIL SETTINGS")
-    print("=" * 50)
-    print("HOST:", settings.EMAIL_HOST)
-    print("PORT:", settings.EMAIL_PORT)
-    print("TLS:", settings.EMAIL_USE_TLS)
-    print("HOST USER:", settings.EMAIL_HOST_USER)
-    print("FROM:", settings.DEFAULT_FROM_EMAIL)
-    print("TO:", user.email)
-    print("=" * 50)
+    payload = {
+        "sender": {
+            "name": "ZIYAMART",
+            "email": "ulhaqanzar444@gmail.com"
+        },
+        "to": [
+            {
+                "email": user.email,
+                "name": user.get_full_name() or user.username
+            }
+        ],
+        "subject": "Your ZIYAMART Verification Code",
+        "htmlContent": html,
+    }
 
     try:
-        sent = email.send(fail_silently=False)
-        print("EMAIL SENT SUCCESSFULLY")
-        print("EMAIL SEND RESULT:", sent)
-        return True
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+
+        print("BREVO STATUS:", response.status_code)
+        print("BREVO RESPONSE:", response.text)
+
+        return response.status_code == 201
 
     except Exception as e:
-        print("EMAIL OTP ERROR:", repr(e))
-        traceback.print_exc()
+        print("BREVO ERROR:", repr(e))
         return False
