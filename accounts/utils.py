@@ -1,4 +1,5 @@
 import random
+import traceback
 
 from datetime import timedelta
 
@@ -6,7 +7,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
-import traceback
+
 from .models import EmailOTP
 
 
@@ -16,7 +17,6 @@ def send_email_otp(user):
     """
 
     otp = str(random.randint(100000, 999999))
-
     expires_at = timezone.now() + timedelta(minutes=5)
 
     EmailOTP.objects.update_or_create(
@@ -44,16 +44,24 @@ def send_email_otp(user):
         to=[user.email],
     )
 
-    email.attach_alternative(
-        html_message,
-        "text/html"
-    )
+    email.attach_alternative(html_message, "text/html")
+
+    # -------- DEBUG --------
+    print("=" * 50)
+    print("EMAIL SETTINGS")
+    print("=" * 50)
+    print("HOST:", settings.EMAIL_HOST)
+    print("PORT:", settings.EMAIL_PORT)
+    print("TLS:", settings.EMAIL_USE_TLS)
+    print("HOST USER:", settings.EMAIL_HOST_USER)
+    print("FROM:", settings.DEFAULT_FROM_EMAIL)
+    print("TO:", user.email)
+    print("=" * 50)
 
     try:
-        email.send(
-            fail_silently=False
-        )
-
+        sent = email.send(fail_silently=False)
+        print("EMAIL SENT SUCCESSFULLY")
+        print("EMAIL SEND RESULT:", sent)
         return True
 
     except Exception as e:
