@@ -12,8 +12,7 @@ from .models import EmailOTP
 
 def send_email_otp(user):
     """
-    Generate a 6-digit OTP, save/update it,
-    and send it to the user's email.
+    Generate OTP, save it, and send verification email.
     """
 
     otp = str(random.randint(100000, 999999))
@@ -45,6 +44,20 @@ def send_email_otp(user):
         to=[user.email],
     )
 
-    email.attach_alternative(html_message, "text/html")
+    email.attach_alternative(
+        html_message,
+        "text/html"
+    )
 
-    email.send(fail_silently=False)
+    try:
+        email.send(
+            fail_silently=False
+        )
+
+        return True
+
+    except Exception as e:
+
+        print("EMAIL OTP ERROR:", e)
+
+        return False

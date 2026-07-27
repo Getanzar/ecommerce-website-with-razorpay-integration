@@ -20,18 +20,27 @@ def signup_view(request):
 
             user = form.save()
 
-            # Store email in session for future OTP verification
+            # Store email for OTP verification
             request.session["pending_verification_email"] = user.email
 
-            messages.success(
-                request,
-                "Account created successfully."
-            )
+            # Send OTP email
+            email_sent = send_email_otp(user)
 
-            # Temporary: skip email OTP
-            login(request, user)
+            if email_sent:
 
-            return redirect("home")
+                messages.success(
+                    request,
+                    "We've sent a verification code to your email."
+                )
+
+            else:
+
+                messages.warning(
+                    request,
+                    "Your account was created, but we couldn't send the verification email. Please try again."
+                )
+
+            return redirect("verify_otp")
 
     else:
 
