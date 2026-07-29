@@ -8,6 +8,20 @@ class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(unique=True)
 
+    # Small image/icon for the category
+    image = models.ImageField(
+        upload_to="categories/",
+        blank=True,
+        null=True
+    )
+
+    # Large background image for homepage/category cards
+    background_image = models.ImageField(
+        upload_to="categories/backgrounds/",
+        blank=True,
+        null=True
+    )
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
