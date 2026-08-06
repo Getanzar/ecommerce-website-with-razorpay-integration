@@ -10,6 +10,7 @@ from .forms import SignUpForm
 from .models import UserProfile, EmailOTP
 from .utils import send_email_otp
 
+
 def signup_view(request):
 
     if request.method == "POST":

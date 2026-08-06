@@ -350,13 +350,3 @@ class Wishlist(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.product.name}"
     
-
-@property
-def average_rating(self):
-    return self.reviews.filter(is_approved=True).aggregate(
-        avg=Avg("rating")
-    )["avg"] or 0
-
-@property
-def review_count(self):
-    return self.reviews.filter(is_approved=True).count()

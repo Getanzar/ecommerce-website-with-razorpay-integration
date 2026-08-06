@@ -52,7 +52,7 @@ urlpatterns = [
         name="customer_support_ticket",
     ),
     path(
-        "support/<int:ticket_id>/reply/",
+        "support/ticket/<int:ticket_id>/reply/",
         views.customer_reply_support_ticket,
         name="customer_reply_support_ticket",
     ),
