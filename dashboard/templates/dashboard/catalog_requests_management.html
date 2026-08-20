@@ -1,0 +1,8 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% block title %}Catalog Requests | ZIYAMART Admin{% endblock %}
+{% block page_title %}Catalog Requests{% endblock %}
+{% block content %}
+<div class="card"><div class="card-body"><p class="text-muted">Approve requests to add them to the customer-facing catalog.</p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Seller</th><th>Request</th><th>Parent</th><th>Status</th><th>Action</th></tr></thead><tbody>
+{% for item in catalog_requests %}<tr><td>{{ item.seller.store_name }}</td><td>{{ item.get_request_type_display }}: <strong>{{ item.name }}</strong></td><td>{{ item.parent_category.name|default:"—" }}</td><td>{{ item.get_status_display }}</td><td>{% if item.status == 'pending' %}<div class="d-flex gap-2"><form method="post" action="{% url 'review_catalog_request' item.id %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn btn-sm btn-success">Approve</button></form><form method="post" action="{% url 'review_catalog_request' item.id %}" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="reject"><input class="form-control form-control-sm" name="admin_note" placeholder="Rejection reason" required><button class="btn btn-sm btn-outline-danger">Reject</button></form></div>{% else %}{{ item.admin_note|default:"Reviewed" }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No catalog requests.</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% endblock %}

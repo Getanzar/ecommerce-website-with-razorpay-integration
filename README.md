@@ -33,3 +33,45 @@ This project demonstrates **end-to-end web development skills** – backend, fro
 ```bash
 git clone https://github.com/your-username/django-ecommerce-razorpay.git
 cd django-ecommerce-razorpay
+```
+
+## Automatic seller payouts
+
+Sellers see earnings under **Seller Center → Money & payouts**. Online payments
+are scheduled for 9:00 AM the next day. COD is scheduled only after an admin
+marks the order both `Delivered` and `Paid`.
+
+Configure `RAZORPAYX_KEY_ID`, `RAZORPAYX_KEY_SECRET`, and
+`RAZORPAYX_ACCOUNT_NUMBER`. In Django admin, enter each verified seller's
+`razorpay_fund_account_id` and enable `payouts_enabled`.
+
+Run migrations, then schedule this command every morning:
+
+```bash
+python manage.py migrate
+python manage.py process_seller_payouts
+```
+
+Use `python manage.py process_seller_payouts --dry-run` to reconcile earnings
+and show due settlements without transferring funds.
+
+`RAZORPAYX_ACCOUNT_NUMBER` is the platform payout account number displayed in
+RazorpayX under account details; it is not a seller bank-account number.
+Completed, processed returns create seller debits automatically. Debits offset
+the next payout and any shortfall remains visible to the seller with an in-app
+notification requesting the outstanding amount.
+
+Set `RAZORPAYX_WEBHOOK_SECRET` and register this live webhook URL in Razorpay:
+
+```text
+https://YOUR-DOMAIN/orders/webhooks/razorpayx/
+```
+
+Subscribe to payout status events. Also schedule
+`python manage.py process_seller_payouts` at least every morning; running it
+more frequently safely reconciles missed orders and payout statuses.
+
+For general merchandise, seller-entered prices are their earnings before
+returns. The customer-facing price adds the seller commission percentage on
+top. Product edits return to moderation, inventory updates are immediate, and
+each seller can fulfil only their own order items.

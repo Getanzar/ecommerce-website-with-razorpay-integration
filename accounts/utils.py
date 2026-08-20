@@ -1,17 +1,42 @@
-import random
-import requests
+import secrets
+import logging
 
 from datetime import timedelta
+from email.utils import formataddr, parseaddr
 
 from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
 
 from .models import EmailOTP
 
 
+logger = logging.getLogger(__name__)
+
+
+def _send_otp_email(user, subject, template_name, context):
+    html = render_to_string(template_name, context)
+    # Set the brand explicitly instead of exposing the SMTP account's profile
+    # name (for example, the Gmail username) in the recipient's inbox.
+    sender_address = parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
+    branded_from_email = formataddr(("ZIYAMART", sender_address))
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body="Open this email in an HTML-capable email client.",
+            from_email=branded_from_email,
+            to=[user.email],
+        )
+        message.attach_alternative(html, "text/html")
+        return message.send(fail_silently=False) == 1
+    except Exception:
+        logger.exception("ZIYAMART OTP email could not be sent to user %s", user.pk)
+        return False
+
+
 def send_email_otp(user):
-    otp = str(random.randint(100000, 999999))
+    otp = f"{secrets.randbelow(900000) + 100000:06d}"
 
     expires_at = timezone.now() + timedelta(minutes=5)
 
@@ -25,50 +50,30 @@ def send_email_otp(user):
         },
     )
 
-    html = render_to_string(
+    return _send_otp_email(
+        user,
+        "Your ZIYAMART Verification Code",
         "emails/email_otp.html",
-        {
-            "user": user,
-            "otp": otp,
-        },
+        {"user": user, "otp": otp},
     )
 
-    print("BREVO_API_KEY:", repr(settings.BREVO_API_KEY))
 
-    headers = {
-        "accept": "application/json",
-        "api-key": settings.BREVO_API_KEY,
-        "content-type": "application/json",
-    }
-
-    payload = {
-        "sender": {
-            "name": "ZIYAMART",
-            "email": "ulhaqanzar444@gmail.com"
+def send_password_reset_otp(user):
+    otp = f"{secrets.randbelow(900000) + 100000:06d}"
+    # Reuse the existing verified email-code table used by signup. Active users
+    # cannot be in the signup-verification flow, so the two flows cannot clash.
+    EmailOTP.objects.update_or_create(
+        user=user,
+        defaults={
+            "otp": otp,
+            "expires_at": timezone.now() + timedelta(minutes=10),
+            "attempts": 0,
+            "is_verified": False,
         },
-        "to": [
-            {
-                "email": user.email,
-                "name": user.get_full_name() or user.username
-            }
-        ],
-        "subject": "Your ZIYAMART Verification Code",
-        "htmlContent": html,
-    }
-
-    try:
-        response = requests.post(
-            "https://api.brevo.com/v3/smtp/email",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-
-        print("BREVO STATUS:", response.status_code)
-        print("BREVO RESPONSE:", response.text)
-
-        return response.status_code == 201
-
-    except Exception as e:
-        print("BREVO ERROR:", repr(e))
-        return False
+    )
+    return _send_otp_email(
+        user,
+        "Reset your ZIYAMART password",
+        "emails/password_reset_otp.html",
+        {"user": user, "otp": otp},
+    )

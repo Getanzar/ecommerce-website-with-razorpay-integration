@@ -1,32 +1,165 @@
 {% extends 'base.html' %}
-{% block title %}Order Success | Z I Y A{% endblock %}
+
+{% block title %}Order Confirmed | Z I Y A M A R T{% endblock %}
 
 {% block content %}
-<div class="container py-5 text-center">
-  <div class="card shadow-sm p-4">
-    <h2 class="text-success mb-3">✅ Order Confirmed</h2>
-    <p class="lead">Your payment was successful. Thank you for shopping with <strong>Z I Y A</strong>!</p>
-    <hr>
-    <p class="mb-4">We’ll notify you when your order ships. You can track all your purchases anytime.</p>
 
-    <!-- Tracking Section -->
-    <div class="mt-4 text-start">
-      <h5 class="fw-bold">📦 Delivery Tracking</h5>
-      {% if order.awb_number %}
-        <p><strong>Tracking ID:</strong> {{ order.awb_number }}</p>
-        <p><strong>Status:</strong> {{ order.delivery_status|default:"Pending Shipment" }}</p>
-        <p><strong>Estimated Delivery:</strong> {{ order.eta|default:"Not available yet" }}</p>
-        <a href="https://www.delhivery.com/track/package/{{ order.awb_number }}" 
-           target="_blank" class="btn btn-outline-primary btn-sm mt-2">
-          Track on Delhivery
-        </a>
-      {% else %}
-        <p class="text-muted">Tracking will be available once shipment is created.</p>
-      {% endif %}
+<div class="container py-5 text-center">
+
+    <div class="card shadow-sm p-4">
+
+        <!-- ========================= -->
+        <!-- ORDER CONFIRMATION -->
+        <!-- ========================= -->
+
+        <h2 class="text-success mb-3">
+            ✅ Order Confirmed
+        </h2>
+
+        {% if order.payment_method == "cod" %}
+
+            <p class="lead">
+                Your Cash on Delivery order has been placed successfully.
+                Thank you for shopping with <strong>Z I Y A</strong>!
+            </p>
+
+            <div class="alert alert-info mt-3">
+                💵 <strong>Payment Method:</strong> Cash on Delivery
+                <br>
+                Please pay <strong>₹{{ order.total_price }}</strong>
+                when your order is delivered.
+            </div>
+
+        {% else %}
+
+            <p class="lead">
+                Your payment was successful.
+                Thank you for shopping with <strong>Z I Y A</strong>!
+            </p>
+
+            <div class="alert alert-success mt-3">
+                💳 <strong>Payment Method:</strong> Online Payment
+                <br>
+                <strong>Payment Status:</strong> {{ order.payment_status }}
+            </div>
+
+        {% endif %}
+
+
+        <hr>
+
+
+        <!-- ========================= -->
+        <!-- ORDER INFORMATION -->
+        <!-- ========================= -->
+
+        <div class="text-start mt-4">
+
+            <h5 class="fw-bold">
+                🧾 Order Information
+            </h5>
+
+            <p class="mb-1">
+                <strong>Order ID:</strong>
+                #{{ order.id }}
+            </p>
+
+            <p class="mb-1">
+                <strong>Total:</strong>
+                ₹{{ order.total_price }}
+            </p>
+
+            <p class="mb-1">
+                <strong>Order Status:</strong>
+                {{ order.status }}
+            </p>
+
+            <p class="mb-1">
+                <strong>Payment Status:</strong>
+                {{ order.payment_status }}
+            </p>
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- ========================= -->
+        <!-- DELIVERY TRACKING -->
+        <!-- ========================= -->
+
+        <div class="mt-4 text-start">
+
+            <h5 class="fw-bold">
+                📦 Delivery Tracking
+            </h5>
+
+            {% if order.awb_number %}
+
+                <p>
+                    <strong>Tracking ID:</strong>
+                    {{ order.awb_number }}
+                </p>
+
+                <p>
+                    <strong>Status:</strong>
+                    {{ order.delivery_status|default:"Pending Shipment" }}
+                </p>
+
+                <p>
+                    <strong>Estimated Delivery:</strong>
+                    {{ order.eta|default:"Not available yet" }}
+                </p>
+
+                <a
+                    href="https://www.delhivery.com/track/package/{{ order.awb_number }}"
+                    target="_blank"
+                    class="btn btn-outline-primary btn-sm mt-2"
+                >
+                    Track on Delhivery
+                </a>
+
+            {% else %}
+
+                <div class="alert alert-warning">
+                    📦 Your shipment is being prepared.
+                    <br>
+                    Tracking will become available once the shipment is created.
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- ========================= -->
+        <!-- ACTION BUTTONS -->
+        <!-- ========================= -->
+
+        <div class="d-grid gap-2 mt-4">
+
+            <a
+                href="{% url 'my_orders' %}"
+                class="btn btn-primary"
+            >
+                View My Orders
+            </a>
+
+            <a
+                href="{% url 'home' %}"
+                class="btn btn-outline-secondary"
+            >
+                Continue Shopping
+            </a>
+
+        </div>
+
     </div>
 
-    <hr>
-    <a href="{% url 'my_orders' %}" class="btn btn-primary mt-3">View My Orders</a>
-  </div>
 </div>
+
 {% endblock %}

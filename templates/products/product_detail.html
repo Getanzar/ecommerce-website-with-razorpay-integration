@@ -124,7 +124,7 @@ style="height:650px;object-fit:cover;">
 id="productPrice"
 class="fw-bold mb-4">
 
-₹{{ product.price }}
+₹{{ product.customer_price }}
 
 </h2>
 
@@ -133,6 +133,16 @@ class="fw-bold mb-4">
 {{ product.description|truncatewords:35 }}
 
 </p>
+
+{% if product.seller %}
+
+<p class="mb-0">
+
+<strong>Sold by:</strong> {{ product.seller.store_name }}
+
+</p>
+
+{% endif %}
 
 <hr>
 
@@ -156,11 +166,11 @@ class="fw-bold mb-4">
 
 <br>
 
-<span class="badge bg-success">
-
-In Stock
-
-</span>
+{% if has_stock %}
+<span class="badge bg-success">In Stock</span>
+{% else %}
+<span class="badge bg-danger">Out of Stock</span>
+{% endif %}
 
 </div>
 
@@ -230,6 +240,14 @@ data-variant="{{ variant.id }}"
 data-stock="{{ variant.stock }}"
 data-price="{{ variant.final_price }}"
 
+{% if variant.image %}
+data-image="{{ variant.image.url }}"
+{% elif variant.color.image %}
+data-image="{{ variant.color.image.url }}"
+{% endif %}
+
+{% if variant.stock <= 0 %}disabled aria-disabled="true"{% endif %}
+
 style="display:none;">
 
 {{ variant.size }}
@@ -248,9 +266,9 @@ style="display:none;">
 
 <span
 id="stockBadge"
-class="badge bg-secondary fs-6">
+class="badge {% if has_stock %}bg-secondary{% else %}bg-danger{% endif %} fs-6">
 
-Select a color
+{% if has_stock %}Select a color{% else %}Out of Stock{% endif %}
 
 </span>
 
@@ -278,12 +296,10 @@ type="hidden"
 name="variant_id"
 id="selectedVariant">
 
-<button
-type="submit"
-class="btn btn-dark btn-lg w-100">
-
-🛒 Add to Cart
-
+<button type="submit" id="cartButton"
+class="btn {% if has_stock %}btn-dark{% else %}btn-secondary{% endif %} btn-lg w-100"
+{% if not has_stock %}disabled aria-disabled="true"{% endif %}>
+{% if has_stock %}🛒 Add to Cart{% else %}Out of Stock{% endif %}
 </button>
 
 </form>
@@ -576,7 +592,7 @@ Related Products
 
 <p>
 
-₹{{ related.price }}
+₹{{ related.customer_price }}
 
 </p>
 
@@ -636,6 +652,10 @@ const variant=document.getElementById("selectedVariant");
 
 const price=document.getElementById("productPrice");
 
+const cartButton=document.getElementById("cartButton");
+
+const productHasStock={{ has_stock|yesno:"true,false" }};
+
 let activeColor=null;
 
 colors.forEach(btn=>{
@@ -650,9 +670,12 @@ activeColor=this.dataset.color;
 
 variant.value="";
 
-badge.innerHTML="Select a size";
+badge.innerHTML=productHasStock?"Select a size":"Out of Stock";
 
-badge.className="badge bg-secondary";
+badge.className=productHasStock?"badge bg-secondary":"badge bg-danger fs-6";
+
+cartButton.disabled=true;
+cartButton.innerHTML=productHasStock?"🛒 Add to Cart":"Out of Stock";
 
 if(this.dataset.image){
 
@@ -684,6 +707,12 @@ variant.value=this.dataset.variant;
 
 price.innerHTML="₹"+this.dataset.price;
 
+if(this.dataset.image){
+
+mainImage.src=this.dataset.image;
+
+}
+
 const stock=parseInt(this.dataset.stock);
 
 if(stock>0){
@@ -692,11 +721,17 @@ badge.innerHTML=stock+" in stock";
 
 badge.className="badge bg-success fs-6";
 
+cartButton.disabled=false;
+cartButton.innerHTML="🛒 Add to Cart";
+
 }else{
 
 badge.innerHTML="Out of Stock";
 
 badge.className="badge bg-danger fs-6";
+
+cartButton.disabled=true;
+cartButton.innerHTML="Out of Stock";
 
 }
 
@@ -706,7 +741,7 @@ badge.className="badge bg-danger fs-6";
 
 document.getElementById("cartForm").addEventListener("submit",function(e){
 
-if(!variant.value){
+if(!productHasStock || !variant.value){
 
 e.preventDefault();
 

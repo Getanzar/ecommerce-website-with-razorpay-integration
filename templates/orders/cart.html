@@ -63,7 +63,7 @@
             </div>
           </td>
 
-          <td>₹{{ item.product.price }}</td>
+          <td>₹{{ item.price }}</td>
           <td>₹{{ item.subtotal }}</td>
           <td>
             <form action="{% url 'cart_remove' item.variant.id %}" method="post">

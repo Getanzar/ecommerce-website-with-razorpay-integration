@@ -1,3 +1,5 @@
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
@@ -44,6 +46,14 @@ class SubCategory(models.Model):
 
 
 class Product(models.Model):
+    MODERATION_PENDING = "pending"
+    MODERATION_APPROVED = "approved"
+    MODERATION_REJECTED = "rejected"
+    MODERATION_CHOICES = [
+        (MODERATION_PENDING, "Pending review"),
+        (MODERATION_APPROVED, "Approved"),
+        (MODERATION_REJECTED, "Rejected"),
+    ]
     PRODUCT_TYPES = [
         ("shirt", "Shirt"),
         ("jeans", "Jeans"),
@@ -58,6 +68,15 @@ class Product(models.Model):
         related_name="products",
         on_delete=models.CASCADE,
         default=6
+    )
+
+    seller = models.ForeignKey(
+        "accounts.SellerProfile",
+        related_name="products",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        help_text="Leave empty for products sold directly by the marketplace.",
     )
 
     subcategory = models.ForeignKey(
@@ -87,6 +106,22 @@ class Product(models.Model):
 
     # ⭐ NEW FIELD
     is_active = models.BooleanField(default=True)
+
+    moderation_status = models.CharField(
+        max_length=20,
+        choices=MODERATION_CHOICES,
+        default=MODERATION_APPROVED,
+        db_index=True,
+    )
+    rejection_reason = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    reviewed_by = models.ForeignKey(
+        User,
+        related_name="reviewed_products",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
 
     created = models.DateTimeField(auto_now_add=True)
 
@@ -131,8 +166,72 @@ class Product(models.Model):
     def review_count(self):
         return self.reviews.filter(is_approved=True).count()
 
+    @property
+    def platform_fee_percent(self):
+        return self.seller.commission_percent if self.seller_id else Decimal("0")
+
+    @property
+    def customer_price(self):
+        """Public price including the seller's marketplace fee."""
+        multiplier = Decimal("1") + (self.platform_fee_percent / Decimal("100"))
+        return (self.price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     def __str__(self):
         return self.name
+
+
+class CatalogRequest(models.Model):
+    TYPE_CATEGORY = "category"
+    TYPE_SUBCATEGORY = "subcategory"
+    REQUEST_TYPES = [
+        (TYPE_CATEGORY, "Category"),
+        (TYPE_SUBCATEGORY, "Subcategory"),
+    ]
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending review"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    seller = models.ForeignKey(
+        "accounts.SellerProfile",
+        related_name="catalog_requests",
+        on_delete=models.CASCADE,
+    )
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
+    name = models.CharField(max_length=100)
+    parent_category = models.ForeignKey(
+        Category,
+        related_name="subcategory_requests",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    admin_note = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    reviewed_by = models.ForeignKey(
+        User,
+        related_name="reviewed_catalog_requests",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.get_request_type_display()}: {self.name}"
 
 
 class ProductImage(models.Model):
@@ -263,6 +362,16 @@ class ProductVariant(models.Model):
         Returns the variant price if available,
         otherwise returns the product's base price.
         """
+        seller_price = self.price if self.price is not None else self.product.price
+        multiplier = Decimal("1") + (
+            self.product.platform_fee_percent / Decimal("100")
+        )
+        return (seller_price * multiplier).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+    @property
+    def seller_price(self):
         return self.price if self.price is not None else self.product.price
 
     def __str__(self):
@@ -349,4 +458,3 @@ class Wishlist(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.product.name}"
-    

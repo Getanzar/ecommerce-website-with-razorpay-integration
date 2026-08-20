@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Payout setup | ZIYAMART{% endblock %}
+{% block content %}
+<div class="container py-5"><div class="row justify-content-center"><div class="col-lg-6">
+<div class="card shadow-sm"><div class="card-body p-4 p-md-5">
+  <h1 class="h3">Seller payout setup</h1>
+  <p class="text-muted">Enter the bank account where you want to receive seller earnings. Details are sent directly to RazorpayX; only the last four digits are retained by ZIYAMART.</p>
+  {% if seller.razorpay_fund_account_id %}<div class="alert alert-info">A payout account ending in {{ seller.bank_account_last4 }} is already on file. Submitting this form replaces it and pauses payouts until an administrator verifies it.</div>{% endif %}
+  <form method="post">{% csrf_token %}
+    {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+    {% for field in form %}<div class="mb-3"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }} <span class="text-danger">*</span></label>{{ field }}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}
+    <button class="btn btn-dark" type="submit">Submit bank details securely</button>
+    {% if seller.is_approved %}<a class="btn btn-link" href="{% url 'seller_payouts' %}">Cancel</a>{% endif %}
+  </form>
+</div></div></div></div></div>
+{% endblock %}

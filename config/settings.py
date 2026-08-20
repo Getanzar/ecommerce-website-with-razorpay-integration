@@ -21,6 +21,28 @@ cloudinary.config(
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
+# Seller AI listing tools. These credentials are server-side only and must
+# never be rendered into HTML or sent to the browser.
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_TEXT_MODEL = os.getenv(
+    "CLOUDFLARE_TEXT_MODEL", "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
+)
+CLOUDFLARE_VISION_MODEL = os.getenv(
+    "CLOUDFLARE_VISION_MODEL", "@cf/meta/llama-3.2-11b-vision-instruct"
+)
+CLOUDFLARE_IMAGE_MODEL = os.getenv(
+    "CLOUDFLARE_IMAGE_MODEL", "@cf/black-forest-labs/flux-2-klein-4b"
+)
+
+# Monthly seller image plans. While a plan is active, text listing generation
+# is included without a per-generation charge.
+SELLER_AI_PLANS = {
+    "starter": {"name": "Starter", "price_paise": 9900, "image_limit": 25},
+    "growth": {"name": "Growth", "price_paise": 49900, "image_limit": 150},
+    "pro": {"name": "Pro", "price_paise": 99900, "image_limit": 400},
+}
+
 # 🔑 Delhivery API Key
 DELHIVERY_API_KEY = os.getenv("DELHIVERY_API_KEY")
 
@@ -28,7 +50,7 @@ DELHIVERY_API_KEY = os.getenv("DELHIVERY_API_KEY")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG", "False") == "True"
+DEBUG = os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "on"}
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
@@ -65,6 +87,7 @@ INSTALLED_APPS = [
     'cart.apps.CartConfig',
     'dashboard',
     'addresses',
+    'food',
 ]
 
 MIDDLEWARE = [
@@ -151,7 +174,14 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 
-DELHIVERY_PICKUP_LOCATION = "ziya garments bazaar wilson gunj pathantola road, sahaswan, budaun, uttar-pradesh, 243638"
+DELHIVERY_PICKUP_LOCATION = "ziyamart garments bazaar wilson gunj pathantola road, sahaswan, budaun, uttar-pradesh, 243638"
+
+# Seller payouts (RazorpayX). Keep separate from customer checkout credentials.
+RAZORPAYX_KEY_ID = os.getenv("RAZORPAYX_KEY_ID", "")
+RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAYX_KEY_SECRET", "")
+RAZORPAYX_ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER", "")
+SELLER_PAYOUT_MODE = os.getenv("SELLER_PAYOUT_MODE", "IMPS")
+RAZORPAYX_WEBHOOK_SECRET = os.getenv("RAZORPAYX_WEBHOOK_SECRET", "")
 
 # ==========================
 # Email Configuration
@@ -159,20 +189,20 @@ DELHIVERY_PICKUP_LOCATION = "ziya garments bazaar wilson gunj pathantola road, s
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp-relay.brevo.com")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 465))
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "False") == "True"
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "True") == "True"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False") == "True"
 
 EMAIL_TIMEOUT = 60
 
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL") or EMAIL_HOST_USER
 
 # =====================================
 # Security settings for Render (HTTPS)

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
+from decimal import Decimal
 from products.models import Product, ProductVariant
+from accounts.models import SellerProfile
 
 
 class Order(models.Model):
@@ -205,6 +207,11 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
 
+    FULFILLMENT_CHOICES = [
+        ("new", "New"), ("accepted", "Accepted"), ("packed", "Packed"),
+        ("shipped", "Shipped"), ("delivered", "Delivered"), ("cancelled", "Cancelled"),
+    ]
+
     order = models.ForeignKey(
         Order,
         related_name="items",
@@ -286,6 +293,10 @@ class OrderItem(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True
     )
+    fulfillment_status = models.CharField(max_length=20, choices=FULFILLMENT_CHOICES, default="new")
+    seller_tracking_number = models.CharField(max_length=100, blank=True)
+    seller_courier = models.CharField(max_length=100, blank=True)
+    fulfilled_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ["id"]
@@ -302,11 +313,91 @@ class OrderItem(models.Model):
             + self.tax
         )
 
+    @property
+    def seller_total(self):
+        fee = self.product.platform_fee_percent
+        return (self.total / (Decimal("1") + fee / Decimal("100"))).quantize(Decimal("0.01"))
+
     def __str__(self):
         return (
             f"Order #{self.order.id} - "
             f"{self.product_name} x {self.quantity}"
         )
+
+
+class SellerSettlement(models.Model):
+    """One immutable seller earning calculation per marketplace order."""
+
+    STATUS_CHOICES = [
+        ("scheduled", "Scheduled"),
+        ("processing", "Processing"),
+        ("paid", "Paid"),
+        ("failed", "Failed"),
+        ("on_hold", "On hold"),
+        ("reversed", "Reversed"),
+        ("offset", "Offset against return"),
+    ]
+
+    seller = models.ForeignKey(
+        SellerProfile, related_name="settlements", on_delete=models.PROTECT
+    )
+    order = models.ForeignKey(
+        Order, related_name="seller_settlements", on_delete=models.PROTECT
+    )
+    gross_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    commission_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    deductions_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_method = models.CharField(max_length=20, choices=Order.PAYMENT_METHOD_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
+    scheduled_for = models.DateTimeField()
+    provider_payout_id = models.CharField(max_length=100, blank=True)
+    failure_reason = models.TextField(blank=True)
+    processed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["seller", "order"], name="one_settlement_per_seller_order"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.seller} / Order #{self.order_id} / {self.net_amount}"
+
+    @property
+    def payout_amount(self):
+        return max(self.net_amount - self.deductions_amount, Decimal("0.00"))
+
+    @property
+    def payout_reference_key(self):
+        return f"general-{self.pk}"
+
+
+class SellerReturnDebit(models.Model):
+    seller = models.ForeignKey(SellerProfile, related_name="return_debits", on_delete=models.PROTECT)
+    return_request = models.OneToOneField("ReturnRequest", related_name="seller_debit", on_delete=models.PROTECT)
+    original_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    remaining_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Return #{self.return_request_id}: {self.remaining_amount} due"
+
+
+class SellerNotification(models.Model):
+    seller = models.ForeignKey(SellerProfile, related_name="notifications", on_delete=models.CASCADE)
+    kind = models.CharField(max_length=40, default="return_balance_due")
+    title = models.CharField(max_length=150)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
     
 class ReturnRequest(models.Model):
 

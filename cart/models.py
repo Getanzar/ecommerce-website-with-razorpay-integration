@@ -20,7 +20,7 @@ class CartItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
 
     def get_total_price(self):
-        return self.product.price * self.quantity
+        return self.product.customer_price * self.quantity
 
     @property
     def size(self):

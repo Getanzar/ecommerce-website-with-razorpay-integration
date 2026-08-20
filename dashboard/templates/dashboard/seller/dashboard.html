@@ -1,0 +1,41 @@
+{% extends "dashboard/seller/base.html" %}
+
+{% block title %}{{ seller.store_name }} | Seller Center{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">{{ seller.store_name }}</h1>
+        <p class="text-muted mb-0">Seller dashboard</p>
+    </div>
+    {% if "food" in seller.business_category|lower or "restaurant" in seller.business_category|lower %}<a class="btn btn-primary" href="{% url 'food_seller_add_item' %}">Add menu item</a>{% else %}<a class="btn btn-primary" href="{% url 'seller_add_product' %}">Add product</a>{% endif %}
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="card border-primary"><div class="card-body"><small class="text-muted">Next payouts</small><div class="h3 mb-1">₹{{ available_balance }}</div><a href="{% url 'seller_payouts' %}">View settlement details</a></div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body"><small class="text-muted">Paid to your bank</small><div class="h3 mb-1">₹{{ paid_out }}</div><span class="text-muted">Lifetime payouts</span></div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Products</small><div class="h3 mb-0">{{ product_count }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Live products</small><div class="h3 mb-0">{{ live_product_count }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Orders containing your items</small><div class="h3 mb-0">{{ order_count }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Paid sales</small><div class="h3 mb-0">₹{{ gross_sales }}</div></div></div></div>
+</div>
+<div class="alert alert-light border d-flex justify-content-between align-items-center"><span>{% if seller.ai_subscription_active %}<strong>{{ seller.get_ai_plan_display }}</strong> active · {{ seller.ai_images_remaining }} images remaining · unlimited listing names and descriptions{% else %}Choose an AI image plan to unlock image enhancement, names, and descriptions.{% endif %}</span><a class="btn btn-sm btn-outline-primary" href="{% url 'seller_add_product' %}">Open AI listing studio</a></div>
+
+<div class="card">
+    <div class="card-header bg-white"><strong>Recent order items</strong></div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead><tr><th>Order</th><th>Product</th><th>Quantity</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for item in recent_order_items %}
+                    <tr><td>#{{ item.order_id }}</td><td>{{ item.product_name }}</td><td>{{ item.quantity }}</td><td>{{ item.order.status }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted py-4">No orders for your products yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

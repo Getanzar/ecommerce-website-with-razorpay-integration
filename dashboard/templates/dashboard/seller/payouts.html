@@ -1,0 +1,23 @@
+{% extends "dashboard/seller/base.html" %}
+{% block title %}Money & payouts | Seller Center{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div><h1 class="h3 mb-1">Money & payouts</h1><p class="text-muted mb-0">Your earnings after marketplace commission.</p></div>
+  {% if seller.payouts_enabled %}<span class="badge text-bg-success">Bank verified •••• {{ seller.bank_account_last4 }}</span>{% else %}<span class="badge text-bg-warning">Payout setup required</span>{% endif %}
+</div>
+{% if not seller.payouts_enabled %}<div class="alert alert-warning d-flex justify-content-between align-items-center gap-3"><div><strong>Automatic transfers are paused.</strong> {% if seller.razorpay_fund_account_id %}Your bank details are awaiting marketplace verification.{% else %}Complete or retry your secure bank setup.{% endif %} Your earnings remain recorded here.</div><a class="btn btn-warning text-nowrap" href="{% url 'seller_payout_setup' %}">{% if seller.razorpay_fund_account_id %}Update bank details{% else %}Complete payout setup{% endif %}</a></div>{% endif %}
+{% if return_balance %}<div class="alert alert-danger"><strong>₹{{ return_balance }} return balance due.</strong> This will be deducted from upcoming payouts. If upcoming earnings are insufficient, contact marketplace support to add the remaining amount.</div>{% endif %}
+{% for notice in seller_notifications %}<div class="alert alert-warning"><strong>{{ notice.title }}</strong><br>{{ notice.message }}</div>{% endfor %}{% if seller_notifications %}<form method="post" action="{% url 'seller_read_notifications' %}" class="mb-3">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Mark notifications as read</button></form>{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card"><div class="card-body"><small>Scheduled</small><div class="h4">₹{{ totals.scheduled }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><small>Processing</small><div class="h4">₹{{ totals.processing }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><small>Paid</small><div class="h4">₹{{ totals.paid }}</div></div></div></div>
+  <div class="col-md-3"><div class="card"><div class="card-body"><small>Needs attention</small><div class="h4">₹{{ totals.on_hold }}</div></div></div></div>
+</div>
+<div class="alert alert-info">Online orders are scheduled for 9:00 AM the next day after verified payment. COD orders are scheduled only after delivery and cash collection are marked paid.</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+<thead><tr><th>Order</th><th>Method</th><th>Sale</th><th>Commission</th><th>Return deductions</th><th>You receive</th><th>Transfer date</th><th>Status</th></tr></thead>
+<tbody>{% for payout in settlements %}<tr><td>#{{ payout.order_id }}</td><td>{{ payout.get_payment_method_display }}</td><td>₹{{ payout.gross_amount }}</td><td>−₹{{ payout.commission_amount }}</td><td>−₹{{ payout.deductions_amount }}</td><td><strong>₹{{ payout.payout_amount }}</strong></td><td>{{ payout.scheduled_for|date:"d M Y, g:i A" }}</td><td><span class="badge text-bg-{% if payout.status == 'paid' %}success{% elif payout.status == 'failed' or payout.status == 'on_hold' %}danger{% else %}secondary{% endif %}">{{ payout.get_status_display }}</span>{% if payout.failure_reason %}<div class="small text-danger">{{ payout.failure_reason }}</div>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-5">No seller earnings yet.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if food_settlements %}<h2 class="h4 mt-4">Restaurant settlements</h2><div class="card"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Food order</th><th>Method</th><th>Customer subtotal</th><th>Commission</th><th>Restaurant receives</th><th>Scheduled</th><th>Status</th></tr></thead><tbody>{% for payout in food_settlements %}<tr><td>#{{ payout.order_id }}</td><td>{{ payout.payment_method|upper }}</td><td>₹{{ payout.gross_amount }}</td><td>−₹{{ payout.commission_amount }}</td><td><strong>₹{{ payout.payout_amount }}</strong></td><td>{{ payout.scheduled_for|date:"d M Y, g:i A" }}</td><td>{{ payout.get_status_display }}</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+{% endblock %}

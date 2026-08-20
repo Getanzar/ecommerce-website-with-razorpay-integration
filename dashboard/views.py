@@ -1,9 +1,13 @@
 import json
+import razorpay
+from decimal import Decimal, InvalidOperation
+from datetime import timedelta
+from django.conf import settings
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Sum
 from django.utils.text import slugify
-from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.utils import timezone
 from orders.models import (
@@ -13,6 +17,7 @@ from orders.models import (
     SupportTicket,
     SupportReply,
     OrderTimeline,
+    SellerSettlement,
     )
 from products.models import (
     Product,
@@ -21,8 +26,10 @@ from products.models import (
     SubCategory,
     ProductColor,
     ProductVariant,
+    CatalogRequest,
 )
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
 from products.models import ProductReview
 from orders.models import ReturnRequest, SupportTicket
@@ -30,14 +37,20 @@ from django.db.models import Q
 from django.template.loader import render_to_string
 from django.contrib import messages
 from django.http import HttpResponse
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.forms import modelformset_factory
 from products.models import ProductVariant
-from django.db.models import Sum, Count
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Count
 from django.db.models.functions import TruncMonth
+from django.core.exceptions import PermissionDenied
+from accounts.models import SellerAIPlanPurchase, SellerProfile
+from .forms import SellerProductEditForm, SellerProductForm, SellerVariantStockForm
+from .ai_services import (
+    AIListingError,
+    enhance_product_image,
+    generate_listing_copy,
+    generate_listing_from_photos,
+)
 
 # ✅ Only allow superusers (admins) to access dashboard
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
@@ -71,6 +84,707 @@ def admin_dashboard(request):
     return render(request, "dashboard/admin_dashboard.html", context)
 
 
+def _approved_seller_for(request):
+    """Return the active seller profile or deny dashboard access."""
+    try:
+        seller = request.user.seller_profile
+    except SellerProfile.DoesNotExist as exc:
+        raise PermissionDenied("This account is not registered as a seller.") from exc
+
+    if not seller.is_approved:
+        raise PermissionDenied("Your seller account is awaiting marketplace approval.")
+
+    return seller
+
+
+@login_required
+def seller_dashboard(request):
+    seller = _approved_seller_for(request)
+    if "food" in seller.business_category.lower() or "restaurant" in seller.business_category.lower():
+        from food.models import Restaurant, FoodSellerSettlement
+        restaurant = Restaurant.objects.filter(seller=seller).first()
+        food_orders = restaurant.orders.prefetch_related("items") if restaurant else Order.objects.none()
+        return render(request, "food/seller/dashboard.html", {
+            "seller": seller, "restaurant": restaurant,
+            "menu_count": restaurant.menu_items.count() if restaurant else 0,
+            "open_order_count": food_orders.exclude(status__in=["delivered", "cancelled"]).count() if restaurant else 0,
+            "recent_orders": food_orders[:8] if restaurant else [],
+            "available_balance": FoodSellerSettlement.objects.filter(seller=seller, status="scheduled").aggregate(total=Sum("net_amount"))["total"] or 0,
+            "paid_out": FoodSellerSettlement.objects.filter(seller=seller, status="paid").aggregate(total=Sum("net_amount"))["total"] or 0,
+        })
+    products = Product.objects.filter(seller=seller).order_by("-created")
+    order_items = (
+        OrderItem.objects.filter(product__seller=seller)
+        .select_related("order", "product")
+        .order_by("-order__created_at")
+    )
+    completed_sales = order_items.exclude(
+        order__status__in=["Cancelled", "Returned"]
+    ).filter(order__payment_status="Paid")
+    gross_sales = completed_sales.aggregate(
+        total=Sum(
+            ExpressionWrapper(
+                F("price") * F("quantity"),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+    )["total"] or 0
+
+    context = {
+        "seller": seller,
+        "product_count": products.count(),
+        "live_product_count": products.filter(is_active=True).count(),
+        "order_count": order_items.values("order_id").distinct().count(),
+        "gross_sales": gross_sales,
+        "recent_order_items": order_items[:8],
+        "available_balance": SellerSettlement.objects.filter(seller=seller, status="scheduled").aggregate(total=Sum("net_amount"))["total"] or 0,
+        "paid_out": SellerSettlement.objects.filter(seller=seller, status="paid").aggregate(total=Sum("net_amount"))["total"] or 0,
+    }
+    return render(request, "dashboard/seller/dashboard.html", context)
+
+
+@login_required
+def seller_products(request):
+    seller = _approved_seller_for(request)
+    products = Product.objects.filter(seller=seller).order_by("-created")
+    return render(
+        request,
+        "dashboard/seller/products.html",
+        {"seller": seller, "products": products},
+    )
+
+
+@login_required
+def seller_edit_product(request, product_id):
+    seller = _approved_seller_for(request)
+    product = get_object_or_404(Product, id=product_id, seller=seller)
+    form = SellerProductEditForm(request.POST or None, request.FILES or None, instance=product)
+    if request.method == "POST" and form.is_valid():
+        product = form.save(commit=False)
+        product.moderation_status = Product.MODERATION_PENDING
+        product.is_active = False
+        product.rejection_reason = ""
+        product.save()
+        messages.success(request, "Changes saved and submitted for admin review.")
+        return redirect("seller_products")
+    return render(request, "dashboard/seller/edit_product.html", {"seller": seller, "product": product, "form": form})
+
+
+@login_required
+def seller_inventory(request, product_id):
+    seller = _approved_seller_for(request)
+    product = get_object_or_404(Product, id=product_id, seller=seller)
+    VariantFormSet = modelformset_factory(ProductVariant, form=SellerVariantStockForm, extra=0)
+    queryset = product.variants.select_related("color")
+    formset = VariantFormSet(request.POST or None, queryset=queryset)
+    if request.method == "POST" and formset.is_valid():
+        formset.save()
+        product.stock = sum(product.variants.values_list("stock", flat=True))
+        product.save(update_fields=["stock"])
+        messages.success(request, "Inventory updated.")
+        return redirect("seller_products")
+    return render(request, "dashboard/seller/inventory.html", {"seller": seller, "product": product, "formset": formset})
+
+
+@require_POST
+@login_required
+def seller_toggle_product(request, product_id):
+    seller = _approved_seller_for(request)
+    product = get_object_or_404(Product, id=product_id, seller=seller)
+    if product.moderation_status != Product.MODERATION_APPROVED:
+        messages.error(request, "Only approved products can be made live.")
+    else:
+        product.is_active = not product.is_active
+        product.save(update_fields=["is_active"])
+        messages.success(request, "Listing status updated.")
+    return redirect("seller_products")
+
+
+@login_required
+def seller_orders(request):
+    seller = _approved_seller_for(request)
+    order_items = (
+        OrderItem.objects.filter(product__seller=seller)
+        .select_related("order", "product", "variant")
+        .order_by("-order__created_at", "id")
+    )
+    return render(
+        request,
+        "dashboard/seller/orders.html",
+        {"seller": seller, "order_items": order_items},
+    )
+
+
+@require_POST
+@login_required
+def seller_update_order_item(request, item_id):
+    seller = _approved_seller_for(request)
+    item = get_object_or_404(OrderItem.objects.select_related("order"), id=item_id, product__seller=seller)
+    new_status = request.POST.get("status", "")
+    transitions = {
+        "new": {"accepted", "cancelled"}, "accepted": {"packed", "cancelled"},
+        "packed": {"shipped", "cancelled"}, "shipped": {"delivered"},
+        "delivered": set(), "cancelled": set(),
+    }
+    if new_status not in transitions.get(item.fulfillment_status, set()):
+        messages.error(request, "That fulfilment status change is not allowed.")
+        return redirect("seller_orders")
+    if new_status == "cancelled":
+        settlement = SellerSettlement.objects.filter(seller=seller, order=item.order).first()
+        if settlement and settlement.status in {"paid", "processing"}:
+            messages.error(request, "This item already entered payout processing. Contact marketplace support to cancel and refund it.")
+            return redirect("seller_orders")
+    if new_status == "shipped":
+        courier = request.POST.get("courier", "").strip()
+        tracking = request.POST.get("tracking_number", "").strip()
+        if not courier or not tracking:
+            messages.error(request, "Courier and tracking number are required for shipping.")
+            return redirect("seller_orders")
+        item.seller_courier, item.seller_tracking_number = courier, tracking
+    item.fulfillment_status = new_status
+    if new_status == "delivered":
+        item.fulfilled_at = timezone.now()
+    item.save()
+    if new_status == "cancelled" and settlement:
+        settlement.deductions_amount = min(
+            settlement.net_amount, settlement.deductions_amount + item.seller_total
+        )
+        if settlement.payout_amount <= 0:
+            settlement.status = "offset"
+            settlement.processed_at = timezone.now()
+        settlement.save(update_fields=["deductions_amount", "status", "processed_at", "updated_at"])
+    messages.success(request, f"Order #{item.order_id} item marked {item.get_fulfillment_status_display()}.")
+    return redirect("seller_orders")
+
+
+@login_required
+def seller_payouts(request):
+    seller = _approved_seller_for(request)
+    settlements = seller.settlements.select_related("order")
+    totals = {
+        "scheduled": settlements.filter(status="scheduled").aggregate(total=Sum("net_amount"))["total"] or 0,
+        "processing": settlements.filter(status="processing").aggregate(total=Sum("net_amount"))["total"] or 0,
+        "paid": settlements.filter(status="paid").aggregate(total=Sum("net_amount"))["total"] or 0,
+        "on_hold": settlements.filter(status__in=["failed", "on_hold"]).aggregate(total=Sum("net_amount"))["total"] or 0,
+    }
+    from food.models import FoodSellerSettlement
+    food_settlements = FoodSellerSettlement.objects.filter(seller=seller).select_related("order")
+    return render(request, "dashboard/seller/payouts.html", {
+        "seller": seller, "settlements": settlements[:100], "totals": totals,
+        "food_settlements": food_settlements[:100],
+        "return_balance": seller.return_debits.aggregate(total=Sum("remaining_amount"))["total"] or 0,
+        "seller_notifications": seller.notifications.filter(is_read=False)[:10],
+    })
+
+
+@require_POST
+@login_required
+def seller_read_notifications(request):
+    seller = _approved_seller_for(request)
+    seller.notifications.filter(is_read=False).update(is_read=True)
+    return redirect("seller_payouts")
+
+
+@login_required
+def seller_add_product(request):
+    seller = _approved_seller_for(request)
+
+    seller_category = seller.business_category.lower()
+    if "food" in seller_category or "restaurant" in seller_category:
+        return redirect("food_seller_add_item")
+
+    if request.method == "POST":
+        form = SellerProductForm(request.POST, request.FILES)
+        variants_data = None
+        try:
+            variants_data = _parse_seller_variants(request)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
+
+        if form.is_valid() and variants_data is not None:
+            with transaction.atomic():
+                product = form.save(commit=False)
+                product.seller = seller
+                product.stock = sum(
+                    variant["stock"]
+                    for color in variants_data
+                    for variant in color["variants"]
+                )
+                # Seller listings stay private until marketplace staff reviews them.
+                product.is_active = False
+                product.moderation_status = Product.MODERATION_PENDING
+                product.rejection_reason = ""
+                product.save()
+                ProductImage.objects.create(
+                    product=product,
+                    image=form.cleaned_data["back_image"],
+                    display_order=0,
+                )
+
+                for color_index, color_data in enumerate(variants_data):
+                    color = ProductColor.objects.create(
+                        product=product,
+                        name=color_data["name"],
+                        hex_code=color_data["hex_code"],
+                        image=request.FILES.get(f"color_image_{color_index}"),
+                        display_order=color_index,
+                    )
+                    for variant_index, variant_data in enumerate(color_data["variants"]):
+                        ProductVariant.objects.create(
+                            product=product,
+                            color=color,
+                            size=variant_data["size"],
+                            stock=variant_data["stock"],
+                            sku=variant_data["sku"],
+                            price=variant_data["price"],
+                            image=request.FILES.get(
+                                f"variant_image_{color_index}_{variant_index}"
+                            ),
+                        )
+            messages.success(
+                request,
+                "Product submitted. It will become visible after marketplace approval.",
+            )
+            return redirect("seller_products")
+    else:
+        form = SellerProductForm()
+
+    return render(
+        request,
+        "dashboard/seller/add_product.html",
+        {
+            "seller": seller,
+            "form": form,
+            "razorpay_key_id": settings.RAZORPAY_KEY_ID,
+            "ai_plans": settings.SELLER_AI_PLANS,
+        },
+    )
+
+
+def _parse_seller_variants(request):
+    """Validate the mobile variant builder payload before creating any records."""
+    try:
+        colors = json.loads(request.POST.get("variants_json", ""))
+    except json.JSONDecodeError as exc:
+        raise ValueError("Add at least one color and size variant.") from exc
+    if not isinstance(colors, list) or not colors:
+        raise ValueError("Add at least one color and size variant.")
+    if len(colors) > 20:
+        raise ValueError("A product can have up to 20 colors.")
+
+    parsed = []
+    color_names = set()
+    skus = set()
+    for color in colors:
+        if not isinstance(color, dict):
+            raise ValueError("The color and size information is invalid.")
+        name = str(color.get("name", "")).strip()
+        hex_code = str(color.get("hex_code", "#000000")).strip().upper()
+        if not name:
+            raise ValueError("Every color needs a name.")
+        if name.casefold() in color_names:
+            raise ValueError(f'Color "{name}" was added more than once.')
+        color_names.add(name.casefold())
+        if len(hex_code) != 7 or not hex_code.startswith("#"):
+            raise ValueError(f'Choose a valid color swatch for "{name}".')
+        try:
+            int(hex_code[1:], 16)
+        except ValueError as exc:
+            raise ValueError(f'Choose a valid color swatch for "{name}".') from exc
+
+        variants = color.get("variants")
+        if not isinstance(variants, list) or not variants:
+            raise ValueError(f'Add at least one size for "{name}".')
+        if len(variants) > 50:
+            raise ValueError(f'Add no more than 50 sizes for "{name}".')
+        parsed_variants = []
+        sizes = set()
+        for variant in variants:
+            if not isinstance(variant, dict):
+                raise ValueError(f'The size information under "{name}" is invalid.')
+            size = str(variant.get("size", "")).strip()
+            if not size:
+                raise ValueError(f'Every variant under "{name}" needs a size.')
+            if size.casefold() in sizes:
+                raise ValueError(f'Size "{size}" is repeated under "{name}".')
+            sizes.add(size.casefold())
+            try:
+                stock = int(variant.get("stock", 0))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f'Enter valid stock for {name} / {size}.') from exc
+            if stock < 0:
+                raise ValueError(f'Stock cannot be negative for {name} / {size}.')
+            sku = str(variant.get("sku", "")).strip() or None
+            if sku and sku.casefold() in skus:
+                raise ValueError(f'SKU "{sku}" is used more than once.')
+            if sku:
+                skus.add(sku.casefold())
+                if ProductVariant.objects.filter(sku__iexact=sku).exists():
+                    raise ValueError(f'SKU "{sku}" is already in use.')
+            raw_price = str(variant.get("price", "")).strip()
+            try:
+                price = Decimal(raw_price) if raw_price else None
+            except InvalidOperation as exc:
+                raise ValueError(f'Enter a valid price for {name} / {size}.') from exc
+            if price is not None and price <= 0:
+                raise ValueError(f'Price must be greater than zero for {name} / {size}.')
+            parsed_variants.append(
+                {"size": size, "stock": stock, "sku": sku, "price": price}
+            )
+        parsed.append({"name": name, "hex_code": hex_code, "variants": parsed_variants})
+    return parsed
+
+
+def _catalog_key(name):
+    """Normalize case, whitespace and punctuation for duplicate comparisons."""
+    return slugify((name or "").strip())
+
+
+def _matching_category(name):
+    key = _catalog_key(name)
+    if not key:
+        return None
+    return next(
+        (
+            category
+            for category in Category.objects.only("id", "name", "slug")
+            if category.slug == key or _catalog_key(category.name) == key
+        ),
+        None,
+    )
+
+
+def _matching_subcategory(parent_category, name):
+    key = _catalog_key(name)
+    if not parent_category or not key:
+        return None
+    return next(
+        (
+            subcategory
+            for subcategory in SubCategory.objects.filter(
+                category=parent_category
+            ).only("id", "name", "category_id")
+            if _catalog_key(subcategory.name) == key
+        ),
+        None,
+    )
+
+
+@login_required
+def seller_catalog_requests(request):
+    seller = _approved_seller_for(request)
+    if request.method == "POST":
+        is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+        request_type = request.POST.get("request_type", "").strip()
+        name = request.POST.get("name", "").strip()
+        parent_category = None
+
+        error = ""
+        if request_type not in {CatalogRequest.TYPE_CATEGORY, CatalogRequest.TYPE_SUBCATEGORY}:
+            error = "Choose category or subcategory."
+        elif not name or not _catalog_key(name):
+            error = "Enter a category name using letters or numbers."
+        elif request_type == CatalogRequest.TYPE_SUBCATEGORY:
+            parent_category = Category.objects.filter(
+                pk=request.POST.get("parent_category")
+            ).first()
+            if parent_category is None:
+                error = "Choose a parent category for the subcategory."
+
+        if error:
+            if is_ajax:
+                return JsonResponse({"error": error}, status=400)
+            messages.error(request, error)
+            return redirect("seller_catalog_requests")
+
+        with transaction.atomic():
+            if parent_category is not None:
+                # Serialize additions under one parent so simultaneous sellers
+                # cannot create equivalent subcategories at the same time.
+                parent_category = Category.objects.select_for_update().get(
+                    pk=parent_category.pk
+                )
+            existing = (
+                _matching_category(name)
+                if request_type == CatalogRequest.TYPE_CATEGORY
+                else _matching_subcategory(parent_category, name)
+            )
+            created = existing is None
+            if created:
+                try:
+                    with transaction.atomic():
+                        if request_type == CatalogRequest.TYPE_CATEGORY:
+                            existing = Category.objects.create(name=name)
+                        else:
+                            existing = SubCategory.objects.create(
+                                category=parent_category, name=name
+                            )
+                except IntegrityError:
+                    # A simultaneous request may have created the same category.
+                    existing = (
+                        _matching_category(name)
+                        if request_type == CatalogRequest.TYPE_CATEGORY
+                        else _matching_subcategory(parent_category, name)
+                    )
+                    created = False
+
+        label = "category" if request_type == CatalogRequest.TYPE_CATEGORY else "subcategory"
+        if created:
+            notice = f'The {label} "{existing.name}" was added and is ready to use.'
+            if not is_ajax:
+                messages.success(request, notice)
+        else:
+            notice = f'The {label} "{existing.name}" already exists. You can use it now.'
+            if not is_ajax:
+                messages.info(request, notice)
+
+        if is_ajax:
+            return JsonResponse(
+                {
+                    "id": existing.pk,
+                    "name": existing.name,
+                    "type": request_type,
+                    "parent_category": parent_category.pk if parent_category else None,
+                    "created": created,
+                    "message": notice,
+                }
+            )
+        return redirect("seller_add_product")
+
+    return render(
+        request,
+        "dashboard/seller/catalog_requests.html",
+        {
+            "seller": seller,
+            "categories": Category.objects.order_by("name"),
+            "catalog_requests": CatalogRequest.objects.filter(seller=seller),
+        },
+    )
+
+
+def _require_active_ai_plan(seller):
+    if not seller.ai_subscription_active:
+        raise AIListingError("Choose an AI image plan to unlock listing tools.")
+
+
+def _reserve_ai_image(seller):
+    updated = SellerProfile.objects.filter(
+        pk=seller.pk,
+        ai_subscription_ends_at__gt=timezone.now(),
+        ai_images_used__lt=F("ai_image_limit"),
+    ).update(
+        ai_images_used=F("ai_images_used") + 1
+    )
+    if not updated:
+        raise AIListingError("Your monthly AI image allowance has been used. Renew or choose another plan.")
+
+
+def _refund_ai_image(seller):
+    SellerProfile.objects.filter(pk=seller.pk, ai_images_used__gt=0).update(
+        ai_images_used=F("ai_images_used") - 1
+    )
+
+
+@login_required
+@require_POST
+def seller_ai_generate_copy(request):
+    seller = _approved_seller_for(request)
+    notes = request.POST.get("notes", "").strip()
+    front_image = request.FILES.get("front_image")
+    back_image = request.FILES.get("back_image")
+    image_error = _validate_ai_photos(front_image, back_image)
+    if image_error:
+        return JsonResponse({"error": image_error}, status=400)
+    try:
+        _require_active_ai_plan(seller)
+        result = generate_listing_from_photos(
+            front_image,
+            back_image,
+            request.POST.get("category", "").strip(),
+            notes,
+        )
+    except AIListingError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    except Exception:
+        return JsonResponse({"error": "The AI service is temporarily unavailable."}, status=503)
+    return JsonResponse(result)
+
+
+@login_required
+@require_POST
+def seller_ai_enhance_image(request):
+    seller = _approved_seller_for(request)
+    front_image = request.FILES.get("front_image")
+    back_image = request.FILES.get("back_image")
+    image_error = _validate_ai_photos(front_image, back_image)
+    if image_error:
+        return JsonResponse({"error": image_error}, status=400)
+    try:
+        _require_active_ai_plan(seller)
+        _reserve_ai_image(seller)
+        try:
+            _reserve_ai_image(seller)
+        except AIListingError:
+            _refund_ai_image(seller)
+            raise
+        completed = 0
+        try:
+            front_encoded = enhance_product_image(front_image, back_image, "front")
+            completed = 1
+            back_encoded = enhance_product_image(back_image, front_image, "back")
+            completed = 2
+        except Exception as exc:
+            for _ in range(2 - completed):
+                _refund_ai_image(seller)
+            if isinstance(exc, AIListingError):
+                raise
+            raise AIListingError("The AI service is temporarily unavailable.") from exc
+    except AIListingError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    seller.refresh_from_db(fields=["ai_images_used"])
+    return JsonResponse({
+        "images": {"front": front_encoded, "back": back_encoded},
+        "images_remaining": seller.ai_images_remaining,
+    })
+
+
+def _validate_ai_photos(front_image, back_image):
+    if not front_image or not back_image:
+        return "Upload clear front and back product photos first."
+    for image in (front_image, back_image):
+        if not image.content_type or not image.content_type.startswith("image/"):
+            return "Upload valid front and back image files."
+        if image.size > 10 * 1024 * 1024:
+            return "Each image must be 10 MB or smaller."
+    return ""
+
+
+@login_required
+@require_POST
+def seller_ai_create_order(request):
+    seller = _approved_seller_for(request)
+    plan_code = request.POST.get("plan", "")
+    plan = settings.SELLER_AI_PLANS.get(plan_code)
+    if not plan:
+        return JsonResponse({"error": "Choose a valid monthly plan."}, status=400)
+    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    order = client.order.create(
+        {
+            "amount": plan["price_paise"],
+            "currency": "INR",
+            "payment_capture": 1,
+            "notes": {"seller_id": str(seller.pk), "purpose": "seller_ai_plan", "plan": plan_code},
+        }
+    )
+    SellerAIPlanPurchase.objects.create(
+        seller=seller,
+        razorpay_order_id=order["id"],
+        amount_paise=plan["price_paise"],
+        plan_code=plan_code,
+        image_limit=plan["image_limit"],
+    )
+    return JsonResponse({"order_id": order["id"], "amount": order["amount"]})
+
+
+@login_required
+@require_POST
+def seller_ai_confirm_payment(request):
+    seller = _approved_seller_for(request)
+    params = {
+        "razorpay_order_id": request.POST.get("razorpay_order_id"),
+        "razorpay_payment_id": request.POST.get("razorpay_payment_id"),
+        "razorpay_signature": request.POST.get("razorpay_signature"),
+    }
+    try:
+        razorpay.Client(
+            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+        ).utility.verify_payment_signature(params)
+    except Exception:
+        return JsonResponse({"error": "Payment verification failed."}, status=400)
+
+    with transaction.atomic():
+        purchase = get_object_or_404(
+            SellerAIPlanPurchase.objects.select_for_update(),
+            seller=seller,
+            razorpay_order_id=params["razorpay_order_id"],
+        )
+        if purchase.status != "paid":
+            purchase.status = "paid"
+            purchase.razorpay_payment_id = params["razorpay_payment_id"]
+            purchase.paid_at = timezone.now()
+            purchase.save(update_fields=["status", "razorpay_payment_id", "paid_at"])
+            SellerProfile.objects.filter(pk=seller.pk).update(
+                ai_plan=purchase.plan_code,
+                ai_image_limit=purchase.image_limit,
+                ai_images_used=0,
+                ai_subscription_ends_at=timezone.now() + timedelta(days=30),
+            )
+    seller.refresh_from_db()
+    return JsonResponse({
+        "plan": seller.get_ai_plan_display(),
+        "images_remaining": seller.ai_images_remaining,
+        "ends_at": seller.ai_subscription_ends_at.isoformat(),
+    })
+
+
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+def sellers_management(request):
+    sellers = SellerProfile.objects.select_related("user").prefetch_related(
+        "products"
+    )
+    status = request.GET.get("status")
+
+    if status in {"pending", "approved", "suspended"}:
+        sellers = sellers.filter(status=status)
+
+    context = {
+        "sellers": sellers,
+        "selected_status": status,
+        "pending_count": SellerProfile.objects.filter(status="pending").count(),
+        "approved_count": SellerProfile.objects.filter(status="approved").count(),
+        "suspended_count": SellerProfile.objects.filter(status="suspended").count(),
+    }
+    return render(request, "dashboard/sellers_management.html", context)
+
+
+@require_POST
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+def update_seller_status(request, seller_id):
+    seller = get_object_or_404(SellerProfile, id=seller_id)
+    new_status = request.POST.get("status")
+
+    allowed_statuses = {"approved", "suspended"}
+    if new_status not in allowed_statuses:
+        messages.error(request, "Invalid seller status.")
+        return redirect("sellers_management")
+
+    seller.status = new_status
+    seller.save(update_fields=["status", "updated_at"])
+
+    if new_status == "approved":
+        messages.success(request, f"{seller.store_name} is now approved to sell.")
+    else:
+        messages.warning(request, f"{seller.store_name} has been suspended.")
+
+    return redirect("sellers_management")
+
+
+@require_POST
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+def verify_seller_payouts(request, seller_id):
+    seller = get_object_or_404(SellerProfile, id=seller_id)
+    if not seller.kyc_complete:
+        messages.error(request, "KYC is incomplete. Review the legal, GSTIN, Aadhaar and bank fields first.")
+    elif not seller.razorpay_contact_id or not seller.razorpay_fund_account_id:
+        messages.error(request, "RazorpayX payout account is missing. Ask the seller to resubmit bank details once.")
+    else:
+        seller.status = "approved"
+        seller.payouts_enabled = True
+        seller.save(update_fields=["status", "payouts_enabled", "updated_at"])
+        messages.success(request, f"{seller.store_name} is verified and automatic payouts are enabled.")
+    return redirect("sellers_management")
+
+
 # ✅ Local Orders page
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def local_orders_list(request):
@@ -100,6 +814,7 @@ def mark_order_shipped(request, order_id):
     if request.method == "POST":
         order.status = "Shipped"
         order.save()
+
     return redirect(request.META.get("HTTP_REFERER", "admin_dashboard"))
 
 
@@ -440,6 +1155,10 @@ def toggle_product_status(request, id):
 
     product = get_object_or_404(Product, id=id)
 
+    if product.seller_id and product.moderation_status != Product.MODERATION_APPROVED:
+        messages.error(request, "Review this seller listing before making it live.")
+        return redirect("products_management")
+
     product.is_active = not product.is_active
     product.save()
 
@@ -455,6 +1174,96 @@ def toggle_product_status(request, id):
         )
 
     return redirect("products_management")
+
+
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+@require_POST
+def review_seller_product(request, product_id):
+    product = get_object_or_404(Product, id=product_id, seller__isnull=False)
+    action = request.POST.get("action")
+    reason = request.POST.get("reason", "").strip()
+    if action == "approve":
+        product.moderation_status = Product.MODERATION_APPROVED
+        product.is_active = True
+        product.rejection_reason = ""
+        message = f'"{product.name}" approved and published.'
+    elif action == "reject":
+        if not reason:
+            messages.error(request, "Add a reason before rejecting the product.")
+            return redirect("products_management")
+        product.moderation_status = Product.MODERATION_REJECTED
+        product.is_active = False
+        product.rejection_reason = reason
+        message = f'"{product.name}" rejected and kept private.'
+    else:
+        messages.error(request, "Invalid product review action.")
+        return redirect("products_management")
+    product.reviewed_by = request.user
+    product.reviewed_at = timezone.now()
+    product.save(update_fields=["moderation_status", "is_active", "rejection_reason", "reviewed_by", "reviewed_at"])
+    messages.success(request, message)
+    return redirect("products_management")
+
+
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+def catalog_requests_management(request):
+    catalog_requests = CatalogRequest.objects.select_related(
+        "seller", "seller__user", "parent_category", "reviewed_by"
+    )
+    return render(request, "dashboard/catalog_requests_management.html", {"catalog_requests": catalog_requests})
+
+
+@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+@require_POST
+@transaction.atomic
+def review_catalog_request(request, request_id):
+    catalog_request = get_object_or_404(CatalogRequest, id=request_id)
+    action = request.POST.get("action")
+    note = request.POST.get("admin_note", "").strip()
+    if catalog_request.status != CatalogRequest.STATUS_PENDING:
+        messages.info(request, "This catalog request has already been reviewed.")
+        return redirect("catalog_requests_management")
+    if action == "approve":
+        if catalog_request.request_type == CatalogRequest.TYPE_CATEGORY:
+            existing = _matching_category(catalog_request.name)
+            if existing is None:
+                Category.objects.create(name=catalog_request.name)
+        else:
+            existing = _matching_subcategory(
+                catalog_request.parent_category, catalog_request.name
+            )
+            if existing is None:
+                SubCategory.objects.create(
+                    category=catalog_request.parent_category,
+                    name=catalog_request.name,
+                )
+        catalog_request.status = CatalogRequest.STATUS_APPROVED
+        if existing:
+            duplicate_note = (
+                f'Not created again because "{existing.name}" already exists.'
+            )
+            catalog_request.admin_note = " ".join(
+                part for part in (note, duplicate_note) if part
+            )
+            messages.info(request, duplicate_note)
+        else:
+            catalog_request.admin_note = note
+            messages.success(request, "Catalog request approved and added to the storefront catalog.")
+    elif action == "reject":
+        if not note:
+            messages.error(request, "Add an admin note before rejecting this request.")
+            return redirect("catalog_requests_management")
+        catalog_request.status = CatalogRequest.STATUS_REJECTED
+        messages.success(request, "Catalog request rejected.")
+    else:
+        messages.error(request, "Invalid catalog review action.")
+        return redirect("catalog_requests_management")
+    if action == "reject":
+        catalog_request.admin_note = note
+    catalog_request.reviewed_by = request.user
+    catalog_request.reviewed_at = timezone.now()
+    catalog_request.save(update_fields=["status", "admin_note", "reviewed_by", "reviewed_at"])
+    return redirect("catalog_requests_management")
 
 
 @csrf_exempt
@@ -539,7 +1348,7 @@ def products_management(request):
 
     products = (
         Product.objects
-        .select_related("category", "subcategory")
+        .select_related("category", "subcategory", "seller", "seller__user")
         .order_by("-created")
     )
 
@@ -1110,6 +1919,9 @@ def update_order_status(request, order_id):
 
         order.save()
 
+        from orders.settlements import create_settlements_for_order
+        create_settlements_for_order(order)
+
     # -------------------------------
     # ORDER TIMELINE
     # -------------------------------
@@ -1142,6 +1954,12 @@ def update_order_status(request, order_id):
 
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def download_invoice(request, order_id):
+    # Keep optional PDF dependencies out of normal dashboard page imports.
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
 
     order = get_object_or_404(
         Order.objects.prefetch_related("items"),
@@ -1156,7 +1974,7 @@ def download_invoice(request, order_id):
 
     elements = []
 
-    elements.append(Paragraph("<b>ZIYA FASHION</b>", styles["Title"]))
+    elements.append(Paragraph("<b>ZIYAMART FASHION</b>", styles["Title"]))
     elements.append(Paragraph(f"Invoice #{order.id}", styles["Heading2"]))
     elements.append(Paragraph("<br/>", styles["Normal"]))
 
@@ -1362,19 +2180,21 @@ def approve_return(request, return_id):
         # Update Return Request
         # -------------------------
 
-        return_request.status = "Approved"
+        requested_refund_status = request.POST.get("refund_status", "Pending")
+        return_request.status = "Completed" if requested_refund_status == "Processed" else "Approved"
 
         return_request.admin_note = request.POST.get(
             "admin_note",
             ""
         )
 
-        return_request.refund_status = request.POST.get(
-            "refund_status",
-            "Pending"
-        )
+        return_request.refund_status = requested_refund_status
 
         return_request.save()
+
+        if return_request.refund_status == "Processed":
+            from orders.settlements import create_return_debit
+            create_return_debit(return_request)
 
         # -------------------------
         # Restock Only Returned Item

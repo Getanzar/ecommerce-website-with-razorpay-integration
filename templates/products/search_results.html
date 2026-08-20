@@ -15,7 +15,7 @@
               <h5 class="card-title">{{ product.name }}</h5>
               <p class="card-text text-muted">
                 {{ product.category.name }}<br>
-                ₹{{ product.price }}
+                ₹{{ product.customer_price }}
               </p>
                 <a href="{% url 'product_detail_page' product.slug %}" class="btn btn-primary btn-sm">
                     View Details

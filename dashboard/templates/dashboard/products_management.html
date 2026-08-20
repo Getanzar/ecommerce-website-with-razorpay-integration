@@ -1,6 +1,6 @@
 {% extends "dashboard/base_dashboard.html" %}
 
-{% block title %}Products | ZIYA Admin{% endblock %}
+{% block title %}Products | ZIYAMART Admin{% endblock %}
 
 {% block page_title %}
 Products Management
@@ -137,18 +137,14 @@ Products Management
 
                         <td>
 
-                            {% if product.stock > 0 %}
-
-                                <span class="badge bg-success">
-                                    Active
-                                </span>
-
+                            {% if product.seller and product.moderation_status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pending approval</span>
+                            {% elif product.moderation_status == 'rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% elif product.is_active %}
+                                <span class="badge bg-success">Live</span>
                             {% else %}
-
-                                <span class="badge bg-secondary">
-                                    Inactive
-                                </span>
-
+                                <span class="badge bg-secondary">Inactive</span>
                             {% endif %}
 
                         </td>
@@ -156,6 +152,20 @@ Products Management
                         <td>
 
 <div class="btn-group" role="group">
+
+    {% if product.seller and product.moderation_status == 'pending' %}
+    <form method="POST" action="{% url 'review_seller_product' product.id %}" class="d-inline">
+        {% csrf_token %}<input type="hidden" name="action" value="approve">
+        <button class="btn btn-sm btn-success" title="Approve and publish"><i class="bi bi-check-lg"></i></button>
+    </form>
+    <button type="button" class="btn btn-sm btn-outline-danger" title="Reject"
+            onclick="const reason=prompt('Reason for rejection:'); if(reason){ const f=this.nextElementSibling; f.querySelector('[name=reason]').value=reason; f.submit(); }">
+        <i class="bi bi-x-lg"></i>
+    </button>
+    <form method="POST" action="{% url 'review_seller_product' product.id %}" class="d-none">
+        {% csrf_token %}<input type="hidden" name="action" value="reject"><input type="hidden" name="reason">
+    </form>
+    {% endif %}
 
     <a href="{% url 'product_detail_page' product.slug %}"
        target="_blank"
@@ -170,7 +180,7 @@ Products Management
         <i class="bi bi-pencil"></i>
     </a>
 
-    <form method="POST"
+    {% if not product.seller or product.moderation_status == 'approved' %}<form method="POST"
           action="{% url 'toggle_product_status' product.id %}"
           class="d-inline">
         {% csrf_token %}
@@ -188,7 +198,7 @@ Products Management
                 <i class="bi bi-eye"></i>
             </button>
         {% endif %}
-    </form>
+    </form>{% endif %}
 
     <a href="{% url 'delete_product' product.id %}"
        class="btn btn-sm btn-outline-danger"

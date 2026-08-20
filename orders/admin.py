@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Order, OrderItem, ReturnRequest , SupportTicket
+from .models import Order, OrderItem, ReturnRequest, SupportTicket, SellerNotification, SellerReturnDebit, SellerSettlement
 
 from django.utils import timezone
 
@@ -185,3 +185,25 @@ class SupportTicketAdmin(admin.ModelAdmin):
         "user__username",
         "order__id",
     )
+
+
+@admin.register(SellerSettlement)
+class SellerSettlementAdmin(admin.ModelAdmin):
+    list_display = ("id", "seller", "order", "net_amount", "payment_method", "status", "scheduled_for", "processed_at")
+    list_filter = ("status", "payment_method", "scheduled_for")
+    search_fields = ("seller__store_name", "order__id", "provider_payout_id")
+    readonly_fields = ("gross_amount", "commission_amount", "net_amount", "provider_payout_id", "processed_at", "created_at", "updated_at")
+
+
+@admin.register(SellerReturnDebit)
+class SellerReturnDebitAdmin(admin.ModelAdmin):
+    list_display = ("id", "seller", "return_request", "original_amount", "remaining_amount", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("seller__store_name", "return_request__order__id")
+    readonly_fields = ("seller", "return_request", "original_amount", "created_at")
+
+
+@admin.register(SellerNotification)
+class SellerNotificationAdmin(admin.ModelAdmin):
+    list_display = ("seller", "title", "is_read", "created_at")
+    list_filter = ("kind", "is_read")

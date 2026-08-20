@@ -254,6 +254,7 @@ def product_detail_page(request, slug):
             "size"
         )
     )
+    has_stock = variants.filter(stock__gt=0).exists()
 
     # Create color-wise size mapping
     color_sizes = {}
@@ -269,7 +270,7 @@ def product_detail_page(request, slug):
             "id": variant.id,
             "size": variant.size,
             "stock": variant.stock,
-            "price": variant.price,
+            "price": variant.final_price,
         })
 
 
@@ -331,6 +332,8 @@ def product_detail_page(request, slug):
 
         # all variants
         "variants": variants,
+
+        "has_stock": has_stock,
 
         # javascript will use this
         "color_sizes": color_sizes,

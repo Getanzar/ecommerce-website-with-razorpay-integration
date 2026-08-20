@@ -1,0 +1,69 @@
+{% extends "dashboard/base_dashboard.html" %}
+
+{% block title %}Sellers | ZIYAMART Admin{% endblock %}
+{% block page_title %}Seller Management{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><a class="text-decoration-none" href="{% url 'sellers_management' %}?status=pending"><div class="card"><div class="card-body"><small class="text-muted">Pending applications</small><div class="h3 text-warning mb-0">{{ pending_count }}</div></div></div></a></div>
+    <div class="col-md-4"><a class="text-decoration-none" href="{% url 'sellers_management' %}?status=approved"><div class="card"><div class="card-body"><small class="text-muted">Approved sellers</small><div class="h3 text-success mb-0">{{ approved_count }}</div></div></div></a></div>
+    <div class="col-md-4"><a class="text-decoration-none" href="{% url 'sellers_management' %}?status=suspended"><div class="card"><div class="card-body"><small class="text-muted">Suspended sellers</small><div class="h3 text-danger mb-0">{{ suspended_count }}</div></div></div></a></div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="text-muted mb-0">Review seller applications and control their marketplace access.</p>
+    {% if selected_status %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'sellers_management' %}">Show all</a>{% endif %}
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr><th>Store</th><th>Owner</th><th>Contact</th><th>Products</th><th>Commission</th><th>KYC / payouts</th><th>Status</th><th class="text-end">Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for seller in sellers %}
+                    <tr>
+                        <td><strong>{{ seller.store_name }}</strong><br><small class="text-muted">Applied {{ seller.created_at|date:"d M Y" }}</small></td>
+                        <td>{{ seller.user.get_full_name|default:seller.user.username }}<br><small class="text-muted">{{ seller.user.email }}</small></td>
+                        <td>{{ seller.business_phone|default:"—" }}</td>
+                        <td>{{ seller.products.count }}</td>
+                        <td>{{ seller.commission_percent }}%</td>
+                        <td>
+                            {% if seller.kyc_complete %}<span class="badge text-bg-success">KYC complete</span>{% else %}<span class="badge text-bg-warning">KYC incomplete</span>{% endif %}
+                            {% if seller.razorpay_fund_account_id %}<br><span class="badge text-bg-info mt-1">Bank tokenized •••• {{ seller.bank_account_last4 }}</span>{% else %}<br><span class="badge text-bg-secondary mt-1">Bank resubmission needed</span>{% endif %}
+                            {% if seller.payouts_enabled %}<br><span class="badge text-bg-success mt-1">Auto payouts on</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if seller.status == "approved" %}<span class="badge text-bg-success">Approved</span>
+                            {% elif seller.status == "suspended" %}<span class="badge text-bg-danger">Suspended</span>
+                            {% else %}<span class="badge text-bg-warning">Pending</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if not seller.payouts_enabled %}
+                                <form method="post" action="{% url 'verify_seller_payouts' seller.id %}" class="d-inline">
+                                    {% csrf_token %}<button class="btn btn-sm btn-primary" type="submit" {% if not seller.kyc_complete or not seller.razorpay_fund_account_id %}disabled title="KYC and RazorpayX bank setup are required"{% endif %}>Verify & enable payouts</button>
+                                </form>
+                            {% endif %}
+                            {% if seller.status != "approved" %}
+                                <form method="post" action="{% url 'update_seller_status' seller.id %}" class="d-inline">
+                                    {% csrf_token %}<input type="hidden" name="status" value="approved">
+                                    <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                                </form>
+                            {% endif %}
+                            {% if seller.status != "suspended" %}
+                                <form method="post" action="{% url 'update_seller_status' seller.id %}" class="d-inline">
+                                    {% csrf_token %}<input type="hidden" name="status" value="suspended">
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">Suspend</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">No seller applications found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("webhooks/razorpayx/", views.razorpayx_webhook, name="razorpayx_webhook"),
 
     # Checkout
     path(

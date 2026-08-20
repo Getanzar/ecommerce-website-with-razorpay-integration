@@ -8,7 +8,15 @@ from .models import (
     ProductVariant,
     ProductReview,
     Wishlist,
+    CatalogRequest,
 )
+
+
+@admin.register(CatalogRequest)
+class CatalogRequestAdmin(admin.ModelAdmin):
+    list_display = ("name", "request_type", "seller", "parent_category", "status", "created_at")
+    list_filter = ("request_type", "status")
+    search_fields = ("name", "seller__store_name")
 
 
 # -----------------------------------
@@ -87,6 +95,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "name",
+        "seller",
         "category",
         "subcategory",
         "price",
@@ -97,6 +106,7 @@ class ProductAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
+        "seller",
         "category",
         "subcategory",
         "product_type",

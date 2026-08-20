@@ -116,14 +116,21 @@ class Cart:
                     if not variant:
                         continue
 
+                    # Never trust a price persisted in the browser session. Re-price
+                    # from the current catalog so marketplace fees cannot be bypassed.
+                    current_price = variant.final_price
+                    if item.get("price") != str(current_price):
+                        item["price"] = str(current_price)
+                        self.session.modified = True
+
                     yield {
                         "product": variant.product,
                         "variant": variant,
                         "color": item["color"],
                         "size": item["size"],
-                        "price": Decimal(item["price"]),
+                        "price": current_price,
                         "quantity": item["quantity"],
-                        "subtotal": Decimal(item["price"]) * item["quantity"],
+                        "subtotal": current_price * item["quantity"],
                     }
 
     def __len__(self):
@@ -134,14 +141,7 @@ class Cart:
                 )
 
     def get_total_price(self):
-
-                total = Decimal("0.00")
-
-                for item in self.cart.values():
-
-                    total += (
-                        Decimal(item["price"])
-                        * item["quantity"]
-                    )
-
-                return total
+                return sum(
+                    (item["price"] * item["quantity"] for item in self),
+                    Decimal("0.00"),
+                )

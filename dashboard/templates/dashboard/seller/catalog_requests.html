@@ -1,0 +1,18 @@
+{% extends "dashboard/seller/base.html" %}
+{% block title %}Add category | {{ seller.store_name }}{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5"><div class="card"><div class="card-body">
+    <h1 class="h4">Add a category</h1>
+    <p class="text-muted">Categories and subcategories are added immediately. Similar names will not be created twice.</p>
+    <form method="post">{% csrf_token %}
+      <div class="mb-3"><label class="form-label">Request type</label><select class="form-select" name="request_type" id="request-type" required><option value="category">Category</option><option value="subcategory">Subcategory</option></select></div>
+      <div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="name" maxlength="100" required></div>
+      <div class="mb-3" id="parent-wrap" hidden><label class="form-label">Parent category</label><select class="form-select" name="parent_category"><option value="">Choose category</option>{% for category in categories %}<option value="{{ category.id }}">{{ category.name }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary">Add now</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-7"><div class="card"><div class="card-body"><h2 class="h4">How duplicates are handled</h2><p class="text-muted mb-0">Names are compared without capitalization, extra spacing, or punctuation. For example, <strong>Kids Wear</strong> and <strong>kids-wear</strong> are treated as the same category. Subcategory names are checked within their selected parent category.</p></div></div></div>
+</div>
+<script>const type=document.getElementById('request-type'), wrap=document.getElementById('parent-wrap'); function sync(){wrap.hidden=type.value!=='subcategory'; wrap.querySelector('select').required=!wrap.hidden;} type.addEventListener('change',sync); sync();</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Food delivery | ZIYAMART{% endblock %}
+{% block content %}
+<section class="py-4">
+  <div class="p-4 p-md-5 rounded-4 text-white mb-4" style="background:linear-gradient(120deg,#e23744,#ff7043)">
+    <h1 class="display-6 fw-bold">Food, delivered locally</h1><p>Fresh meals from restaurants near you.</p>
+    <form class="row g-2" method="get"><div class="col-sm-8 col-md-5"><input class="form-control form-control-lg" name="pincode" value="{{ pincode }}" maxlength="6" inputmode="numeric" placeholder="Enter delivery pincode" required></div><div class="col-auto"><button class="btn btn-dark btn-lg">Find food</button></div></form>
+  </div>
+  {% if serviceable %}
+    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h3 mb-0">Restaurants delivering to {{ pincode }}</h2><a href="{% url 'food_cart' %}" class="btn btn-outline-danger">Food cart</a></div>
+    <div class="row g-4">{% for restaurant in restaurants %}<div class="col-md-6 col-lg-4"><a class="card h-100 text-decoration-none text-dark shadow-sm border-0" href="{% url 'food_restaurant' restaurant.slug %}?pincode={{ pincode }}">{% if restaurant.image %}<img src="{{ restaurant.image.url }}" class="card-img-top" style="height:210px;object-fit:cover" alt="{{ restaurant.name }}">{% endif %}<div class="card-body"><h3 class="h5">{{ restaurant.name }}</h3><p class="text-muted mb-2">{{ restaurant.cuisine|default:"Local favourites" }}</p><span class="badge text-bg-light">{{ restaurant.preparation_minutes }} min</span> <span class="badge text-bg-light">Delivery ₹{{ restaurant.delivery_fee }}</span></div></a></div>{% empty %}<p class="text-muted">No restaurants are accepting orders right now.</p>{% endfor %}</div>
+  {% else %}<div class="alert alert-warning"><h2 class="h5">We’re not delivering to your area just yet.</h2><p class="mb-0">We’re expanding our delivery network and hope to serve your location soon. Please check back again later.</p></div>{% endif %}
+</section>
+{% endblock %}

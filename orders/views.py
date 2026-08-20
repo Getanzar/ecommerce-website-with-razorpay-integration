@@ -4,6 +4,9 @@ from .invoice import generate_invoice
 from addresses.models import Address
 import requests
 import razorpay
+import json
+import hashlib
+import hmac
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -24,9 +27,41 @@ from .models import (
     SupportReply,
     ReturnRequest,
     OrderTimeline,
+    SellerSettlement,
 )
 from django.contrib import messages
 from django.utils import timezone
+
+
+@csrf_exempt
+def razorpayx_webhook(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+    secret = getattr(settings, "RAZORPAYX_WEBHOOK_SECRET", "")
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest() if secret else ""
+    if not secret or not hmac.compare_digest(signature, expected):
+        return HttpResponseBadRequest("Invalid signature")
+    try:
+        payload = json.loads(request.body)
+        payout = payload["payload"]["payout"]["entity"]
+    except (ValueError, KeyError, TypeError):
+        return HttpResponseBadRequest("Invalid payload")
+    settlement = SellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
+    if not settlement:
+        from food.models import FoodSellerSettlement
+        settlement = FoodSellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
+    if settlement:
+        provider_status = payout.get("status")
+        if provider_status == "processed":
+            settlement.status, settlement.processed_at, settlement.failure_reason = "paid", timezone.now(), ""
+        elif provider_status in {"rejected", "cancelled", "reversed"}:
+            settlement.status = "failed"
+            settlement.failure_reason = payout.get("failure_reason") or provider_status
+        else:
+            settlement.status = "processing"
+        settlement.save(update_fields=["status", "processed_at", "failure_reason", "updated_at"])
+    return HttpResponse(status=204)
 
 def send_whatsapp_alert(order):
     client = Client("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN")
@@ -41,11 +76,11 @@ def send_whatsapp_alert(order):
 @login_required
 def checkout(request):
     cart = Cart(request)
-    addresses = Address.objects.filter(
-    user=request.user
-).order_by("-is_default", "-id")
 
-    # Cart empty?
+    addresses = Address.objects.filter(
+        user=request.user
+    ).order_by("-is_default", "-id")
+
     if len(cart) == 0:
         return redirect("cart_detail")
 
@@ -61,13 +96,20 @@ def checkout(request):
 
     if request.method == "POST":
 
+        print("\n========== CHECKOUT POST ==========")
+        print(request.POST)
+
         form = CheckoutForm(request.POST)
+
+        print("Form Valid:", form.is_valid())
+
+        if not form.is_valid():
+            print(form.errors)
 
         if form.is_valid():
 
             payment_method = form.cleaned_data["payment_method"]
 
-            # Save checkout details in session
             request.session["checkout_data"] = {
                 "full_name": form.cleaned_data["full_name"],
                 "phone": form.cleaned_data["phone"],
@@ -80,9 +122,7 @@ def checkout(request):
 
             eta = get_eta(form.cleaned_data["pincode"])
 
-            # -----------------------------
             # ONLINE PAYMENT
-            # -----------------------------
             if payment_method == "online":
 
                 client = razorpay.Client(
@@ -103,13 +143,9 @@ def checkout(request):
                 request.session["razorpay_order_id"] = razorpay_order_id
                 request.session["total_paise"] = total_paise
 
-            # -----------------------------
-            # CASH ON DELIVERY
-            # -----------------------------
             else:
-
-                request.session["razorpay_order_id"] = ""
                 razorpay_order_id = None
+                request.session["razorpay_order_id"] = ""
 
             return render(
                 request,
@@ -141,6 +177,7 @@ def checkout(request):
         "orders/checkout.html",
         {
             "form": form,
+            "addresses": addresses,
             "items": list(cart),
             "subtotal": subtotal,
             "shipping": shipping,
@@ -282,7 +319,10 @@ def payment_success(request):
         )
 
         variant.stock -= item["quantity"]
-    variant.save(update_fields=["stock"])
+        variant.save(update_fields=["stock"])
+
+    from .settlements import create_settlements_for_order
+    create_settlements_for_order(order)
 
     # -------------------------------
     # CLEAR SESSION
@@ -595,29 +635,10 @@ def return_order(request, order_id):
 
 
 def cart_view(request):
-    cart = request.session.get('cart', {})
-    cart_items = []
-    total_price = 0
-
-    for product_id, item in cart.items():
-            product = get_object_or_404(Product, id=product_id)
-            quantity = item["quantity"]
-            size = item.get("size", "N/A")  # fallback if size missing
-            subtotal = product.price * quantity
-
-            total_price += subtotal
-            
-            cart_items.append({
-                'product': product,
-                'quantity': quantity,
-                'size': size,
-                'subtotal': subtotal,
-            })
-
-
+    cart = Cart(request)
     return render(request, 'orders/cart.html', {
-        'cart_items': cart_items,
-        'total_price': total_price
+        'cart_items': list(cart),
+        'total_price': cart.get_total_price(),
     })
 
 
@@ -651,33 +672,37 @@ def cod_checkout(request):
     form = CheckoutForm(request.POST)
 
     if not form.is_valid():
-            return redirect("checkout")
+        return redirect("checkout")
 
     checkout_data = form.cleaned_data
 
+    cart_service = Cart(request)
     cart = request.session.get("cart")
 
     if not cart:
-         return redirect("cart_detail")
+        return redirect("cart_detail")
 
-    # -----------------------------
-    # Calculate Total
-    # -----------------------------
-    subtotal = Decimal("0.00")
+    # =========================================================
+    # CALCULATE TOTAL
+    # =========================================================
 
-    for item in cart.values():
-        subtotal += Decimal(str(item["price"])) * item["quantity"]
+    subtotal = cart_service.get_total_price()
 
     shipping = Decimal("50.00")
-    tax = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+
+    tax = (
+        subtotal * Decimal("0.05")
+    ).quantize(Decimal("0.01"))
 
     total_price = subtotal + shipping + tax
 
-    # -----------------------------
-    # Create Order
-    # -----------------------------
+    # =========================================================
+    # CREATE ORDER
+    # =========================================================
+
     order = Order.objects.create(
         user=request.user,
+
         full_name=checkout_data["full_name"],
         phone=checkout_data["phone"],
         address=checkout_data["address"],
@@ -691,7 +716,11 @@ def cod_checkout(request):
         payment_method="cod",
         payment_status="Pending",
     )
-    
+
+    # =========================================================
+    # ORDER TIMELINE
+    # =========================================================
+
     OrderTimeline.objects.create(
         order=order,
         event="Order Placed",
@@ -699,9 +728,10 @@ def cod_checkout(request):
         performed_by=request.user,
     )
 
-    # -----------------------------
-    # Save Order Items
-    # -----------------------------
+    # =========================================================
+    # SAVE ORDER ITEMS + REDUCE STOCK
+    # =========================================================
+
     for item in cart.values():
 
         product = get_object_or_404(
@@ -714,10 +744,23 @@ def cod_checkout(request):
             id=item["variant_id"]
         )
 
+        # -------------------------
+        # STOCK CHECK
+        # -------------------------
+
         if variant.stock < item["quantity"]:
+
+            # Remove the order because the item
+            # is no longer available.
+            order.delete()
+
             return HttpResponseBadRequest(
                 f"{product.name} is out of stock."
             )
+
+        # -------------------------
+        # CREATE ORDER ITEM
+        # -------------------------
 
         OrderItem.objects.create(
             order=order,
@@ -727,9 +770,23 @@ def cod_checkout(request):
             product_name=product.name,
             product_image=product.image,
 
-            product_color=variant.color.name if variant else "",
-            product_size=variant.size if variant else "",
-            product_sku=variant.sku if variant else "",
+            product_color=(
+                variant.color.name
+                if variant.color
+                else ""
+            ),
+
+            product_size=(
+                variant.size
+                if variant.size
+                else ""
+            ),
+
+            product_sku=(
+                variant.sku
+                if variant.sku
+                else ""
+            ),
 
             quantity=item["quantity"],
             price=Decimal(str(item["price"])),
@@ -738,55 +795,272 @@ def cod_checkout(request):
             tax=Decimal("0.00"),
         )
 
+        # -------------------------
+        # REDUCE STOCK
+        # -------------------------
+
         variant.stock -= item["quantity"]
-        variant.save()
+        variant.save(update_fields=["stock"])
 
-    # -----------------------------
-    # Create Delhivery Shipment
-    # -----------------------------
-    url = "https://track.delhivery.com/api/cmu/create.json"
+    # =========================================================
+    # DELIVERY DECISION
+    # =========================================================
 
-    headers = {
-        "Authorization": f"Token {settings.DELHIVERY_API_KEY}"
-    }
+    LOCAL_PINCODE = "243638"
 
-    payload = {
-        "pickup_location": settings.DELHIVERY_PICKUP_LOCATION,
-        "shipments": [{
-            "add": order.address,
-            "phone": order.phone,
-            "name": order.full_name,
-            "pin": order.pincode,
-            "order": str(order.id),
-            "payment_mode": "COD",
-            "cod_amount": float(order.total_price),
-        }]
-    }
+    customer_pincode = str(
+        checkout_data["pincode"]
+    ).strip()
 
-    try:
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=10
+    # =========================================================
+    # CASE 1: SELF DELIVERY
+    # =========================================================
+
+    if customer_pincode == LOCAL_PINCODE:
+
+        print("========================================")
+        print("SELF DELIVERY ORDER")
+        print("Order ID:", order.id)
+        print("Pincode:", customer_pincode)
+        print("No Delhivery shipment required.")
+        print("========================================")
+
+        order.status = "Processing"
+        order.save(update_fields=["status"])
+
+        OrderTimeline.objects.create(
+            order=order,
+            event="Self Delivery",
+            description=(
+                "Order will be delivered directly by ZiyaMart "
+                "because the delivery pincode is local."
+            ),
+            performed_by=request.user,
         )
 
-        shipment = response.json()
+    # =========================================================
+    # CASE 2: DELHIVERY
+    # =========================================================
 
-        if "packages" in shipment:
-            order.awb_number = shipment["packages"][0]["waybill"]
-            order.save()
+    else:
 
-    except Exception as e:
-        print("Delhivery Error:", e)
+        print("========================================")
+        print("DELHIVERY DELIVERY")
+        print("Order ID:", order.id)
+        print("Pincode:", customer_pincode)
+        print("Creating Delhivery shipment...")
+        print("========================================")
 
-    # -----------------------------
-    # Clear Session
-    # -----------------------------
+        url = "https://track.delhivery.com/api/cmu/create.json"
+
+        headers = {
+            "Authorization": f"Token {settings.DELHIVERY_API_KEY}",
+            "Accept": "application/json",
+        }
+
+        # ---------------------------------------------------------
+        # Delhivery shipment data
+        # ---------------------------------------------------------
+
+        shipment_payload = {
+            "pickup_location": settings.DELHIVERY_PICKUP_LOCATION,
+
+            "shipments": [
+                {
+                    "add": order.address,
+                    "phone": order.phone,
+                    "name": order.full_name,
+                    "pin": customer_pincode,
+                    "order": str(order.id),
+
+                    "payment_mode": "COD",
+                    "cod_amount": float(order.total_price),
+
+                    # Required/commonly expected shipment fields
+                    "shipping_mode": "Surface",
+                    "quantity": 1,
+                }
+            ]
+        }
+
+        # ---------------------------------------------------------
+        # IMPORTANT:
+        # This endpoint expects form-encoded POST data.
+        # "data" must contain the JSON string.
+        # ---------------------------------------------------------
+
+        post_data = {
+            "format": "json",
+            "data": json.dumps(shipment_payload),
+        }
+
+        try:
+
+            response = requests.post(
+                url,
+                headers=headers,
+                data=post_data,
+                timeout=15,
+            )
+
+            try:
+                shipment = response.json()
+
+            except ValueError:
+                shipment = {
+                    "error": True,
+                    "raw_response": response.text,
+                }
+
+            print("========== DELHIVERY RESPONSE ==========")
+            print("STATUS:", response.status_code)
+            print("RESPONSE:", shipment)
+            print("========================================")
+
+            # =====================================================
+            # SUCCESSFUL SHIPMENT
+            # =====================================================
+
+            packages = shipment.get("packages") or []
+
+            if (
+                shipment.get("success") is True
+                and packages
+                and packages[0].get("waybill")
+            ):
+
+                awb_number = packages[0]["waybill"]
+
+                order.awb_number = awb_number
+                order.status = "Shipped"
+
+                order.save(
+                    update_fields=[
+                        "awb_number",
+                        "status",
+                    ]
+                )
+
+                OrderTimeline.objects.create(
+                    order=order,
+                    event="Shipment Created",
+                    description=(
+                        "Delhivery shipment created successfully. "
+                        f"AWB: {awb_number}"
+                    ),
+                    performed_by=request.user,
+                )
+
+                print("========================================")
+                print("DELHIVERY SHIPMENT CREATED")
+                print("Order ID:", order.id)
+                print("AWB:", awb_number)
+                print("========================================")
+
+            # =====================================================
+            # DELHIVERY REJECTED SHIPMENT
+            # =====================================================
+
+            else:
+
+                print("========================================")
+                print("DELHIVERY SHIPMENT CREATION FAILED")
+                print("Delhivery response:", shipment)
+                print("========================================")
+
+                order.status = "Processing"
+
+                order.save(
+                    update_fields=["status"]
+                )
+
+                OrderTimeline.objects.create(
+                    order=order,
+                    event="Shipment Pending",
+                    description=(
+                        "Delhivery shipment could not be created "
+                        "automatically. Order requires manual "
+                        "shipment processing."
+                    ),
+                    performed_by=request.user,
+                )
+
+        except requests.RequestException as e:
+
+            print("========================================")
+            print("DELHIVERY CONNECTION ERROR")
+            print(e)
+            print("========================================")
+
+            order.status = "Processing"
+
+            order.save(
+                update_fields=["status"]
+            )
+
+            OrderTimeline.objects.create(
+                order=order,
+                event="Shipment Pending",
+                description=(
+                    "Could not connect to Delhivery. "
+                    "Shipment requires manual processing."
+                ),
+                performed_by=request.user,
+            )
+
+        except Exception as e:
+
+            print("========================================")
+            print("UNEXPECTED DELHIVERY ERROR")
+            print(e)
+            print("========================================")
+
+            order.status = "Processing"
+
+            order.save(
+                update_fields=["status"]
+            )
+
+            OrderTimeline.objects.create(
+                order=order,
+                event="Shipment Pending",
+                description=(
+                    "An unexpected error occurred while creating "
+                    "the Delhivery shipment."
+                ),
+                performed_by=request.user,
+            )
+
+        except Exception as e:
+
+            print(
+                "Unexpected Delhivery error:",
+                e
+            )
+
+            order.status = "Processing"
+
+            order.save(
+                update_fields=["status"]
+            )
+
+    # =========================================================
+    # CLEAR SESSION
+    # =========================================================
+
     request.session["cart"] = {}
     request.session["checkout_data"] = {}
-    request.session.pop("razorpay_order_id", None)
+
+    request.session.pop(
+        "razorpay_order_id",
+        None
+    )
+
     request.session.modified = True
+
+    # =========================================================
+    # SUCCESS PAGE
+    # =========================================================
 
     return redirect(
         "order_success",

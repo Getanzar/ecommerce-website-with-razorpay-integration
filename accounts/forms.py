@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import UserProfile
+from .models import SellerProfile, UserProfile
 
 
 class SignUpForm(forms.Form):
@@ -190,3 +190,168 @@ class SignUpForm(forms.Form):
         profile.save()
 
         return user
+
+
+class SellerApplicationForm(forms.ModelForm):
+    bank_account_number = forms.CharField(
+        min_length=9,
+        max_length=18,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-control",
+                "autocomplete": "off",
+                "inputmode": "numeric",
+            }
+        ),
+        help_text="Used only to verify your details. We retain only the last four digits.",
+    )
+
+    class Meta:
+        model = SellerProfile
+        fields = (
+            "store_name",
+            "legal_business_name",
+            "business_category",
+            "business_phone",
+            "business_address",
+            "gstin",
+            "aadhaar_last4",
+            "bank_account_holder",
+            "bank_ifsc_code",
+        )
+        widgets = {
+            "store_name": forms.TextInput(attrs={"class": "form-control"}),
+            "legal_business_name": forms.TextInput(attrs={"class": "form-control"}),
+            "business_category": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. Clothing, Food, Home decor"}
+            ),
+            "business_phone": forms.TextInput(attrs={"class": "form-control"}),
+            "business_address": forms.Textarea(
+                attrs={"class": "form-control", "rows": 4}
+            ),
+            "gstin": forms.TextInput(
+                attrs={"class": "form-control", "style": "text-transform:uppercase"}
+            ),
+            "aadhaar_last4": forms.TextInput(
+                attrs={"class": "form-control", "inputmode": "numeric", "maxlength": "4"}
+            ),
+            "bank_account_holder": forms.TextInput(attrs={"class": "form-control"}),
+            "bank_ifsc_code": forms.TextInput(
+                attrs={"class": "form-control", "style": "text-transform:uppercase"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.required = True
+            field.widget.attrs["required"] = True
+            field.widget.attrs["aria-required"] = "true"
+
+    def clean_gstin(self):
+        gstin = self.cleaned_data["gstin"].strip().upper()
+        if not re.fullmatch(r"[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]", gstin):
+            raise ValidationError("Enter a valid 15-character GSTIN.")
+        return gstin
+
+    def clean_aadhaar_last4(self):
+        aadhaar_last4 = self.cleaned_data["aadhaar_last4"].strip()
+        if not re.fullmatch(r"\d{4}", aadhaar_last4):
+            raise ValidationError("Enter the last four digits of Aadhaar.")
+        return aadhaar_last4
+
+    def clean_bank_account_number(self):
+        account_number = self.cleaned_data["bank_account_number"].replace(" ", "")
+        if not account_number.isdigit():
+            raise ValidationError("Account number must contain digits only.")
+        return account_number
+
+    def clean_bank_ifsc_code(self):
+        ifsc_code = self.cleaned_data["bank_ifsc_code"].strip().upper()
+        if not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", ifsc_code):
+            raise ValidationError("Enter a valid 11-character IFSC code.")
+        return ifsc_code
+
+    def save(self, commit=True):
+        seller = super().save(commit=False)
+        seller.bank_account_last4 = self.cleaned_data["bank_account_number"][-4:]
+        if commit:
+            seller.save()
+        return seller
+
+
+class SellerPayoutSetupForm(forms.Form):
+    bank_account_holder = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "name"}),
+    )
+    bank_account_number = forms.CharField(
+        min_length=9, max_length=18,
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off", "inputmode": "numeric"}),
+        help_text="Sent securely to RazorpayX. ZIYAMART stores only the last four digits.",
+    )
+    confirm_bank_account_number = forms.CharField(
+        min_length=9, max_length=18,
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off", "inputmode": "numeric"}),
+    )
+    bank_ifsc_code = forms.CharField(
+        min_length=11, max_length=11,
+        widget=forms.TextInput(attrs={"class": "form-control", "style": "text-transform:uppercase"}),
+    )
+
+    def clean_bank_account_number(self):
+        value = self.cleaned_data["bank_account_number"].replace(" ", "")
+        if not value.isdigit():
+            raise ValidationError("Account number must contain digits only.")
+        return value
+
+    def clean_bank_ifsc_code(self):
+        value = self.cleaned_data["bank_ifsc_code"].strip().upper()
+        if not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", value):
+            raise ValidationError("Enter a valid 11-character IFSC code.")
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("bank_account_number") != cleaned.get("confirm_bank_account_number", "").replace(" ", ""):
+            self.add_error("confirm_bank_account_number", "Account numbers do not match.")
+        return cleaned
+
+
+class PasswordResetRequestForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control",
+                "autocomplete": "email",
+                "placeholder": "Email address",
+            }
+        )
+    )
+
+
+class SetPasswordWithOTPForm(forms.Form):
+    new_password1 = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "autocomplete": "new-password"}
+        )
+    )
+    new_password2 = forms.CharField(
+        widget=forms.PasswordInput(
+            attrs={"class": "form-control", "autocomplete": "new-password"}
+        )
+    )
+
+    def clean_new_password1(self):
+        password = self.cleaned_data["new_password1"]
+        validate_password(password)
+        return password
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if (
+            cleaned_data.get("new_password1")
+            and cleaned_data.get("new_password1") != cleaned_data.get("new_password2")
+        ):
+            self.add_error("new_password2", "Passwords do not match.")
+        return cleaned_data

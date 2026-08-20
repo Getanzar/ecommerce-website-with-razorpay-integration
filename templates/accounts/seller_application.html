@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Sell with us | ZIYAMART{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <h1 class="h3">Sell on ZIYAMART</h1>
+                    <p class="text-muted">Provide your registered business and payout details. Your account number is never stored; only its last four digits are retained for review.</p>
+                    <p class="small text-muted"><span class="text-danger" aria-hidden="true">*</span> All details are compulsory.</p>
+                    {% if seller and seller.status == "suspended" %}<div class="alert alert-danger">Your seller account is suspended. Update your details and contact support.</div>{% endif %}
+                    <form method="post" id="seller-application-form">
+                        {% csrf_token %}
+                        {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+                        {% for field in form %}
+                            <div class="mb-3">
+                                <label class="form-label" for="{{ field.id_for_label }}">
+                                    {{ field.label }} <span class="text-danger" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>
+                                </label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                        {% endfor %}
+                        <button class="btn btn-dark" type="submit">{% if seller %}Update application{% else %}Submit application{% endif %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const form = document.getElementById("seller-application-form");
+        const tokenInput = form?.querySelector('input[name="csrfmiddlewaretoken"]');
+
+        function currentCsrfToken() {
+            const cookie = document.cookie
+                .split("; ")
+                .find((item) => item.startsWith("csrftoken="));
+            return cookie ? decodeURIComponent(cookie.split("=").slice(1).join("=")) : null;
+        }
+
+        function refreshFormToken() {
+            const token = currentCsrfToken();
+            if (tokenInput && token) tokenInput.value = token;
+        }
+
+        window.addEventListener("pageshow", refreshFormToken);
+        form?.addEventListener("submit", refreshFormToken);
+    })();
+</script>
+{% endblock %}

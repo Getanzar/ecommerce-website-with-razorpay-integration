@@ -80,8 +80,15 @@ class CheckoutForm(forms.Form):
     def clean_phone(self):
         phone = self.cleaned_data["phone"].strip()
 
+        # Remove spaces and +
+        phone = phone.replace(" ", "").replace("+", "")
+
+        # Remove India country code if present
+        if phone.startswith("91") and len(phone) == 12:
+            phone = phone[2:]
+
         if not phone.isdigit():
-            raise forms.ValidationError("Phone number must contain only digits.")
+            raise forms.ValidationError("Invalid phone number.")
 
         if len(phone) != 10:
             raise forms.ValidationError("Enter a valid 10-digit mobile number.")
