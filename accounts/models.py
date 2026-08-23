@@ -44,6 +44,15 @@ class UserProfile(models.Model):
     phone_verified = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["phone"],
+                condition=~models.Q(phone=""),
+                name="unique_nonempty_user_phone",
+            )
+        ]
+
     def __str__(self):
         return self.user.username
 

@@ -1,5 +1,6 @@
 import secrets
 
+from django.db import IntegrityError, transaction
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth import login
@@ -29,7 +30,17 @@ def signup_view(request):
 
         if form.is_valid():
 
-            user = form.save()
+            try:
+                # Validation gives useful field errors; the database constraint
+                # closes the small race where two requests use the same phone.
+                with transaction.atomic():
+                    user = form.save()
+            except IntegrityError:
+                form.add_error(
+                    None,
+                    "Those account details were just registered. Please change the username, email, or mobile number.",
+                )
+                return render(request, "accounts/signup.html", {"form": form})
 
             # Store email for OTP verification
             request.session["pending_verification_email"] = user.email
@@ -44,14 +55,17 @@ def signup_view(request):
                     "We've sent a verification code to your email."
                 )
 
+                return redirect("verify_otp")
+
             else:
-
-                messages.warning(
+                # Do not leave behind a reserved, unusable account when no OTP
+                # was delivered. The visitor can safely submit the form again.
+                user.delete()
+                request.session.pop("pending_verification_email", None)
+                messages.error(
                     request,
-                    "Your account was created, but we couldn't send the verification email. Please try again."
+                    "We couldn't send the verification code. No account was created; please try again."
                 )
-
-            return redirect("verify_otp")
 
     else:
 

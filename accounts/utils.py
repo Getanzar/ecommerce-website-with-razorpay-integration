@@ -36,26 +36,29 @@ def _send_otp_email(user, subject, template_name, context):
 
 
 def send_email_otp(user):
-    otp = f"{secrets.randbelow(900000) + 100000:06d}"
+    try:
+        otp = f"{secrets.randbelow(900000) + 100000:06d}"
+        expires_at = timezone.now() + timedelta(minutes=5)
 
-    expires_at = timezone.now() + timedelta(minutes=5)
+        EmailOTP.objects.update_or_create(
+            user=user,
+            defaults={
+                "otp": otp,
+                "expires_at": expires_at,
+                "attempts": 0,
+                "is_verified": False,
+            },
+        )
 
-    EmailOTP.objects.update_or_create(
-        user=user,
-        defaults={
-            "otp": otp,
-            "expires_at": expires_at,
-            "attempts": 0,
-            "is_verified": False,
-        },
-    )
-
-    return _send_otp_email(
-        user,
-        "Your ZIYAMART Verification Code",
-        "emails/email_otp.html",
-        {"user": user, "otp": otp},
-    )
+        return _send_otp_email(
+            user,
+            "Your ZIYAMART Verification Code",
+            "emails/email_otp.html",
+            {"user": user, "otp": otp},
+        )
+    except Exception:
+        logger.exception("ZIYAMART OTP could not be prepared for user %s", user.pk)
+        return False
 
 
 def send_password_reset_otp(user):

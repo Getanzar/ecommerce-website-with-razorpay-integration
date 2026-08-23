@@ -173,6 +173,9 @@ class SignUpForm(forms.Form):
         return cleaned_data
 
     def save(self):
+        if not self.is_valid():
+            raise ValueError("A user cannot be created from an invalid signup form.")
+
         user = User.objects.create_user(
             username=self.cleaned_data["username"],
             first_name=self.cleaned_data["first_name"],
