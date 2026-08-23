@@ -2,7 +2,6 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core import mail
 from django.http import HttpResponse
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -46,12 +45,12 @@ class SignUpTests(TestCase):
                 with self.assertRaises(ValueError):
                     form.save()
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-    def test_valid_signup_sends_otp_and_redirects_to_verification(self):
+    @patch("accounts.utils.send_transactional_email", return_value=True)
+    def test_valid_signup_sends_otp_and_redirects_to_verification(self, send_email):
         response = self.client.post(reverse("signup"), self.data)
         self.assertRedirects(response, reverse("verify_otp"), fetch_redirect_response=False)
         self.assertTrue(get_user_model().objects.filter(username="newcustomer").exists())
-        self.assertEqual(len(mail.outbox), 1)
+        send_email.assert_called_once()
 
     @patch("accounts.views.send_email_otp", return_value=False)
     def test_failed_otp_delivery_does_not_create_account_or_redirect(self, _send_otp):
@@ -113,10 +112,6 @@ class SellerAIPlanTests(TestCase):
         self.assertEqual(self.seller.ai_images_remaining, 0)
 
 
-@override_settings(
-    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    DEFAULT_FROM_EMAIL="ulhaqanzar444@gmail.com",
-)
 class OTPEmailBrandingTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -125,12 +120,14 @@ class OTPEmailBrandingTests(TestCase):
             password="test-password",
         )
 
-    def test_signup_otp_uses_ziyamart_sender_name(self):
+    @patch("accounts.utils.send_transactional_email", return_value=True)
+    def test_signup_otp_uses_brevo_transactional_api(self, send_email):
         self.assertTrue(send_email_otp(self.user))
+        self.assertEqual(send_email.call_args.kwargs["to_email"], self.user.email)
+        self.assertIn("html_content", send_email.call_args.kwargs)
 
-        self.assertEqual(mail.outbox[0].from_email, "ZIYAMART <ulhaqanzar444@gmail.com>")
-
-    def test_password_reset_otp_uses_ziyamart_sender_name(self):
+    @patch("accounts.utils.send_transactional_email", return_value=True)
+    def test_password_reset_otp_uses_brevo_transactional_api(self, send_email):
         self.assertTrue(send_password_reset_otp(self.user))
-
-        self.assertEqual(mail.outbox[0].from_email, "ZIYAMART <ulhaqanzar444@gmail.com>")
+        self.assertEqual(send_email.call_args.kwargs["to_email"], self.user.email)
+        self.assertIn("html_content", send_email.call_args.kwargs)

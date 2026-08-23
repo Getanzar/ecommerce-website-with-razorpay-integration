@@ -1943,7 +1943,10 @@ def update_order_status(request, order_id):
             event=event_map.get(new_status, new_status),
             description=f"Order status changed from {old_status} to {new_status}.",
             performed_by=request.user,
-        )       
+        )
+
+        from orders.emails import send_order_status_email
+        send_order_status_email(order, old_status)
 
         messages.success(
             request,

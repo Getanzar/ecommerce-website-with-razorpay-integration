@@ -2,13 +2,10 @@ import secrets
 import logging
 
 from datetime import timedelta
-from email.utils import formataddr, parseaddr
-
-from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from config.email import send_transactional_email
 from .models import EmailOTP
 
 
@@ -17,22 +14,12 @@ logger = logging.getLogger(__name__)
 
 def _send_otp_email(user, subject, template_name, context):
     html = render_to_string(template_name, context)
-    # Set the brand explicitly instead of exposing the SMTP account's profile
-    # name (for example, the Gmail username) in the recipient's inbox.
-    sender_address = parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
-    branded_from_email = formataddr(("ZIYAMART", sender_address))
-    try:
-        message = EmailMultiAlternatives(
-            subject=subject,
-            body="Open this email in an HTML-capable email client.",
-            from_email=branded_from_email,
-            to=[user.email],
-        )
-        message.attach_alternative(html, "text/html")
-        return message.send(fail_silently=False) == 1
-    except Exception:
-        logger.exception("ZIYAMART OTP email could not be sent to user %s", user.pk)
-        return False
+    return send_transactional_email(
+        to_email=user.email,
+        to_name=user.get_full_name(),
+        subject=subject,
+        html_content=html,
+    )
 
 
 def send_email_otp(user):

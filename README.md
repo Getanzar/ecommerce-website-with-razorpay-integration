@@ -35,6 +35,22 @@ git clone https://github.com/your-username/django-ecommerce-razorpay.git
 cd django-ecommerce-razorpay
 ```
 
+## Transactional email with Brevo
+
+Signup OTPs, password-reset OTPs, order confirmations, and order-status
+notifications are sent through Brevo's transactional email API. Configure
+these environment variables in production:
+
+```text
+BREVO_API_KEY=your-brevo-api-key
+BREVO_SENDER_NAME=ZIYAMART
+BREVO_SENDER_EMAIL=orders@ziyamart.in
+BREVO_API_TIMEOUT=15
+```
+
+The sender address must be verified in Brevo. Authenticate the sending domain
+with the SPF and DKIM records Brevo provides before enabling production mail.
+
 ## Automatic seller payouts
 
 Sellers see earnings under **Seller Center → Money & payouts**. Online payments

@@ -365,6 +365,9 @@ def payment_success(request):
     except Exception as e:
         print("Delhivery Error:", e)
 
+    from .emails import send_order_confirmation_email
+    send_order_confirmation_email(order)
+
     return redirect("order_success", order_id=order.id)
 
 @login_required
@@ -1057,6 +1060,9 @@ def cod_checkout(request):
     )
 
     request.session.modified = True
+
+    from .emails import send_order_confirmation_email
+    send_order_confirmation_email(order)
 
     # =========================================================
     # SUCCESS PAGE

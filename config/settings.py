@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from email.utils import parseaddr
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -48,6 +49,11 @@ DELHIVERY_API_KEY = os.getenv("DELHIVERY_API_KEY")
 
 # Brevo Email API
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+BREVO_SENDER_NAME = os.getenv("BREVO_SENDER_NAME", "ZIYAMART")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL") or parseaddr(
+    os.getenv("DEFAULT_FROM_EMAIL", "") or os.getenv("EMAIL_HOST_USER", "")
+)[1]
+BREVO_API_TIMEOUT = int(os.getenv("BREVO_API_TIMEOUT", "15"))
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "on"}
@@ -183,32 +189,16 @@ RAZORPAYX_ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER", "")
 SELLER_PAYOUT_MODE = os.getenv("SELLER_PAYOUT_MODE", "IMPS")
 RAZORPAYX_WEBHOOK_SECRET = os.getenv("RAZORPAYX_WEBHOOK_SECRET", "")
 
-# ==========================
-# Email Configuration
-# ==========================
-
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
-
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-
-EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False") == "True"
-
-EMAIL_TIMEOUT = 60
-
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL") or EMAIL_HOST_USER
+# Transactional email is sent through the Brevo HTTP API in config.email.
+DEFAULT_FROM_EMAIL = BREVO_SENDER_EMAIL
 
 # =====================================
 # Security settings for Render (HTTPS)
 # =====================================
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 0 if DEBUG else int(os.getenv("SECURE_HSTS_SECONDS", "3600"))
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
