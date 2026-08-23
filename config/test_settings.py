@@ -12,3 +12,5 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 ROOT_URLCONF = "config.test_urls"
 SILENCED_SYSTEM_CHECKS = ["fields.E210"]
+SECURE_SSL_REDIRECT = False
+SECURE_HSTS_SECONDS = 0

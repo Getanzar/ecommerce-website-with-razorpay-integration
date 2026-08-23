@@ -100,6 +100,8 @@ def _approved_seller_for(request):
 @login_required
 def seller_dashboard(request):
     seller = _approved_seller_for(request)
+    if any(word in seller.business_category.lower() for word in ("grocery", "kirana", "supermarket")):
+        return redirect("grocery_seller_dashboard")
     if "food" in seller.business_category.lower() or "restaurant" in seller.business_category.lower():
         from food.models import Restaurant, FoodSellerSettlement
         restaurant = Restaurant.objects.filter(seller=seller).first()
@@ -290,6 +292,8 @@ def seller_add_product(request):
     seller = _approved_seller_for(request)
 
     seller_category = seller.business_category.lower()
+    if any(word in seller_category for word in ("grocery", "kirana", "supermarket")):
+        return redirect("grocery_seller_add_product")
     if "food" in seller_category or "restaurant" in seller_category:
         return redirect("food_seller_add_item")
 

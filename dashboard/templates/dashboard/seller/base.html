@@ -14,7 +14,11 @@
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="{% url 'seller_dashboard' %}">Overview</a>
                 <a class="nav-link" href="{% url 'seller_payouts' %}">Money & payouts</a>
-                {% if "food" in seller.business_category|lower or "restaurant" in seller.business_category|lower %}
+                {% if "grocery" in seller.business_category|lower or "kirana" in seller.business_category|lower or "supermarket" in seller.business_category|lower %}
+                <a class="nav-link" href="{% url 'grocery_seller_dashboard' %}">Inventory</a>
+                <a class="nav-link" href="{% url 'grocery_seller_add_product' %}">Add grocery</a>
+                <a class="nav-link" href="{% url 'grocery_seller_orders' %}">Grocery orders</a>
+                {% elif "food" in seller.business_category|lower or "restaurant" in seller.business_category|lower %}
                 <a class="nav-link" href="{% url 'food_seller_menu' %}">Menu</a>
                 <a class="nav-link" href="{% url 'food_seller_add_item' %}">Add menu item</a>
                 <a class="nav-link" href="{% url 'food_seller_orders' %}">Food orders</a>
@@ -24,7 +28,7 @@
                 <a class="nav-link" href="{% url 'seller_catalog_requests' %}">Add category</a>
                 <a class="nav-link" href="{% url 'seller_orders' %}">Orders</a>
                 {% endif %}
-                <a class="nav-link" href="{% url 'home' %}">Storefront</a>
+                {% if "grocery" in seller.business_category|lower or "kirana" in seller.business_category|lower or "supermarket" in seller.business_category|lower %}<a class="nav-link" href="{% url 'grocery_home' %}">Storefront</a>{% else %}<a class="nav-link" href="{% url 'home' %}">Storefront</a>{% endif %}
                 <a class="nav-link" href="{% url 'logout' %}">Log out</a>
             </div>
         </div>

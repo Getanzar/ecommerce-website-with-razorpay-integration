@@ -469,6 +469,7 @@ opacity:.9;
 
                 <li class="nav-item">
                     <a class="nav-link fw-semibold text-danger" href="{% url 'food_home' %}">Food</a>
+                    <a class="nav-link fw-semibold text-success" href="{% url 'grocery_home' %}">Groceries</a>
                 </li>
 
                 {% for category in categories|slice:":5" %}
@@ -539,6 +540,10 @@ opacity:.9;
 
                 <a href="{% url 'food_cart' %}" class="btn btn-light rounded-circle" title="Food cart">
                     <i class="bi bi-basket2"></i>
+                </a>
+
+                <a href="{% url 'grocery_cart' %}" class="btn btn-light rounded-circle" title="Grocery cart">
+                    <i class="bi bi-cart3"></i>
                 </a>
 
                 <a href="{% url 'profile' %}"

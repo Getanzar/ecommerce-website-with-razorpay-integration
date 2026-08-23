@@ -8,6 +8,7 @@ from django.http import HttpResponseBadRequest
 from django.conf import settings
 import razorpay
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .cart import FoodCart
 from .forms import FoodCheckoutForm, MenuItemForm, MenuOptionFormSet, MenuSectionForm, RestaurantForm
@@ -57,6 +58,9 @@ def cart_add(request, option_id):
     if request.method != "POST":
         return redirect("food_home")
     option = get_object_or_404(MenuItemOption.objects.select_related("item__restaurant"), pk=option_id, is_available=True, item__is_available=True)
+    if not option.item.restaurant.accepts_orders:
+        messages.error(request, "This restaurant is currently closed and is not accepting orders.")
+        return redirect("food_home")
     try:
         FoodCart(request).add(option, max(1, int(request.POST.get("quantity", 1))), request.POST.get("note", "").strip())
         messages.success(request, f"{option.item.name} added to your food cart.")
@@ -80,6 +84,9 @@ def checkout(request):
         messages.info(request, "Your food cart is empty.")
         return redirect("food_home")
     restaurant = rows[0]["option"].item.restaurant
+    if not restaurant.accepts_orders:
+        messages.error(request, "This restaurant is currently closed. Please order when it reopens.")
+        return redirect("food_cart")
     form = FoodCheckoutForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         pincode = form.cleaned_data["pincode"]
@@ -160,6 +167,18 @@ def seller_restaurant_setup(request):
         messages.success(request, "Restaurant details saved.")
         return redirect("food_seller_menu")
     return render(request, "food/seller/restaurant_form.html", {"form": form})
+
+
+@login_required
+@require_POST
+def seller_toggle_restaurant(request):
+    seller = _restaurant_seller(request)
+    restaurant = get_object_or_404(Restaurant, seller=seller)
+    restaurant.accepts_orders = not restaurant.accepts_orders
+    restaurant.save(update_fields=["accepts_orders"])
+    state = "open and accepting orders" if restaurant.accepts_orders else "closed"
+    messages.success(request, f"{restaurant.name} is now {state}.")
+    return redirect("food_seller_menu")
 
 
 @login_required

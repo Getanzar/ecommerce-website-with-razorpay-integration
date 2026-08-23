@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'dashboard',
     'addresses',
     'food',
+    'groceries',
 ]
 
 MIDDLEWARE = [

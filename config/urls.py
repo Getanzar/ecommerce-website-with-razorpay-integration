@@ -13,6 +13,7 @@ urlpatterns = [
     path("dashboard/", include("dashboard.urls")),
     path("addresses/", include("addresses.urls")),
     path("food/", include("food.urls")),
+    path("groceries/", include("groceries.urls")),
 ]
 
 # Serve static files only in development

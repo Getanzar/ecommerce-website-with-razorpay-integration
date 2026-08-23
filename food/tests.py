@@ -11,6 +11,7 @@ class FoodOrderingTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("customer", password="test-password")
         owner = User.objects.create_user("owner", password="test-password")
+        self.owner = owner
         seller = SellerProfile.objects.create(user=owner, store_name="Test Kitchen", business_category="Restaurant", status="approved")
         area, _ = FoodServiceArea.objects.get_or_create(
             pincode="243638", defaults={"city": "Sahaswan"}
@@ -50,3 +51,24 @@ class FoodOrderingTests(TestCase):
         })
         self.assertContains(response, "does not deliver")
         self.assertFalse(FoodOrder.objects.exists())
+
+    def test_owner_can_manually_close_and_open_restaurant(self):
+        self.client.login(username="owner", password="test-password")
+
+        response = self.client.post(reverse("food_seller_toggle_restaurant"))
+        self.assertRedirects(response, reverse("food_seller_menu"))
+        self.restaurant.refresh_from_db()
+        self.assertFalse(self.restaurant.accepts_orders)
+
+        self.client.post(reverse("food_seller_toggle_restaurant"))
+        self.restaurant.refresh_from_db()
+        self.assertTrue(self.restaurant.accepts_orders)
+
+    def test_closed_restaurant_rejects_cart_add_and_checkout(self):
+        self.client.login(username="customer", password="test-password")
+        self.restaurant.accepts_orders = False
+        self.restaurant.save(update_fields=["accepts_orders"])
+
+        response = self.client.post(reverse("food_cart_add", args=[self.option.pk]))
+        self.assertRedirects(response, reverse("food_home"))
+        self.assertFalse(self.client.session.get("food_cart", {}).get("items"))
