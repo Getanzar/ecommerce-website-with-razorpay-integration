@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}All Products | Shop Minimal{% endblock %}
 
 {% block content %}
@@ -9,15 +10,16 @@
         <div class="card h-100 shadow-sm">
             <a href="{% url 'product_detail_page' slug=product.slug %}" class="text-decoration-none">
                 {% if product.image %}
-                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" loading="lazy">
                 {% else %}
-                    <img src="/static/img/default.jpg" class="card-img-top" alt="{{ product.name }}">
+                    <img src="{% static 'images/product-placeholder.svg' %}" class="card-img-top" alt="Image coming soon for {{ product.name }}" loading="lazy">
                 {% endif %}
             </a>
             <div class="card-body text-center">
                 <h6 class="mb-1">{{ product.name }}</h6>
-                <div class="text-muted">₹{{ product.customer_price }}</div>
-                <a href="{% url 'cart_add' product.id %}" class="btn btn-sm btn-outline-primary mt-2">view product</a>
+                <div class="text-muted">₹{{ product.storefront_price }}</div>
+                <small class="text-muted d-block">Inclusive of GST</small>
+                <a href="{% url 'product_detail_page' product.slug %}" class="btn btn-sm btn-outline-primary mt-2">View product</a>
             </div>
         </div>
     </div>

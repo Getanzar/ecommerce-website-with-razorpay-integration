@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import DeliveryAgentRegistrationForm, DeliveryOTPForm
+from .forms import DeliveryAgentPayoutSetupForm, DeliveryAgentRegistrationForm, DeliveryOTPForm
 from .models import DeliveryAgentProfile, LocalDelivery
 from .services import complete_delivery, issue_delivery_otp, otp_is_valid
 
@@ -55,11 +55,33 @@ def dashboard(request):
         "grocery_order", "food_order"
     )
     history = agent.deliveries.filter(status="delivered")[:20]
-    earnings = agent.earnings.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    earnings = agent.earnings.aggregate(total=Sum("net_amount"))["total"] or Decimal("0.00")
     return render(request, "delivery/dashboard.html", {
         "agent": agent, "available": available, "active": active,
         "history": history, "earnings": earnings,
     })
+
+
+@login_required
+def payout_setup(request):
+    agent = _agent(request)
+    form = DeliveryAgentPayoutSetupForm(request.POST or None, initial={
+        "bank_account_holder": agent.bank_account_holder,
+        "bank_ifsc_code": agent.bank_ifsc_code,
+    })
+    if request.method == "POST" and form.is_valid():
+        agent.bank_account_holder = form.cleaned_data["bank_account_holder"]
+        agent.bank_account_last4 = form.cleaned_data["bank_account_number"][-4:]
+        agent.bank_ifsc_code = form.cleaned_data["bank_ifsc_code"]
+        agent.save(update_fields=["bank_account_holder", "bank_account_last4", "bank_ifsc_code", "updated_at"])
+        try:
+            from .payouts import AgentPayoutError, provision_agent_payout_account
+            provision_agent_payout_account(agent, form.cleaned_data["bank_account_number"])
+            messages.success(request, "Payout details submitted for admin verification.")
+            return redirect("delivery_dashboard")
+        except AgentPayoutError as exc:
+            messages.error(request, str(exc))
+    return render(request, "delivery/payout_setup.html", {"agent": agent, "form": form})
 
 
 @login_required

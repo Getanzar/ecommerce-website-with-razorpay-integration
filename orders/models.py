@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
+from datetime import timedelta
+from django.conf import settings
+from django.utils import timezone
 from products.models import Product, ProductVariant
 from accounts.models import SellerProfile
 
@@ -43,6 +46,10 @@ class Order(models.Model):
     city = models.CharField(max_length=50)
     state = models.CharField(max_length=50)
     pincode = models.CharField(max_length=10)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    gps_verified_at = models.DateTimeField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -203,7 +210,20 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order #{self.id} - {self.user.username}"
-    
+
+    @property
+    def return_deadline(self):
+        if not self.delivered_at:
+            return None
+        return self.delivered_at + timedelta(days=getattr(settings, "RETURN_WINDOW_DAYS", 7))
+
+    @property
+    def can_request_return(self):
+        return bool(
+            self.status == "Delivered"
+            and self.return_deadline
+            and timezone.now() <= self.return_deadline
+        )
 
 class OrderItem(models.Model):
 
@@ -293,6 +313,10 @@ class OrderItem(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True
     )
+    seller_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    platform_fee_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    product_tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    platform_fee_tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     fulfillment_status = models.CharField(max_length=20, choices=FULFILLMENT_CHOICES, default="new")
     seller_tracking_number = models.CharField(max_length=100, blank=True)
     seller_courier = models.CharField(max_length=100, blank=True)
@@ -348,6 +372,8 @@ class SellerSettlement(models.Model):
     commission_amount = models.DecimalField(max_digits=12, decimal_places=2)
     net_amount = models.DecimalField(max_digits=12, decimal_places=2)
     deductions_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    delivery_charge = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tcs_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=20, choices=Order.PAYMENT_METHOD_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
     scheduled_for = models.DateTimeField()
@@ -370,7 +396,10 @@ class SellerSettlement(models.Model):
 
     @property
     def payout_amount(self):
-        return max(self.net_amount - self.deductions_amount, Decimal("0.00"))
+        return max(
+            self.net_amount - self.deductions_amount - self.delivery_charge - self.tcs_amount,
+            Decimal("0.00"),
+        )
 
     @property
     def payout_reference_key(self):

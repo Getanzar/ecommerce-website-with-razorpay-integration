@@ -73,6 +73,7 @@ class GroceryProduct(models.Model):
     unit = models.CharField(max_length=40, help_text="For example: 1 kg, 500 ml, pack of 6")
     mrp = models.DecimalField(max_digits=9, decimal_places=2)
     price = models.DecimalField(max_digits=9, decimal_places=2, help_text="Store selling price before platform fee")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     stock = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     is_perishable = models.BooleanField(default=False)
@@ -112,12 +113,14 @@ class GroceryOrder(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     delivery_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_method = models.CharField(max_length=10, choices=(("cod", "Cash on delivery"),), default="cod")
+    payment_method = models.CharField(max_length=10, choices=(("cod", "Cash on delivery"), ("online", "Online payment")), default="cod")
     payment_status = models.CharField(max_length=20, default="Pending")
     delivery_mode = models.CharField(max_length=20, choices=GroceryServiceArea.DELIVERY_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="placed")
     courier = models.CharField(max_length=80, blank=True)
     tracking_number = models.CharField(max_length=100, blank=True)
+    razorpay_order_id = models.CharField(max_length=100, blank=True)
+    razorpay_payment_id = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -136,3 +139,37 @@ class GroceryOrderItem(models.Model):
     @property
     def total(self):
         return self.unit_price * self.quantity
+
+
+class GrocerySellerSettlement(models.Model):
+    STATUS_CHOICES = (
+        ("scheduled", "Scheduled"), ("processing", "Processing"),
+        ("paid", "Paid"), ("failed", "Failed"), ("offset", "Offset"),
+    )
+    seller = models.ForeignKey("accounts.SellerProfile", related_name="grocery_settlements", on_delete=models.PROTECT)
+    order = models.OneToOneField(GroceryOrder, related_name="seller_settlement", on_delete=models.PROTECT)
+    gross_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    commission_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    deductions_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    delivery_charge = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tcs_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_method = models.CharField(max_length=10)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
+    scheduled_for = models.DateTimeField()
+    provider_payout_id = models.CharField(max_length=100, blank=True)
+    failure_reason = models.TextField(blank=True)
+    processed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def payout_amount(self):
+        return max(
+            self.net_amount - self.deductions_amount - self.delivery_charge - self.tcs_amount,
+            Decimal("0.00"),
+        )
+
+    @property
+    def payout_reference_key(self):
+        return f"grocery-{self.pk}"

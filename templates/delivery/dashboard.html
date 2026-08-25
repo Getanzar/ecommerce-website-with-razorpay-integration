@@ -3,7 +3,8 @@
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
   <div><span class="text-success fw-bold">DELIVERY PARTNER</span><h1 class="mb-0">Hello, {{ agent.full_name }}</h1><div class="text-muted">Verified pincode: {{ agent.pincode }} · {{ agent.city }}</div></div>
-  <div class="text-end"><div class="h4 mb-2">₹{{ earnings }} earned</div>
+  <div class="text-end"><div class="h4 mb-2">₹{{ earnings }} net earned</div><div class="small text-muted mb-2">A 10% platform fee applies to accepted order earnings.</div>
+    <a class="btn btn-sm btn-outline-primary mb-2" href="{% url 'delivery_payout_setup' %}">{% if agent.payouts_enabled %}Payout account verified{% elif agent.razorpay_fund_account_id %}Payout verification pending{% else %}Set up bank payout{% endif %}</a>
     <form method="post" action="{% url 'delivery_toggle_online' %}">{% csrf_token %}
       <button class="btn {% if agent.is_online %}btn-success{% else %}btn-outline-dark{% endif %}" {% if agent.status != 'approved' %}disabled{% endif %}>
         {% if agent.is_online %}Online — go offline{% else %}Go online{% endif %}
@@ -42,12 +43,12 @@
 <h3>Available in {{ agent.pincode }}</h3>
 <div class="row g-3 mb-5">
 {% for job in available %}
-  <div class="col-lg-4"><div class="card p-4 h-100"><strong>{{ job.order_kind }} order #{{ job.source_order.pk }}</strong><div class="my-2">Pickup: {{ job.pickup_name }}</div><div class="text-muted">Delivery earning ₹{{ job.agent_earning }}</div><form class="mt-3" method="post" action="{% url 'delivery_accept' job.pk %}">{% csrf_token %}<button class="btn btn-dark">Accept order</button></form></div></div>
+  <div class="col-lg-4"><div class="card p-4 h-100"><strong>{{ job.order_kind }} order #{{ job.source_order.pk }}</strong><div class="my-2">Pickup: {{ job.pickup_name }}</div><div class="small text-muted">Gross earning ₹{{ job.agent_earning }} · platform fee −₹{{ job.agent_platform_fee }}</div><div class="fw-bold text-success">You receive ₹{{ job.agent_net_earning }}</div><form class="mt-3" method="post" action="{% url 'delivery_accept' job.pk %}">{% csrf_token %}<button class="btn btn-dark">Accept order</button></form></div></div>
 {% empty %}<p class="text-muted">{% if agent.can_deliver %}No ready orders in your pincode right now.{% else %}Go online to see available orders.{% endif %}</p>{% endfor %}
 </div>
 
 <h3>Recent completed deliveries</h3>
-<div class="table-responsive"><table class="table"><thead><tr><th>Order</th><th>Pincode</th><th>Completed</th><th>Earning</th></tr></thead><tbody>{% for job in history %}<tr><td>{{ job.order_kind }} #{{ job.source_order.pk }}</td><td>{{ job.pincode }}</td><td>{{ job.delivered_at }}</td><td>₹{{ job.agent_earning }}</td></tr>{% empty %}<tr><td colspan="4">No completed deliveries yet.</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-responsive"><table class="table"><thead><tr><th>Order</th><th>Pincode</th><th>Completed</th><th>Gross</th><th>Platform fee</th><th>Net</th></tr></thead><tbody>{% for job in history %}<tr><td>{{ job.order_kind }} #{{ job.source_order.pk }}</td><td>{{ job.pincode }}</td><td>{{ job.delivered_at }}</td><td>₹{{ job.agent_earning }}</td><td>−₹{{ job.agent_platform_fee }}</td><td class="fw-bold">₹{{ job.agent_net_earning }}</td></tr>{% empty %}<tr><td colspan="6">No completed deliveries yet.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}
 {% block scripts %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">

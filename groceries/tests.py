@@ -1,10 +1,18 @@
+from decimal import Decimal
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import SellerProfile
-from .models import GroceryCategory, GroceryOrder, GroceryProduct, GroceryServiceArea, GroceryStore
+from payments.models import PaymentTransaction
+
+from .models import (
+    GroceryCategory, GroceryOrder, GroceryProduct, GrocerySellerSettlement,
+    GroceryServiceArea, GroceryStore,
+)
 
 
 @override_settings(ROOT_URLCONF="config.urls", SECURE_SSL_REDIRECT=False, BREVO_API_KEY="")
@@ -32,9 +40,48 @@ class GroceryMarketplaceTests(TestCase):
         response = self.client.post(reverse("grocery_checkout"), {"full_name": "Test Customer", "phone": "9999999999", "address": "Market Road", "city": "Sahaswan", "state": "Uttar Pradesh", "pincode": "243638", "latitude": "28.074000", "longitude": "78.751000", "gps_accuracy_meters": "12", "gps_captured_at": timezone.now().isoformat(), "substitution_preference": "contact", "payment_method": "cod"})
         order = GroceryOrder.objects.get()
         self.assertRedirects(response, reverse("grocery_order_success", args=[order.pk]))
-        self.assertEqual(order.total, 570)
+        self.assertEqual(order.total, Decimal("559.00"))
+        self.assertEqual(order.chargebreakdowns.get().delivery_gst, 0)
+        self.assertEqual(order.chargebreakdowns.get().seller_sponsored_delivery, 20)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 8)
+
+    @patch("payments.services.razorpay.Client")
+    def test_online_grocery_payment_is_captured_and_seller_settlement_is_created(self, razorpay_client):
+        razorpay_client.return_value.order.create.return_value = {"id": "order_grocery_test_1"}
+        self.client.login(username="grocery-customer", password="test-password")
+        self.client.get(reverse("grocery_home"), {"pincode": "243638"})
+        self.client.post(reverse("grocery_cart_add", args=[self.product.pk]), {"quantity": 2})
+
+        response = self.client.post(reverse("grocery_checkout"), {
+            "full_name": "Test Customer", "phone": "9999999999", "address": "Market Road",
+            "city": "Sahaswan", "state": "Uttar Pradesh", "pincode": "243638",
+            "latitude": "28.074000", "longitude": "78.751000", "gps_accuracy_meters": "12",
+            "gps_captured_at": timezone.now().isoformat(), "substitution_preference": "contact",
+            "payment_method": "online",
+        })
+        self.assertEqual(response.status_code, 200)
+        order = GroceryOrder.objects.get()
+        self.assertEqual(order.razorpay_order_id, "order_grocery_test_1")
+
+        response = self.client.post(reverse("grocery_payment_confirm", args=[order.pk]), {
+            "razorpay_order_id": "order_grocery_test_1",
+            "razorpay_payment_id": "pay_grocery_test_1",
+            "razorpay_signature": "test-signature",
+        })
+
+        self.assertRedirects(response, reverse("grocery_order_success", args=[order.pk]))
+        order.refresh_from_db()
+        payment = PaymentTransaction.objects.get(grocery_order=order)
+        breakdown = order.chargebreakdowns.get()
+        self.product.refresh_from_db()
+        self.assertEqual(order.payment_status, "Paid")
+        self.assertEqual(payment.status, "captured")
+        self.assertEqual(payment.provider_payment_id, "pay_grocery_test_1")
+        self.assertEqual(breakdown.delivery_gst, Decimal("0.00"))
+        self.assertEqual(breakdown.customer_delivery_charge, Decimal("0.00"))
+        self.assertEqual(self.product.stock, 8)
+        self.assertTrue(GrocerySellerSettlement.objects.filter(order=order).exists())
 
     def test_checkout_requires_fresh_authenticated_gps(self):
         self.client.login(username="grocery-customer", password="test-password")

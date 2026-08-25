@@ -1,0 +1,37 @@
+{% load static %}
+<article class="home-product-card">
+  <span class="home-product-badge">{{ badge }}</span>
+  <form class="home-wishlist-form" method="post" action="{% url 'toggle_wishlist' product.id %}">
+    {% csrf_token %}
+    <button class="home-wishlist-button" type="submit" aria-label="Add {{ product.name }} to wishlist">
+      <i class="bi bi-heart" aria-hidden="true"></i>
+    </button>
+  </form>
+  <a class="home-product-media" href="{% url 'product_detail_page' product.slug %}" aria-label="View {{ product.name }}">
+    {% if product.image %}
+    <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy" width="560" height="672">
+    {% else %}
+    <img src="{% static 'images/product-placeholder.svg' %}" alt="{{ product.name }} image placeholder" loading="lazy" width="560" height="672">
+    {% endif %}
+  </a>
+  <div class="home-product-body">
+    <div class="home-product-meta">{{ product.category.name }}</div>
+    <a class="home-product-name" href="{% url 'product_detail_page' product.slug %}">{{ product.name }}</a>
+    <div class="home-product-seller">{% if product.seller %}{{ product.seller.store_name }}{% else %}ZIYAMART{% endif %}</div>
+    <div class="home-product-footer">
+      <div class="home-product-price">
+        <strong>₹{{ product.storefront_price|floatformat:2 }}</strong>
+        <span>Inclusive of applicable taxes</span>
+      </div>
+      {% if product.approved_review_count %}
+      <span class="home-product-rating" aria-label="Rated {{ product.storefront_rating|floatformat:1 }} out of 5 from {{ product.approved_review_count }} reviews">
+        <i class="bi bi-star-fill" aria-hidden="true"></i>{{ product.storefront_rating|floatformat:1 }} ({{ product.approved_review_count }})
+      </span>
+      {% else %}
+      <a class="home-product-arrow" href="{% url 'product_detail_page' product.slug %}" aria-label="View {{ product.name }}">
+        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</article>

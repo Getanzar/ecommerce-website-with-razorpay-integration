@@ -47,20 +47,48 @@ def razorpayx_webhook(request):
         payout = payload["payload"]["payout"]["entity"]
     except (ValueError, KeyError, TypeError):
         return HttpResponseBadRequest("Invalid payload")
+    from delivery.models import DeliveryEarning
+    from payments.models import PaymentWebhookEvent
+    event_id = request.headers.get("X-Razorpay-Event-Id", "")
+    if not event_id:
+        return HttpResponseBadRequest("Missing webhook event id")
+    event, created = PaymentWebhookEvent.objects.get_or_create(
+        provider="razorpayx",
+        event_id=event_id,
+        defaults={
+            "event_type": payload.get("event", ""),
+            "payload_hash": hashlib.sha256(request.body).hexdigest(),
+        },
+    )
+    if not created:
+        return HttpResponse(status=204)
     settlement = SellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
     if not settlement:
         from food.models import FoodSellerSettlement
         settlement = FoodSellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
+    if not settlement:
+        from groceries.models import GrocerySellerSettlement
+        settlement = GrocerySellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
+    if not settlement:
+        settlement = DeliveryEarning.objects.filter(provider_payout_id=payout.get("id")).first()
     if settlement:
         provider_status = payout.get("status")
         if provider_status == "processed":
-            settlement.status, settlement.processed_at, settlement.failure_reason = "paid", timezone.now(), ""
+            settlement.status, settlement.failure_reason = "paid", ""
         elif provider_status in {"rejected", "cancelled", "reversed"}:
             settlement.status = "failed"
             settlement.failure_reason = payout.get("failure_reason") or provider_status
         else:
             settlement.status = "processing"
-        settlement.save(update_fields=["status", "processed_at", "failure_reason", "updated_at"])
+        if isinstance(settlement, DeliveryEarning):
+            settlement.paid_at = timezone.now() if provider_status == "processed" else None
+            settlement.save(update_fields=["status", "paid_at", "failure_reason"])
+        else:
+            settlement.processed_at = timezone.now() if provider_status == "processed" else None
+            settlement.save(update_fields=["status", "processed_at", "failure_reason", "updated_at"])
+    event.status = "processed" if settlement else "ignored"
+    event.processed_at = timezone.now()
+    event.save(update_fields=["status", "processed_at"])
     return HttpResponse(status=204)
 
 def send_whatsapp_alert(order):
@@ -488,7 +516,11 @@ def my_orders(request):
 @login_required
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id, user=request.user)
-    return render(request, "orders/order_detail.html", {"order": order})
+    return render(request, "orders/order_detail.html", {
+        "order": order,
+        "carrier_shipments": order.sellerdeliverycharges.filter(provider="delhivery").select_related("seller"),
+        "local_deliveries": order.local_deliveries.select_related("parcel_seller", "agent"),
+    })
 
 @login_required
 def cancel_order(request, order_id):
@@ -511,10 +543,28 @@ def cancel_order(request, order_id):
 
         reason = request.POST.get("reason")
 
+        if order.payment_method == "online" and order.payment_status == "Paid":
+            try:
+                from payments.services import request_refund
+                request_refund(order, order.total_price, f"Customer cancellation: {reason or 'No reason supplied'}")
+            except Exception as exc:
+                messages.error(
+                    request,
+                    f"Cancellation was not completed because the automatic refund could not be submitted: {exc}",
+                )
+                return redirect("order_detail", order_id=order.id)
+
         order.status = "Cancelled"
         order.cancel_reason = reason
         order.cancelled_at = timezone.now()
         order.save()
+
+        for item in order.items.select_related("variant"):
+            if item.variant_id:
+                item.variant.stock += item.quantity
+                item.variant.save(update_fields=["stock"])
+        from .settlements import create_settlements_for_order
+        create_settlements_for_order(order)
 
         messages.success(
             request,
@@ -576,11 +626,23 @@ def return_order(request, order_id):
         user=request.user
     )
 
-    # Only delivered orders can be returned
+    # Returns are accepted only during the configured post-delivery window.
     if order.status != "Delivered":
         messages.error(
             request,
             "Only delivered orders can be returned."
+        )
+        return redirect("order_detail", order.id)
+    if not order.delivered_at:
+        messages.error(
+            request,
+            "We could not verify this order's delivery time. Please contact support.",
+        )
+        return redirect("order_detail", order.id)
+    if not order.can_request_return:
+        messages.error(
+            request,
+            f"The {settings.RETURN_WINDOW_DAYS}-day return window for this order has ended.",
         )
         return redirect("order_detail", order.id)
 

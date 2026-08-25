@@ -195,7 +195,10 @@ class SignUpForm(forms.Form):
         return user
 
 
-class SellerApplicationForm(forms.ModelForm):
+from delivery.forms import RequiredGPSMixin
+
+
+class SellerApplicationForm(RequiredGPSMixin, forms.ModelForm):
     bank_account_number = forms.CharField(
         min_length=9,
         max_length=18,
@@ -217,6 +220,10 @@ class SellerApplicationForm(forms.ModelForm):
             "business_category",
             "business_phone",
             "business_address",
+            "business_pincode",
+            "business_latitude",
+            "business_longitude",
+            "business_gps_accuracy_meters",
             "gstin",
             "aadhaar_last4",
             "bank_account_holder",
@@ -232,6 +239,7 @@ class SellerApplicationForm(forms.ModelForm):
             "business_address": forms.Textarea(
                 attrs={"class": "form-control", "rows": 4}
             ),
+            "business_pincode": forms.TextInput(attrs={"class": "form-control", "maxlength": "6", "inputmode": "numeric"}),
             "gstin": forms.TextInput(
                 attrs={"class": "form-control", "style": "text-transform:uppercase"}
             ),
@@ -245,6 +253,7 @@ class SellerApplicationForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.gps_field_names = ("business_latitude", "business_longitude", "business_gps_accuracy_meters")
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.required = True
@@ -256,6 +265,12 @@ class SellerApplicationForm(forms.ModelForm):
         if not re.fullmatch(r"[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]", gstin):
             raise ValidationError("Enter a valid 15-character GSTIN.")
         return gstin
+
+    def clean_business_pincode(self):
+        value = self.cleaned_data["business_pincode"].strip()
+        if len(value) != 6 or not value.isdigit():
+            raise ValidationError("Enter a valid 6-digit business pincode.")
+        return value
 
     def clean_aadhaar_last4(self):
         aadhaar_last4 = self.cleaned_data["aadhaar_last4"].strip()

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ subcategory.name }} | Z I Y A{% endblock %}
 
 {% block content %}
@@ -30,13 +31,15 @@
 
                     <img src="{{ product.image.url }}"
                          class="card-img-top product-img"
-                         alt="{{ product.name }}">
+                         alt="{{ product.name }}"
+                         loading="lazy">
 
                 {% else %}
 
-                    <img src="/static/img/default.jpg"
+                    <img src="{% static 'images/product-placeholder.svg' %}"
                          class="card-img-top product-img"
-                         alt="{{ product.name }}">
+                         alt="Image coming soon for {{ product.name }}"
+                         loading="lazy">
 
                 {% endif %}
 
@@ -50,7 +53,8 @@
                 </h6>
 
                 <div class="text-muted mb-2">
-                    ₹{{ product.customer_price }}
+                    ₹{{ product.storefront_price }}
+                    <small class="d-block">Inclusive of GST</small>
                 </div>
 
                 <a href="{% url 'product_detail_page' slug=product.slug %}"

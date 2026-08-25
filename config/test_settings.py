@@ -14,3 +14,7 @@ ROOT_URLCONF = "config.test_urls"
 SILENCED_SYSTEM_CHECKS = ["fields.E210"]
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0
+STORAGES = {
+    **STORAGES,  # noqa: F405
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}

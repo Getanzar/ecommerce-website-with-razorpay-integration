@@ -203,6 +203,21 @@
 
                 <div class="card-body">
 
+                    {% for shipment in carrier_shipments %}
+                        <div class="border rounded-3 p-3 mb-3">
+                            <strong>{% if shipment.seller %}{{ shipment.seller.store_name }}{% else %}ZIYAMART direct inventory{% endif %}</strong>
+                            <div class="small text-muted">Delhivery · {{ shipment.carrier_status|default:"Preparing shipment" }}</div>
+                            {% if shipment.awb_number %}<a class="btn btn-sm btn-outline-dark mt-2" target="_blank" rel="noopener" href="https://www.delhivery.com/track/package/{{ shipment.awb_number }}">Track AWB {{ shipment.awb_number }}</a>{% endif %}
+                        </div>
+                    {% endfor %}
+                    {% for delivery in local_deliveries %}
+                        <div class="border rounded-3 p-3 mb-3">
+                            <strong>{{ delivery.parcel_seller.store_name }}</strong>
+                            <div class="small text-muted">Local delivery · {{ delivery.get_status_display }}</div>
+                            {% if delivery.agent %}<a class="btn btn-sm btn-outline-success mt-2" href="{% url 'delivery_track' delivery.public_id %}">Open live rider map</a>{% endif %}
+                        </div>
+                    {% endfor %}
+
                     {% if order.awb_number %}
 
                         <p>
@@ -262,6 +277,18 @@
                 </div>
 
                 <div class="card-body">
+
+                    {% with financial=order.chargebreakdowns.first %}
+                    {% if financial %}
+                    <div class="d-flex justify-content-between mb-2"><span>Seller merchandise</span><span>₹{{ financial.merchant_subtotal }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span>Platform fee</span><span>₹{{ financial.platform_fee }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span>Product GST</span><span>₹{{ financial.merchandise_gst }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span>GST on platform fee</span><span>₹{{ financial.platform_fee_gst }}</span></div>
+                    <div class="d-flex justify-content-between mb-1"><span>{{ financial.delivery_mode|title }} delivery</span><span>₹{{ financial.delivery_fee }} + GST ₹{{ financial.delivery_gst }}</span></div>
+                    <div class="d-flex justify-content-between text-success mb-2"><span>Seller-sponsored delivery</span><span>−₹{{ financial.seller_sponsored_delivery }}</span></div>
+                    <hr>
+                    {% endif %}
+                    {% endwith %}
 
                     <div class="d-flex justify-content-between mb-2">
                         <span>Total</span>
@@ -353,12 +380,16 @@
 
     {% endif %}
 
-      {% if order.status == "Delivered" %}
+      {% if order.can_request_return %}
 
         <a href="{% url 'return_order' order.id %}"
         class="btn btn-outline-warning ms-2">
             Return Order
         </a>
+
+      {% elif order.status == "Delivered" and order.return_deadline %}
+
+        <span class="text-muted ms-2">Return window ended {{ order.return_deadline|date:"d M Y" }}.</span>
 
       {% endif %}
         

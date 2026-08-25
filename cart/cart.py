@@ -1,6 +1,8 @@
 from decimal import Decimal
 
-from products.models import Product, ProductVariant
+from payments.pricing import line_charges, money
+from products.catalog import sellable_variants
+from products.models import ProductVariant
 
 
 class Cart:
@@ -83,6 +85,7 @@ class Cart:
 
     def clear(self):
                 self.session["cart"] = {}
+                self.cart = self.session["cart"]
                 self.save()
 
     def save(self):
@@ -98,13 +101,20 @@ class Cart:
 
                 variants = {
                     variant.id: variant
-                    for variant in ProductVariant.objects.select_related(
+                    for variant in sellable_variants(ProductVariant.objects.select_related(
                         "product",
-                        "color"
-                    ).filter(id__in=variant_ids)
+                        "product__seller",
+                        "color",
+                    ).filter(id__in=variant_ids))
                 }
 
-                for variant_id, item in self.cart.items():
+                valid_keys = {str(variant_id) for variant_id in variants}
+                for variant_key in list(self.cart):
+                    if variant_key not in valid_keys:
+                        del self.cart[variant_key]
+                        self.session.modified = True
+
+                for variant_id, item in list(self.cart.items()):
 
                     try:
                         variant_id_int = int(variant_id)
@@ -116,6 +126,11 @@ class Cart:
                     if not variant:
                         continue
 
+                    quantity = min(max(int(item.get("quantity", 1)), 1), variant.stock)
+                    if item.get("quantity") != quantity:
+                        item["quantity"] = quantity
+                        self.session.modified = True
+
                     # Never trust a price persisted in the browser session. Re-price
                     # from the current catalog so marketplace fees cannot be bypassed.
                     current_price = variant.final_price
@@ -123,25 +138,40 @@ class Cart:
                         item["price"] = str(current_price)
                         self.session.modified = True
 
+                    charges = line_charges(
+                        variant.seller_price,
+                        variant.final_price,
+                        quantity,
+                        variant.product.gst_rate,
+                    )
+                    payable_subtotal = money(sum(charges.values(), Decimal("0.00")))
+                    tax_amount = charges["merchandise_gst"] + charges["platform_fee_gst"]
                     yield {
                         "product": variant.product,
                         "variant": variant,
                         "color": item["color"],
                         "size": item["size"],
                         "price": current_price,
-                        "quantity": item["quantity"],
-                        "subtotal": current_price * item["quantity"],
+                        "quantity": quantity,
+                        "subtotal": current_price * quantity,
+                        "platform_fee": charges["platform_fee"],
+                        "tax_amount": tax_amount,
+                        "unit_payable_price": money(payable_subtotal / quantity),
+                        "payable_subtotal": payable_subtotal,
                     }
 
     def __len__(self):
 
-                return sum(
-                    item["quantity"]
-                    for item in self.cart.values()
-                )
+                return sum(item["quantity"] for item in self)
 
     def get_total_price(self):
                 return sum(
                     (item["price"] * item["quantity"] for item in self),
+                    Decimal("0.00"),
+                )
+
+    def get_customer_payable_total(self):
+                return sum(
+                    (item["payable_subtotal"] for item in self),
                     Decimal("0.00"),
                 )

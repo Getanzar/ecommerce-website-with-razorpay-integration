@@ -3,7 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponseBadRequest
+from django.conf import settings
 from django.views.decorators.http import require_POST
 
 from .cart import GroceryCart
@@ -50,8 +53,9 @@ def cart_detail(request):
     cart = GroceryCart(request)
     rows = cart.items()
     store = rows[0]["product"].store if rows else None
-    total = cart.subtotal + (store.delivery_fee if store else 0)
-    return render(request, "groceries/cart.html", {"rows": rows, "store": store, "subtotal": cart.subtotal, "total": total})
+    from payments.pricing import build_grocery_pricing
+    pricing = build_grocery_pricing(rows, store) if store else None
+    return render(request, "groceries/cart.html", {"rows": rows, "store": store, "subtotal": cart.subtotal, "total": pricing["grand_total"] if pricing else 0, "pricing": pricing})
 
 
 @require_POST
@@ -86,6 +90,8 @@ def checkout(request):
     if not rows:
         return redirect("grocery_home")
     store = rows[0]["product"].store
+    from payments.pricing import build_grocery_pricing
+    pricing = build_grocery_pricing(rows, store)
     if not store.accepts_orders:
         messages.error(request, "This store is currently closed.")
         return redirect("grocery_cart")
@@ -105,19 +111,53 @@ def checkout(request):
                 return redirect("grocery_cart")
             order = form.save(commit=False)
             order.user, order.store = request.user, store
-            order.subtotal, order.delivery_fee = cart.subtotal, store.delivery_fee
-            order.total, order.delivery_mode = order.subtotal + order.delivery_fee, "local"
+            order.subtotal = pricing["merchant_subtotal"] + pricing["platform_fee"]
+            order.delivery_fee = store.delivery_fee
+            order.total, order.delivery_mode = pricing["grand_total"], "local"
+            if order.payment_method == "online":
+                from payments.services import create_razorpay_order
+                provider_order = create_razorpay_order(
+                    order.total, f"grocery-{request.user.pk}-{timezone.now().timestamp():.0f}",
+                    {"channel": "grocery", "user_id": str(request.user.pk)},
+                )
+                order.razorpay_order_id = provider_order["id"]
             order.save()
             for row in rows:
                 product = locked[row["product"].pk]
                 GroceryOrderItem.objects.create(order=order, product=product, product_name=product.name, unit=product.unit, unit_price=product.customer_price, quantity=row["quantity"])
                 product.stock -= row["quantity"]
                 product.save(update_fields=["stock"])
+            from payments.services import create_breakdown, create_local_seller_delivery_charge, create_payment_transaction
+            create_breakdown(order, pricing)
+            create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, store.delivery_fee)
+            create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()
             from .emails import send_grocery_order_email
             send_grocery_order_email(order)
+            if order.payment_method == "online":
+                return render(request, "groceries/payment.html", {"order": order, "razorpay_key_id": settings.RAZORPAY_KEY_ID})
             return redirect("grocery_order_success", order_id=order.pk)
-    return render(request, "groceries/checkout.html", {"form": form, "rows": rows, "store": store, "subtotal": cart.subtotal, "total": cart.subtotal + store.delivery_fee})
+    return render(request, "groceries/checkout.html", {"form": form, "rows": rows, "store": store, "subtotal": cart.subtotal, "total": pricing["grand_total"], "pricing": pricing})
+
+
+@login_required
+@require_POST
+def payment_confirm(request, order_id):
+    order = get_object_or_404(GroceryOrder, pk=order_id, user=request.user, payment_method="online")
+    params = {key: request.POST.get(key, "") for key in ("razorpay_order_id", "razorpay_payment_id", "razorpay_signature")}
+    if params["razorpay_order_id"] != order.razorpay_order_id:
+        return HttpResponseBadRequest("Invalid payment order")
+    try:
+        from payments.services import capture_browser_payment
+        capture_browser_payment(order, params["razorpay_order_id"], params["razorpay_payment_id"], params["razorpay_signature"])
+    except Exception:
+        return HttpResponseBadRequest("Payment verification failed")
+    order.payment_status = "Paid"
+    order.razorpay_payment_id = params["razorpay_payment_id"]
+    order.save(update_fields=["payment_status", "razorpay_payment_id", "updated_at"])
+    from .settlements import create_grocery_settlement
+    create_grocery_settlement(order)
+    return redirect("grocery_order_success", order_id=order.pk)
 
 
 @login_required
@@ -194,8 +234,13 @@ def seller_update_order(request, order_id):
         if status == "ready":
             from delivery.services import ensure_grocery_delivery
             ensure_grocery_delivery(order)
-        if status == "delivered" and order.payment_method == "cod": order.payment_status = "Paid"
         order.save()
+        if status == "cancelled" and order.payment_method == "online" and order.payment_status == "Paid":
+            try:
+                from payments.services import request_refund
+                request_refund(order, order.total, f"Grocery order #{order.pk} cancelled by store")
+            except Exception as exc:
+                messages.error(request, f"Order cancelled, but refund needs review: {exc}")
         from .emails import send_grocery_order_email
         send_grocery_order_email(order, status_update=True)
         messages.success(request, f"Order #{order.pk} updated.")

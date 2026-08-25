@@ -1,4 +1,4 @@
-{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% for hidden in form.hidden_fields %}{{ hidden }}{% for error in hidden.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% endfor %}
 <div class="alert alert-warning gps-capture-panel">
   <strong>Verified GPS location required</strong>
   <p class="mb-2">Allow precise location access while you are physically at this address. Your form cannot be submitted without a fresh GPS fix.</p>

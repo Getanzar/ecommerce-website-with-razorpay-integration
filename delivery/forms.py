@@ -19,12 +19,14 @@ class RequiredGPSMixin:
 
     def clean(self):
         cleaned = super().clean()
-        latitude = cleaned.get("latitude")
-        longitude = cleaned.get("longitude")
-        accuracy = cleaned.get("gps_accuracy_meters")
+        latitude_name, longitude_name, accuracy_name = self.gps_field_names
+        latitude = cleaned.get(latitude_name)
+        longitude = cleaned.get(longitude_name)
+        accuracy = cleaned.get(accuracy_name)
         captured_at = cleaned.get("gps_captured_at")
         if latitude is None or longitude is None or accuracy is None:
-            raise forms.ValidationError("Capture your current GPS location before continuing.")
+            self.add_error(latitude_name, "Capture your current GPS location before continuing.")
+            return cleaned
         if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
             raise forms.ValidationError("The captured GPS coordinates are invalid.")
         if accuracy > 500:
@@ -83,3 +85,18 @@ class DeliveryOTPForm(forms.Form):
         min_length=6, max_length=6,
         validators=[RegexValidator(r"^\d{6}$", "Enter the 6-digit delivery OTP.")],
     )
+
+
+class DeliveryAgentPayoutSetupForm(forms.Form):
+    bank_account_holder = forms.CharField(max_length=120)
+    bank_account_number = forms.CharField(min_length=9, max_length=18, widget=forms.PasswordInput(attrs={"autocomplete": "off", "inputmode": "numeric"}))
+    bank_ifsc_code = forms.CharField(min_length=11, max_length=11)
+
+    def clean_bank_account_number(self):
+        value = self.cleaned_data["bank_account_number"].strip()
+        if not value.isdigit():
+            raise forms.ValidationError("Bank account number must contain only digits.")
+        return value
+
+    def clean_bank_ifsc_code(self):
+        return self.cleaned_data["bank_ifsc_code"].strip().upper()

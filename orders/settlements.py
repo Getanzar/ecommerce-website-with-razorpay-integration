@@ -31,38 +31,55 @@ def create_settlements_for_order(order):
     if order.payment_method == "cod" and order.status != "Delivered":
         return []
 
-    seller_totals = (
-        OrderItem.objects.filter(order=order, product__seller__isnull=False)
-        .exclude(fulfillment_status="cancelled")
-        .values("product__seller")
-        .annotate(
-            gross=Sum(
-                ExpressionWrapper(
-                    F("price") * F("quantity") - F("discount") + F("tax"),
-                    output_field=DecimalField(max_digits=12, decimal_places=2),
-                )
-            )
-        )
-    )
+    from payments.models import SellerDeliveryCharge
+    from payments.pricing import money, percentage
+
+    seller_ids = OrderItem.objects.filter(
+        order=order, product__seller__isnull=False,
+    ).exclude(fulfillment_status="cancelled").values_list("product__seller", flat=True).distinct()
     created = []
-    for row in seller_totals:
-        seller_id, gross = row["product__seller"], row["gross"] or Decimal("0")
+    for seller_id in seller_ids:
         from accounts.models import SellerProfile
         seller = SellerProfile.objects.get(pk=seller_id)
-        # Order item prices include the fee on top of the seller-entered price.
-        seller_net = (gross / (Decimal("1") + seller.commission_percent / Decimal("100"))).quantize(Decimal("0.01"))
-        commission = gross - seller_net
+        items = OrderItem.objects.filter(order=order, product__seller_id=seller_id).exclude(fulfillment_status="cancelled")
+        merchant = Decimal("0.00")
+        merchandise_gst = Decimal("0.00")
+        commission = Decimal("0.00")
+        for item in items:
+            legacy_base = item.price / (Decimal("1") + seller.commission_percent / Decimal("100"))
+            unit_base = item.seller_unit_price or legacy_base
+            merchant += unit_base * item.quantity
+            merchandise_gst += item.product_tax_amount
+            commission += item.platform_fee_amount
+        merchant = money(merchant)
+        seller_net = money(merchant + merchandise_gst)
+        delivery = SellerDeliveryCharge.objects.filter(parcel_order=order, seller=seller).first()
+        delivery_charge = delivery.amount_due if delivery else Decimal("0.00")
+        tcs = percentage(merchant, getattr(settings, "ECOMMERCE_TCS_PERCENT", "0.50"))
+        settlement_status = (
+            "on_hold"
+            if delivery and delivery.provider == "delhivery" and delivery.status != "reconciled"
+            else "scheduled"
+        )
         settlement, was_created = SellerSettlement.objects.get_or_create(
             seller=seller,
             order=order,
             defaults={
-                "gross_amount": gross,
-                "commission_amount": commission,
+                "gross_amount": seller_net,
+                "commission_amount": money(commission),
                 "net_amount": seller_net,
+                "delivery_charge": delivery_charge,
+                "tcs_amount": tcs,
                 "payment_method": order.payment_method,
+                "status": settlement_status,
                 "scheduled_for": next_morning(timezone.now()),
             },
         )
+        if not was_created and settlement.status in {"scheduled", "failed", "on_hold"}:
+            settlement.delivery_charge = delivery_charge
+            settlement.tcs_amount = tcs
+            settlement.status = settlement_status
+            settlement.save(update_fields=["delivery_charge", "tcs_amount", "status", "updated_at"])
         if was_created:
             created.append(settlement)
     return created
@@ -124,7 +141,7 @@ def create_return_debit(return_request):
     )
     available = SellerSettlement.objects.filter(
         seller=seller, status__in=["scheduled", "failed"]
-    ).aggregate(total=Sum(F("net_amount") - F("deductions_amount")))["total"] or Decimal("0")
+    ).aggregate(total=Sum(F("net_amount") - F("deductions_amount") - F("delivery_charge") - F("tcs_amount")))["total"] or Decimal("0")
     shortfall = max(debit.remaining_amount - available, Decimal("0"))
     if shortfall:
         SellerNotification.objects.update_or_create(

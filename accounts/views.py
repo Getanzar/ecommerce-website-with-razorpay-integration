@@ -220,6 +220,7 @@ def seller_application(request):
             seller = form.save(commit=False)
             seller.user = request.user
             seller.status = "pending"
+            seller.business_gps_verified_at = timezone.now()
             seller.save()
             if not seller.razorpay_fund_account_id:
                 try:

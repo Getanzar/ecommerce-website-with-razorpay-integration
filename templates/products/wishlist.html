@@ -42,13 +42,17 @@ My Wishlist | Z I Y A
                     <img
                         src="{{ item.product.image.url }}"
                         class="card-img-top"
+                        alt="{{ item.product.name }}"
+                        loading="lazy"
                         style="height:320px;object-fit:cover;">
 
                     {% else %}
 
                     <img
-                        src="{% static 'img/default.jpg' %}"
+                        src="{% static 'images/product-placeholder.svg' %}"
                         class="card-img-top"
+                        alt="Image coming soon for {{ item.product.name }}"
+                        loading="lazy"
                         style="height:320px;object-fit:cover;">
 
                     {% endif %}
@@ -65,7 +69,7 @@ My Wishlist | Z I Y A
 
                     <p class="text-success fs-5">
 
-                        ₹{{ item.product.customer_price }}
+                        ₹{{ item.product.storefront_price }}
 
                     </p>
 

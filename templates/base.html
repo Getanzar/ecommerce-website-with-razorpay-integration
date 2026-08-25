@@ -5,6 +5,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{% block title %}Z I Y A M A R T{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}Shop trusted local sellers, restaurants and grocery stores with secure payments and tracked delivery on ZIYAMART.{% endblock %}">
+  <link rel="icon" href="{% static 'images/favicon.svg' %}" type="image/svg+xml">
+  {% block extra_head %}{% endblock %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -443,182 +446,173 @@ opacity:.9;
     color:#f7b500 !important;
 }
 </style>
+  <link rel="stylesheet" href="{% static 'css/storefront.css' %}">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg shadow-sm">
-    <div class="container">
+<div class="site-announcement" role="note">
+  <div class="container-xl d-flex justify-content-center justify-content-md-between align-items-center">
+    <span><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> Local sellers. Secure payments. Trackable delivery.</span>
+    <span class="d-none d-md-inline">Customer delivery is ₹0 on eligible local orders</span>
+  </div>
+</div>
 
-        <!-- Logo -->
-        <a class="navbar-brand" href="{% url 'home' %}">
-            Z I Y A M A R T
+<nav class="navbar navbar-expand-lg storefront-navbar" aria-label="Main navigation">
+  <div class="container-xl">
+    <a class="navbar-brand storefront-brand" href="{% url 'home' %}" aria-label="ZIYAMART home">
+      <span class="brand-mark" aria-hidden="true">Z</span>
+      <span class="brand-name">ZIYA<span>MART</span></span>
+    </a>
+
+    <div class="mobile-nav-actions d-flex d-lg-none align-items-center ms-auto">
+      <a href="{% url 'cart_detail' %}" class="nav-icon-link" aria-label="Shopping cart">
+        <i class="bi bi-bag" aria-hidden="true"></i>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#mainNavbar" aria-controls="mainNavbar"
+              aria-expanded="false" aria-label="Open navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+    </div>
+
+    <div class="collapse navbar-collapse" id="mainNavbar">
+      <ul class="navbar-nav storefront-links align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="{% url 'product_list_page' %}">Shop</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'food_home' %}">Food</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'grocery_home' %}">Grocery</a></li>
+        {% if categories %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categories</a>
+          <ul class="dropdown-menu storefront-dropdown">
+            {% for category in categories|slice:":8" %}
+            <li><a class="dropdown-item" href="{% url 'category_page' category.id %}">{{ category.name }}</a></li>
+            {% endfor %}
+          </ul>
+        </li>
+        {% endif %}
+      </ul>
+
+      <form class="storefront-search" action="{% url 'search' %}" method="get" role="search">
+        <label class="visually-hidden" for="site-search">Search products</label>
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input id="site-search" type="search" name="q" placeholder="Search products and categories"
+               value="{{ request.GET.q|default:'' }}" autocomplete="off">
+        <button type="submit" aria-label="Submit search"><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+      </form>
+
+      <div class="storefront-actions d-flex align-items-center">
+        <a href="{% url 'wishlist_page' %}" class="nav-icon-link d-none d-lg-inline-flex" aria-label="Wishlist">
+          <i class="bi bi-heart" aria-hidden="true"></i>
+        </a>
+        <a href="{% url 'cart_detail' %}" class="nav-icon-link d-none d-lg-inline-flex" aria-label="Shopping cart">
+          <i class="bi bi-bag" aria-hidden="true"></i>
         </a>
 
-        <button class="navbar-toggler" type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#mainNavbar">
-
-            <span class="navbar-toggler-icon"></span>
-
-        </button>
-
-        <div class="collapse navbar-collapse" id="mainNavbar">
-
-            <!-- Left Menu -->
-
-            <ul class="navbar-nav ms-4">
-
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold text-danger" href="{% url 'food_home' %}">Food</a>
-                    <a class="nav-link fw-semibold text-success" href="{% url 'grocery_home' %}">Groceries</a>
-                </li>
-
-                {% for category in categories|slice:":5" %}
-                <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'category_page' category.id %}">
-                        {{ category.name }}
-                    </a>
-                </li>
-                {% endfor %}
-
-            </ul>
-
-            <!-- Search -->
-
-            <form class="d-flex mx-auto"
-                  style="max-width:500px;width:100%;"
-                  action="{% url 'search' %}"
-                  method="GET">
-
-                <div class="input-group">
-
-                    <span class="input-group-text">
-                        <i class="bi bi-search"></i>
-                    </span>
-
-                    <input
-                        class="form-control"
-                        type="search"
-                        name="q"
-                        placeholder="Search for products..."
-                        value="{{ request.GET.q }}">
-
-                    <button class="btn btn-dark px-4">
-                        Search
-                    </button>
-
-                </div>
-
-            </form>
-
-            <!-- Right Icons -->
-
-            <div class="d-flex align-items-center gap-2 ms-3">
-
-                <a href="{% url 'wishlist_page' %}"
-                   class="btn btn-light rounded-circle">
-
-                    <i class="bi bi-heart"></i>
-
-                </a>
-
-                <a href="{% url 'cart_detail' %}"
-                   class="btn btn-light rounded-circle">
-
-                    <i class="bi bi-bag"></i>
-
-                </a>
-
-                {% if request.user.is_authenticated %}
-
-                {% if request.user.delivery_agent %}
-                <a href="{% url 'delivery_dashboard' %}" class="btn btn-outline-success">Delivery dashboard</a>
-                {% endif %}
-
-                <a href="{% url 'seller_application' %}"
-                   class="btn btn-outline-dark">
-
-                    Sell with us
-
-                </a>
-
-                <a href="{% url 'food_cart' %}" class="btn btn-light rounded-circle" title="Food cart">
-                    <i class="bi bi-basket2"></i>
-                </a>
-
-                <a href="{% url 'grocery_cart' %}" class="btn btn-light rounded-circle" title="Grocery cart">
-                    <i class="bi bi-cart3"></i>
-                </a>
-
-                <a href="{% url 'profile' %}"
-                   class="btn btn-light rounded-circle">
-
-                    <i class="bi bi-person"></i>
-
-                </a>
-
-                <a href="{% url 'logout' %}"
-                   class="btn btn-dark">
-
-                    Logout
-
-                </a>
-
-                {% else %}
-
-                <a href="{% url 'delivery_register' %}" class="btn btn-outline-success">Deliver with us</a>
-
-                <a href="{% url 'login' %}"
-                   class="btn btn-outline-dark">
-
-                    Login
-
-                </a>
-
-                <a href="{% url 'signup' %}"
-                   class="btn btn-dark">
-
-                    Sign Up
-
-                </a>
-
-                {% endif %}
-
-                <button
-                    class="btn btn-outline-secondary rounded-circle"
-                    id="themeToggle">
-
-                    <i class="bi bi-moon"></i>
-
-                </button>
-
-            </div>
-
+        {% if request.user.is_authenticated %}
+        <div class="dropdown account-menu">
+          <button class="account-button dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="account-avatar">{{ request.user.username|first|upper }}</span>
+            <span class="d-lg-none d-xl-inline">Account</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end storefront-dropdown">
+            <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person"></i> My profile</a></li>
+            <li><a class="dropdown-item" href="{% url 'my_orders' %}"><i class="bi bi-box-seam"></i> My orders</a></li>
+            <li><a class="dropdown-item" href="{% url 'seller_application' %}"><i class="bi bi-shop"></i> Sell with us</a></li>
+            {% if request.user.delivery_agent %}
+            <li><a class="dropdown-item" href="{% url 'delivery_dashboard' %}"><i class="bi bi-bicycle"></i> Delivery dashboard</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right"></i> Sign out</a></li>
+          </ul>
         </div>
+        {% else %}
+        <a href="{% url 'login' %}" class="signin-link">Sign in</a>
+        <a href="{% url 'signup' %}" class="btn storefront-join-btn">Join</a>
+        {% endif %}
 
+        <button class="nav-icon-link theme-button d-none d-lg-inline-flex" id="themeToggle" type="button" aria-label="Switch to dark mode">
+          <i class="bi bi-moon-stars" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
+  </div>
 </nav>
 
-<main class="container py-4">{% block content %}{% endblock %}</main>
+{% if messages %}
+<div class="container pt-3" aria-live="polite">
+  {% for message in messages %}
+  <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-<footer class="text-center py-4 small">© {% now "Y" %} Z I Y A M A R T . All rights reserved.</footer>
+<main class="{% block main_class %}container py-4{% endblock %}">{% block content %}{% endblock %}</main>
+
+<footer class="storefront-footer">
+  <div class="container-xl">
+    <div class="row g-5 py-5">
+      <div class="col-lg-5">
+        <a class="storefront-brand footer-brand" href="{% url 'home' %}">
+          <span class="brand-mark" aria-hidden="true">Z</span>
+          <span class="brand-name">ZIYA<span>MART</span></span>
+        </a>
+        <p class="footer-copy">One trusted marketplace for products, fresh meals and everyday groceries from verified sellers around you.</p>
+        <div class="footer-trust"><i class="bi bi-shield-check"></i> Secure payments &amp; verified commerce</div>
+      </div>
+      <div class="col-6 col-lg-2">
+        <h2>Shop</h2>
+        <a href="{% url 'product_list_page' %}">All products</a>
+        <a href="{% url 'food_home' %}">Restaurants</a>
+        <a href="{% url 'grocery_home' %}">Groceries</a>
+      </div>
+      <div class="col-6 col-lg-2">
+        <h2>Partner</h2>
+        <a href="{% url 'seller_application' %}">Sell with us</a>
+        <a href="{% url 'delivery_register' %}">Deliver with us</a>
+        <a href="{% url 'login' %}">Partner login</a>
+      </div>
+      <div class="col-lg-3">
+        <h2>Shop with confidence</h2>
+        <p class="footer-small"><i class="bi bi-lock"></i> Protected checkout</p>
+        <p class="footer-small"><i class="bi bi-pin-map"></i> Authenticated local delivery</p>
+        <p class="footer-small"><i class="bi bi-arrow-counterclockwise"></i> Clear return eligibility</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© {% now "Y" %} ZIYAMART. All rights reserved.</span>
+      <span>Built for local commerce across India</span>
+    </div>
+  </div>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 const saved = localStorage.getItem('theme');
+const themeToggle = document.getElementById('themeToggle');
 
 if (saved === 'dark') {
     document.body.classList.add('dark');
 }
 
-document.getElementById('themeToggle').addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    localStorage.setItem(
-        'theme',
-        document.body.classList.contains('dark') ? 'dark' : 'light'
-    );
-});
+function syncThemeButton() {
+    if (!themeToggle) return;
+    const isDark = document.body.classList.contains('dark');
+    themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeToggle.innerHTML = `<i class="bi ${isDark ? 'bi-sun' : 'bi-moon-stars'}" aria-hidden="true"></i>`;
+}
+
+syncThemeButton();
+
+if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        syncThemeButton();
+    });
+}
 </script>
 
 {% block scripts %}

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.utils import timezone
 from django.http import Http404
 from django.http import HttpResponseBadRequest
 from django.conf import settings
@@ -50,8 +51,9 @@ def cart_detail(request):
     cart = FoodCart(request)
     rows = cart.items()
     restaurant = rows[0]["option"].item.restaurant if rows else None
-    total = cart.subtotal + (restaurant.delivery_fee if restaurant else Decimal("0"))
-    return render(request, "food/cart.html", {"rows": rows, "restaurant": restaurant, "subtotal": cart.subtotal, "total": total})
+    from payments.pricing import build_food_pricing
+    pricing = build_food_pricing(rows, restaurant) if restaurant else None
+    return render(request, "food/cart.html", {"rows": rows, "restaurant": restaurant, "subtotal": cart.subtotal, "total": pricing["grand_total"] if pricing else Decimal("0"), "pricing": pricing})
 
 
 def cart_add(request, option_id):
@@ -84,6 +86,8 @@ def checkout(request):
         messages.info(request, "Your food cart is empty.")
         return redirect("food_home")
     restaurant = rows[0]["option"].item.restaurant
+    from payments.pricing import build_food_pricing
+    pricing = build_food_pricing(rows, restaurant)
     if not restaurant.accepts_orders:
         messages.error(request, "This restaurant is currently closed. Please order when it reopens.")
         return redirect("food_cart")
@@ -98,22 +102,31 @@ def checkout(request):
             order = form.save(commit=False)
             order.user = request.user
             order.restaurant = restaurant
-            order.subtotal = cart.subtotal
+            order.subtotal = pricing["merchant_subtotal"] + pricing["platform_fee"]
             order.delivery_fee = restaurant.delivery_fee
-            order.total = order.subtotal + order.delivery_fee
+            order.total = pricing["grand_total"]
             if order.payment_method == "online":
-                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-                provider_order = client.order.create({"amount": int(order.total * 100), "currency": "INR", "payment_capture": 1})
+                from payments.services import create_razorpay_order
+                provider_order = create_razorpay_order(
+                    order.total, f"food-{request.user.pk}-{timezone.now().timestamp():.0f}",
+                    {"channel": "food", "user_id": str(request.user.pk)},
+                )
                 order.razorpay_order_id = provider_order["id"]
             order.save()
             for row in rows:
                 option = row["option"]
                 FoodOrderItem.objects.create(order=order, menu_item=option.item, option=option, item_name=option.item.name, option_name=option.name, unit_price=option.customer_price, quantity=row["quantity"], customer_note=row["note"])
+            from payments.services import create_breakdown, create_local_seller_delivery_charge, create_payment_transaction
+            create_breakdown(order, pricing)
+            create_local_seller_delivery_charge(
+                order, restaurant.seller, restaurant.pincode, order.pincode, restaurant.delivery_fee,
+            )
+            create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()
             if order.payment_method == "online":
                 return render(request, "food/payment.html", {"order": order, "razorpay_key_id": settings.RAZORPAY_KEY_ID})
             return redirect("food_order_success", order_id=order.pk)
-    return render(request, "food/checkout.html", {"form": form, "rows": rows, "restaurant": restaurant, "subtotal": cart.subtotal, "total": cart.subtotal + restaurant.delivery_fee})
+    return render(request, "food/checkout.html", {"form": form, "rows": rows, "restaurant": restaurant, "subtotal": cart.subtotal, "total": pricing["grand_total"], "pricing": pricing})
 
 
 @login_required
@@ -131,8 +144,11 @@ def payment_confirm(request, order_id):
     if params["razorpay_order_id"] != order.razorpay_order_id:
         return HttpResponseBadRequest("Invalid payment order")
     try:
-        razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)).utility.verify_payment_signature(params)
-    except razorpay.errors.SignatureVerificationError:
+        from payments.services import capture_browser_payment
+        capture_browser_payment(
+            order, params["razorpay_order_id"], params["razorpay_payment_id"], params["razorpay_signature"],
+        )
+    except (razorpay.errors.SignatureVerificationError, ValueError):
         return HttpResponseBadRequest("Payment verification failed")
     order.payment_status = "Paid"
     order.razorpay_payment_id = params["razorpay_payment_id"]
@@ -253,15 +269,16 @@ def seller_update_order(request, order_id):
         transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"preparing", "cancelled"}, "preparing": {"ready"}, "ready": set(), "out_for_delivery": set(), "delivered": set(), "cancelled": set()}
         if status in transitions.get(order.status, set()):
             order.status = status
-            if status == "delivered" and order.payment_method == "cod":
-                order.payment_status = "Paid"
             order.save(update_fields=["status", "payment_status", "updated_at"])
             if status == "ready":
                 from delivery.services import ensure_food_delivery
                 ensure_food_delivery(order)
-            if status == "delivered":
-                from .settlements import create_food_settlement
-                create_food_settlement(order)
+            if status == "cancelled" and order.payment_method == "online" and order.payment_status == "Paid":
+                try:
+                    from payments.services import request_refund
+                    request_refund(order, order.total, f"Food order #{order.pk} cancelled by restaurant")
+                except Exception as exc:
+                    messages.error(request, f"Order cancelled, but refund needs review: {exc}")
             messages.success(request, f"Order #{order.id} updated.")
         else:
             messages.error(request, "That order status change is not allowed.")

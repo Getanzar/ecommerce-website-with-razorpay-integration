@@ -96,6 +96,7 @@ INSTALLED_APPS = [
     'food',
     'groceries',
     'delivery',
+    'payments',
 ]
 
 MIDDLEWARE = [
@@ -157,6 +158,8 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
@@ -183,6 +186,29 @@ LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 
 DELHIVERY_PICKUP_LOCATION = "ziyamart garments bazaar wilson gunj pathantola road, sahaswan, budaun, uttar-pradesh, 243638"
+DELHIVERY_ORIGIN_PINCODE = os.getenv("DELHIVERY_ORIGIN_PINCODE", "243638")
+DELHIVERY_RATE_URL = os.getenv(
+    "DELHIVERY_RATE_URL",
+    "https://track.delhivery.com/api/kinko/v1/invoice/charges/.json",
+)
+DELHIVERY_RATE_TIMEOUT = int(os.getenv("DELHIVERY_RATE_TIMEOUT", "15"))
+DELHIVERY_REQUIRE_LIVE_QUOTE = os.getenv("DELHIVERY_REQUIRE_LIVE_QUOTE", "False").lower() in {"1", "true", "yes", "on"}
+DELHIVERY_FALLBACK_BASE = os.getenv("DELHIVERY_FALLBACK_BASE", "60.00")
+DELHIVERY_FALLBACK_PER_500G = os.getenv("DELHIVERY_FALLBACK_PER_500G", "25.00")
+DELHIVERY_HANDLING_FEE = os.getenv("DELHIVERY_HANDLING_FEE", "5.00")
+
+# Immutable checkout-tax configuration. Local delivery itself is intentionally
+# untaxed per the marketplace policy; merchandise and platform services remain
+# separate invoice components.
+PLATFORM_FEE_GST_PERCENT = os.getenv("PLATFORM_FEE_GST_PERCENT", "18.00")
+RETURN_WINDOW_DAYS = int(os.getenv("RETURN_WINDOW_DAYS", "7"))
+RESTAURANT_GST_PERCENT = os.getenv("RESTAURANT_GST_PERCENT", "5.00")
+ECOMMERCE_TCS_PERCENT = os.getenv("ECOMMERCE_TCS_PERCENT", "0.50")
+DELHIVERY_GST_PERCENT = os.getenv("DELHIVERY_GST_PERCENT", "18.00")
+LOCAL_DELIVERY_BASE_FEE = os.getenv("LOCAL_DELIVERY_BASE_FEE", "30.00")
+LOCAL_DELIVERY_INCLUDED_KM = os.getenv("LOCAL_DELIVERY_INCLUDED_KM", "2.00")
+LOCAL_DELIVERY_PER_KM = os.getenv("LOCAL_DELIVERY_PER_KM", "8.00")
+DELIVERY_AGENT_PLATFORM_FEE_PERCENT = os.getenv("DELIVERY_AGENT_PLATFORM_FEE_PERCENT", "10.00")
 
 # Seller payouts (RazorpayX). Keep separate from customer checkout credentials.
 RAZORPAYX_KEY_ID = os.getenv("RAZORPAYX_KEY_ID", "")
@@ -190,6 +216,7 @@ RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAYX_KEY_SECRET", "")
 RAZORPAYX_ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER", "")
 SELLER_PAYOUT_MODE = os.getenv("SELLER_PAYOUT_MODE", "IMPS")
 RAZORPAYX_WEBHOOK_SECRET = os.getenv("RAZORPAYX_WEBHOOK_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
 # Transactional email is sent through the Brevo HTTP API in config.email.
 DEFAULT_FROM_EMAIL = BREVO_SENDER_EMAIL
@@ -200,7 +227,13 @@ DEFAULT_FROM_EMAIL = BREVO_SENDER_EMAIL
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = not DEBUG
-SECURE_HSTS_SECONDS = 0 if DEBUG else int(os.getenv("SECURE_HSTS_SECONDS", "3600"))
+SECURE_HSTS_SECONDS = 0 if DEBUG else int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG and os.getenv(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", "True"
+).lower() in {"1", "true", "yes", "on"}
+SECURE_HSTS_PRELOAD = not DEBUG and os.getenv(
+    "SECURE_HSTS_PRELOAD", "True"
+).lower() in {"1", "true", "yes", "on"}
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True

@@ -76,6 +76,12 @@ class SellerProfile(models.Model):
     business_category = models.CharField(max_length=100, blank=True)
     business_phone = models.CharField(max_length=20, blank=True)
     business_address = models.TextField(blank=True)
+    business_pincode = models.CharField(max_length=6, blank=True)
+    business_latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    business_longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    business_gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    business_gps_verified_at = models.DateTimeField(blank=True, null=True)
+    delhivery_pickup_name = models.CharField(max_length=150, blank=True)
     gstin = models.CharField(max_length=15, blank=True)
     aadhaar_last4 = models.CharField(max_length=4, blank=True)
     bank_account_holder = models.CharField(max_length=150, blank=True)
@@ -124,6 +130,10 @@ class SellerProfile(models.Model):
             [
                 self.legal_business_name,
                 self.business_category,
+                self.business_pincode,
+                self.business_latitude is not None,
+                self.business_longitude is not None,
+                self.business_gps_verified_at,
                 self.gstin,
                 self.aadhaar_last4,
                 self.bank_account_holder,

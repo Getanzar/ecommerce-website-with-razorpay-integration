@@ -1,9 +1,10 @@
 # orders/forms.py
 
 from django import forms
+from delivery.forms import RequiredGPSMixin
 
 
-class CheckoutForm(forms.Form):
+class CheckoutForm(RequiredGPSMixin, forms.Form):
 
     PAYMENT_CHOICES = [
         ("online", "💳 Pay Online (UPI / Cards / Net Banking)"),
@@ -66,6 +67,9 @@ class CheckoutForm(forms.Form):
             "autocomplete": "postal-code",
         })
     )
+    latitude = forms.DecimalField(max_digits=9, decimal_places=6, widget=forms.HiddenInput())
+    longitude = forms.DecimalField(max_digits=9, decimal_places=6, widget=forms.HiddenInput())
+    gps_accuracy_meters = forms.IntegerField(min_value=0, widget=forms.HiddenInput())
 
     payment_method = forms.ChoiceField(
         choices=PAYMENT_CHOICES,

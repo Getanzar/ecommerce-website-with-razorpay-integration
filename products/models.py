@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
@@ -94,6 +95,16 @@ class Product(models.Model):
 
     # Base product price (used when variant price is not specified)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    gst_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=5,
+        help_text="GST percentage applied to the seller price for this product.",
+    )
+    package_weight_grams = models.PositiveIntegerField(default=500)
+    package_length_cm = models.DecimalField(max_digits=7, decimal_places=2, default=20)
+    package_width_cm = models.DecimalField(max_digits=7, decimal_places=2, default=15)
+    package_height_cm = models.DecimalField(max_digits=7, decimal_places=2, default=5)
 
     image = models.ImageField(
         upload_to="products/",
@@ -175,6 +186,27 @@ class Product(models.Model):
         """Public price including the seller's marketplace fee."""
         multiplier = Decimal("1") + (self.platform_fee_percent / Decimal("100"))
         return (self.price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def customer_price_with_tax(self):
+        """Customer-facing unit total, inclusive of merchandise and platform GST."""
+        platform_fee = self.customer_price - self.price
+        merchandise_gst = self.price * self.gst_rate / Decimal("100")
+        platform_gst_rate = Decimal(str(getattr(settings, "PLATFORM_FEE_GST_PERCENT", "18.00")))
+        platform_fee_gst = platform_fee * platform_gst_rate / Decimal("100")
+        return (self.customer_price + merchandise_gst + platform_fee_gst).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP,
+        )
+
+    @property
+    def storefront_price(self):
+        variants = getattr(self, "storefront_variants", None)
+        if variants is None:
+            variants = self.variants.filter(is_active=True, stock__gt=0)
+        return min(
+            (variant.customer_price_with_tax for variant in variants),
+            default=self.customer_price_with_tax,
+        )
 
     def __str__(self):
         return self.name
@@ -373,6 +405,16 @@ class ProductVariant(models.Model):
     @property
     def seller_price(self):
         return self.price if self.price is not None else self.product.price
+
+    @property
+    def customer_price_with_tax(self):
+        platform_fee = self.final_price - self.seller_price
+        merchandise_gst = self.seller_price * self.product.gst_rate / Decimal("100")
+        platform_gst_rate = Decimal(str(getattr(settings, "PLATFORM_FEE_GST_PERCENT", "18.00")))
+        platform_fee_gst = platform_fee * platform_gst_rate / Decimal("100")
+        return (self.final_price + merchandise_gst + platform_fee_gst).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP,
+        )
 
     def __str__(self):
         return f"{self.product.name} | {self.color.name} | {self.size}"

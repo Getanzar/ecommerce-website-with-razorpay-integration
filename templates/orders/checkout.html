@@ -186,6 +186,8 @@
 
             </div>
 
+            {% include "delivery/gps_capture.html" with form=form %}
+
             <!-- Payment Method -->
             <h5 class="mt-4 mb-3 fw-bold">Payment Method</h5>
 
@@ -279,36 +281,31 @@
                 Order Summary
             </h4>
 
-            <!-- Subtotal -->
             <div class="d-flex justify-content-between mb-3">
-                <span class="text-muted">Subtotal</span>
-                <span class="fw-semibold">
-                    ₹{{ subtotal|floatformat:2}}
-                </span>
+                <span>Seller merchandise</span>
+                <span class="fw-semibold">₹{{ pricing.merchant_subtotal|floatformat:2 }}</span>
             </div>
-
-            <!-- Shipping -->
             <div class="d-flex justify-content-between mb-3">
-                <span class="text-muted">Shipping</span>
-
-                {% if shipping %}
-                    <span class="fw-semibold">
-                        ₹{{ shipping|floatformat:2 }}
-                    </span>
-                {% else %}
-                    <span class="text-success fw-semibold">
-                        FREE
-                    </span>
-                {% endif %}
+                <span>Platform fee</span>
+                <span class="fw-semibold">₹{{ pricing.platform_fee|floatformat:2 }}</span>
             </div>
-
-            <!-- Tax -->
             <div class="d-flex justify-content-between mb-3">
-                <span class="text-muted">GST (5%)</span>
-                <span class="fw-semibold">
-                    ₹{{ tax|floatformat:2 }}
-                </span>
+                <span>Product GST</span>
+                <span class="fw-semibold">₹{{ pricing.merchandise_gst|floatformat:2 }}</span>
             </div>
+            <div class="d-flex justify-content-between mb-3">
+                <span>GST on platform fee</span>
+                <span class="fw-semibold">₹{{ pricing.platform_fee_gst|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+                <span>{{ pricing.delivery_mode|title }} delivery</span>
+                <span class="fw-semibold">₹{{ shipping|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between text-success mb-2">
+                <span>Seller-sponsored delivery</span>
+                <span class="fw-semibold">−₹{{ pricing.seller_sponsored_delivery|floatformat:2 }}</span>
+            </div>
+            <p class="small text-muted">Local delivery has ₹0 delivery GST. Delhivery tax, when applicable, is included in the seller-sponsored amount.</p>
 
             <hr>
 

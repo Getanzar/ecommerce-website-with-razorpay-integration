@@ -15,6 +15,7 @@ urlpatterns = [
     path("food/", include("food.urls")),
     path("groceries/", include("groceries.urls")),
     path("delivery/", include("delivery.urls")),
+    path("payments/", include("payments.urls")),
 ]
 
 # Serve static files only in development
@@ -22,4 +23,8 @@ if settings.DEBUG:
     urlpatterns += static(
         settings.STATIC_URL,
         document_root=settings.STATIC_ROOT,
+    )
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT,
     )

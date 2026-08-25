@@ -50,7 +50,7 @@ def generate_invoice(order):
                 item.product_name,
                 str(item.quantity),
                 f"₹{item.price}",
-                f"₹{item.subtotal()}",
+                f"₹{item.subtotal}",
             ]
         )
 
@@ -70,6 +70,26 @@ def generate_invoice(order):
     story.append(table)
 
     story.append(Spacer(1,20))
+
+    financial = order.chargebreakdowns.first()
+    if financial:
+        summary = [
+            ["Seller merchandise", f"₹{financial.merchant_subtotal}"],
+            ["Platform fee", f"₹{financial.platform_fee}"],
+            ["Product GST", f"₹{financial.merchandise_gst}"],
+            ["GST on platform fee", f"₹{financial.platform_fee_gst}"],
+            [f"{financial.delivery_mode.title()} delivery", f"₹{financial.delivery_fee}"],
+            ["Delivery GST", f"₹{financial.delivery_gst}"],
+            ["Seller-sponsored delivery", f"-₹{financial.seller_sponsored_delivery}"],
+        ]
+        summary_table = Table(summary, colWidths=[260, 120], hAlign="RIGHT")
+        summary_table.setStyle(TableStyle([
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+            ("LINEABOVE", (0, -1), (-1, -1), 0.5, colors.lightgrey),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 12))
 
     story.append(
         Paragraph(

@@ -1,3 +1,6 @@
+from decimal import Decimal
+from unittest.mock import Mock, patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -5,7 +8,10 @@ from django.urls import reverse
 from accounts.models import SellerProfile
 from groceries.models import GroceryOrder, GroceryServiceArea, GroceryStore
 
+from payments.models import CODRemittance
+
 from .models import DeliveryAgentProfile, DeliveryEarning, LocalDelivery
+from .payouts import submit_agent_payout
 from .services import ensure_grocery_delivery, issue_delivery_otp
 
 
@@ -87,8 +93,12 @@ class LocalDeliveryTests(TestCase):
         self.assertIsNone(delivery.agent_latitude)
         self.assertIsNone(delivery.agent_longitude)
         self.assertEqual(self.order.status, "delivered")
-        self.assertEqual(self.order.payment_status, "Paid")
-        self.assertTrue(DeliveryEarning.objects.filter(agent=self.agent, delivery=delivery, amount="25.00").exists())
+        self.assertEqual(self.order.payment_status, "Pending")
+        earning = DeliveryEarning.objects.get(agent=self.agent, delivery=delivery, amount="25.00")
+        self.assertEqual(earning.platform_fee_amount, Decimal("2.50"))
+        self.assertEqual(earning.net_amount, Decimal("22.50"))
+        self.assertEqual(earning.status, "pending")
+        self.assertTrue(CODRemittance.objects.filter(delivery=delivery, amount="125.00", status="collected").exists())
 
     def test_assigned_agent_can_share_valid_live_location(self):
         delivery = ensure_grocery_delivery(self.order)
@@ -152,3 +162,38 @@ class LocalDeliveryTests(TestCase):
             "latitude": "28", "longitude": "78", "accuracy": "10",
         })
         self.assertEqual(response.status_code, 409)
+
+    @override_settings(
+        RAZORPAYX_KEY_ID="rzp_test_key",
+        RAZORPAYX_KEY_SECRET="rzp_test_secret",
+        RAZORPAYX_ACCOUNT_NUMBER="2323230000000000",
+        SELLER_PAYOUT_MODE="IMPS",
+        DELIVERY_AGENT_PLATFORM_FEE_PERCENT="10.00",
+    )
+    @patch("delivery.payouts.requests.post")
+    def test_agent_payout_sends_only_net_earning_after_ten_percent_fee(self, post):
+        delivery = ensure_grocery_delivery(self.order)
+        delivery.agent = self.agent
+        delivery.status = "delivered"
+        delivery.save(update_fields=["agent", "status"])
+        self.agent.razorpay_fund_account_id = "fa_test_agent_1"
+        self.agent.payouts_enabled = True
+        self.agent.save(update_fields=["razorpay_fund_account_id", "payouts_enabled", "updated_at"])
+        earning = DeliveryEarning.objects.create(
+            agent=self.agent, delivery=delivery, amount=Decimal("25.00"), status="payable",
+        )
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"id": "pout_agent_test_1", "status": "queued"}
+        post.return_value = response
+
+        result = submit_agent_payout(earning)
+
+        self.assertEqual(result["id"], "pout_agent_test_1")
+        self.assertEqual(earning.platform_fee_amount, Decimal("2.50"))
+        self.assertEqual(earning.net_amount, Decimal("22.50"))
+        self.assertEqual(post.call_args.kwargs["json"]["amount"], 2250)
+        self.assertEqual(
+            post.call_args.kwargs["headers"]["X-Payout-Idempotency"],
+            earning.payout_idempotency_key,
+        )

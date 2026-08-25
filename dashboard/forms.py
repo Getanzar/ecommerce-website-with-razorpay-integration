@@ -23,6 +23,11 @@ class SellerProductForm(forms.ModelForm):
             "name",
             "description",
             "price",
+            "gst_rate",
+            "package_weight_grams",
+            "package_length_cm",
+            "package_width_cm",
+            "package_height_cm",
             "image",
             "product_type",
         )
@@ -68,7 +73,10 @@ class SellerProductForm(forms.ModelForm):
 class SellerProductEditForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ("name", "description", "price", "image")
+        fields = (
+            "name", "description", "price", "gst_rate", "package_weight_grams",
+            "package_length_cm", "package_width_cm", "package_height_cm", "image",
+        )
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 5}),

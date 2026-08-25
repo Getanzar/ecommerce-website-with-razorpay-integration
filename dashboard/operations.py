@@ -13,8 +13,10 @@ from django.views.decorators.http import require_POST
 from accounts.models import SellerProfile
 from delivery.models import DeliveryAgentProfile, DeliveryEarning, DeliveryZone, LocalDelivery
 from food.models import FoodOrder, FoodSellerSettlement, Restaurant
-from groceries.models import GroceryOrder, GroceryStore
+from groceries.models import GroceryOrder, GrocerySellerSettlement, GroceryStore
 from orders.models import Order, SellerSettlement
+from payments.models import CODRemittance, PaymentTransaction, SellerDeliveryCharge
+from payments.services import order_link
 from products.models import Product
 
 from .models import AdminAuditLog, CustomerAdminNote
@@ -115,8 +117,9 @@ def update_delivery_agent(request, agent_id):
         old = agent.status
         agent.status = status
         agent.is_online = agent.is_online if status == "approved" else False
+        agent.payouts_enabled = status == "approved" and bool(agent.razorpay_fund_account_id)
         agent.verified_at = timezone.now() if status == "approved" else agent.verified_at
-        agent.save(update_fields=["status", "is_online", "verified_at", "updated_at"])
+        agent.save(update_fields=["status", "is_online", "payouts_enabled", "verified_at", "updated_at"])
         audit(request, "agent.status", agent, f"Delivery agent {agent.full_name}: {old} → {status}", reason=reason)
         messages.success(request, "Delivery-agent status updated.")
     return redirect("ops_delivery_agent_detail", agent_id=agent.pk)
@@ -241,6 +244,7 @@ def unified_order_detail(request, kind, order_id):
         raise Http404
     return render(request, "dashboard/operations/order_detail.html", {
         "kind": kind, "order": order, "merchant": merchant, "total": total, "items": items, "delivery": delivery,
+        "financial": order.chargebreakdowns.first(),
     })
 
 
@@ -288,7 +292,10 @@ def payouts(request):
         "delivery_earnings": DeliveryEarning.objects.select_related("agent", "delivery")[:100],
         "seller_settlements": SellerSettlement.objects.select_related("seller", "order")[:100],
         "food_settlements": FoodSellerSettlement.objects.select_related("seller", "order")[:100],
-        "delivery_payable": _money_total(DeliveryEarning.objects.filter(status="payable"), "amount"),
+        "grocery_settlements": GrocerySellerSettlement.objects.select_related("seller", "order")[:100],
+        "cod_remittances": CODRemittance.objects.select_related("agent", "delivery", "seller")[:100],
+        "delivery_charges": SellerDeliveryCharge.objects.filter(provider="delhivery").select_related("seller", "parcel_order")[:100],
+        "delivery_payable": _money_total(DeliveryEarning.objects.filter(status="payable"), "net_amount"),
     })
 
 
@@ -298,9 +305,97 @@ def mark_delivery_earning_paid(request, earning_id):
     earning = get_object_or_404(DeliveryEarning, pk=earning_id)
     if earning.status != "payable": messages.error(request, "Only payable earnings can be marked paid.")
     else:
-        earning.status = "paid"; earning.paid_at = timezone.now(); earning.save(update_fields=["status", "paid_at"])
-        audit(request, "delivery_earning.paid", earning, f"Marked delivery earning #{earning.pk} paid", amount=str(earning.amount))
-        messages.success(request, "Delivery earning marked paid.")
+        try:
+            from delivery.payouts import submit_agent_payout
+            provider = submit_agent_payout(earning)
+            earning.provider_payout_id = provider["id"]
+            earning.status = "paid" if provider.get("status") == "processed" else "processing"
+            earning.paid_at = timezone.now() if earning.status == "paid" else None
+            earning.failure_reason = ""
+            earning.save(update_fields=["provider_payout_id", "status", "paid_at", "failure_reason"])
+            audit(request, "delivery_earning.submitted", earning, f"Submitted delivery earning #{earning.pk}", gross=str(earning.amount), platform_fee=str(earning.platform_fee_amount), net=str(earning.net_amount))
+            messages.success(request, "Delivery earning submitted to RazorpayX.")
+        except Exception as exc:
+            earning.status = "failed"; earning.failure_reason = str(exc)[:1000]
+            earning.save(update_fields=["status", "failure_reason"])
+            messages.error(request, str(exc))
+    return redirect("ops_payouts")
+
+
+@require_POST
+@operations_admin_required
+@transaction.atomic
+def confirm_cod_remittance(request, remittance_id):
+    remittance = get_object_or_404(CODRemittance.objects.select_for_update(), pk=remittance_id)
+    if remittance.status not in {"awaiting_collection", "collected"}:
+        messages.error(request, "Only an outstanding COD remittance can be confirmed.")
+        return redirect("ops_payouts")
+    reference = request.POST.get("reference", "").strip()
+    if not reference:
+        messages.error(request, "A bank deposit or transfer reference is required.")
+        return redirect("ops_payouts")
+    remittance.status = "remitted"
+    remittance.reference = reference
+    remittance.remitted_at = timezone.now()
+    remittance.save(update_fields=["status", "reference", "remitted_at"])
+    order = remittance.order
+    if remittance.delivery_id and hasattr(remittance.delivery, "earning"):
+        earning = remittance.delivery.earning
+        earning.status = "payable"
+        earning.save(update_fields=["status"])
+    all_cash_received = not CODRemittance.objects.filter(
+        **order_link(order),
+    ).exclude(status__in=("remitted", "settled")).exists()
+    if all_cash_received:
+        order.payment_status = "Paid"
+        order.save(update_fields=["payment_status", "updated_at"])
+        PaymentTransaction.objects.filter(provider="cod", **order_link(order)).update(
+            status="captured", captured_at=timezone.now(),
+        )
+        if remittance.parcel_order_id:
+            from orders.settlements import create_settlements_for_order
+            create_settlements_for_order(order)
+        elif remittance.food_order_id:
+            from food.settlements import create_food_settlement
+            create_food_settlement(order)
+        else:
+            from groceries.settlements import create_grocery_settlement
+            create_grocery_settlement(order)
+    audit(request, "cod.remitted", remittance, f"Confirmed COD remittance #{remittance.pk}", amount=str(remittance.amount), reference=reference)
+    if all_cash_received:
+        messages.success(request, "COD remittance confirmed; the order is fully funded and payouts are now eligible.")
+    else:
+        messages.success(request, "COD remittance confirmed. Seller payout remains held until every parcel remittance arrives.")
+    return redirect("ops_payouts")
+
+
+@require_POST
+@operations_admin_required
+def reconcile_delivery_charge(request, charge_id):
+    charge = get_object_or_404(SellerDeliveryCharge, pk=charge_id, provider="delhivery")
+    try:
+        final_total = Decimal(request.POST.get("final_total", ""))
+        if final_total < 0:
+            raise ValueError
+    except Exception:
+        messages.error(request, "Enter a valid final carrier amount.")
+        return redirect("ops_payouts")
+    charge.final_total = final_total
+    charge.status = "reconciled"
+    charge.reconciled_at = timezone.now()
+    charge.save(update_fields=["final_total", "status", "reconciled_at"])
+    settlement = SellerSettlement.objects.none()
+    if charge.parcel_order_id and charge.seller_id:
+        settlement = SellerSettlement.objects.filter(order=charge.parcel_order, seller=charge.seller, status__in=("scheduled", "failed", "on_hold"))
+    settlement.update(delivery_charge=final_total)
+    if charge.parcel_order_id and not charge.parcel_order.sellerdeliverycharges.filter(
+        provider="delhivery",
+    ).exclude(status="reconciled").exists():
+        SellerSettlement.objects.filter(
+            order=charge.parcel_order, status="on_hold",
+        ).update(status="scheduled", failure_reason="")
+    audit(request, "delivery_charge.reconciled", charge, f"Reconciled Delhivery charge #{charge.pk}", final_total=str(final_total))
+    messages.success(request, "Final Delhivery charge reconciled with the seller settlement.")
     return redirect("ops_payouts")
 
 

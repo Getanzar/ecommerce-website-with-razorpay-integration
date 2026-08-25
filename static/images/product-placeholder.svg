@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1125" viewBox="0 0 900 1125" role="img" aria-labelledby="title description">
+  <title id="title">ZIYAMART product image placeholder</title>
+  <desc id="description">A neutral placeholder used when a product photograph is unavailable.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e5e7eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="1125" fill="url(#background)"/>
+  <rect x="275" y="300" width="350" height="400" rx="48" fill="#fff" stroke="#cbd5e1" stroke-width="12"/>
+  <path d="M350 405h200M350 485h200M350 565h125" fill="none" stroke="#94a3b8" stroke-linecap="round" stroke-width="26"/>
+  <circle cx="540" cy="620" r="42" fill="#111827"/>
+  <text x="450" y="820" fill="#111827" font-family="Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="12" text-anchor="middle">ZIYAMART</text>
+  <text x="450" y="885" fill="#64748b" font-family="Arial, sans-serif" font-size="30" text-anchor="middle">IMAGE COMING SOON</text>
+</svg>

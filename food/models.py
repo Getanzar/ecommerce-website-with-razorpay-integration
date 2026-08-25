@@ -179,6 +179,8 @@ class FoodSellerSettlement(models.Model):
     commission_amount = models.DecimalField(max_digits=12, decimal_places=2)
     net_amount = models.DecimalField(max_digits=12, decimal_places=2)
     deductions_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    delivery_charge = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tcs_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=10)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
     scheduled_for = models.DateTimeField()
@@ -190,7 +192,10 @@ class FoodSellerSettlement(models.Model):
 
     @property
     def payout_amount(self):
-        return max(self.net_amount - self.deductions_amount, Decimal("0.00"))
+        return max(
+            self.net_amount - self.deductions_amount - self.delivery_charge - self.tcs_amount,
+            Decimal("0.00"),
+        )
 
     @property
     def payout_reference_key(self):

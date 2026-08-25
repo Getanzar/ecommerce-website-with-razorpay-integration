@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST
+from products.catalog import public_products, sellable_variants
 from products.models import Product, ProductVariant
 from .cart import Cart
 
@@ -10,20 +12,23 @@ def cart_detail(request):
     cart = Cart(request)
 
     cart_items = list(cart)
-    total_price = cart.get_total_price()
+    total_price = sum((item["payable_subtotal"] for item in cart_items), 0)
+    total_tax = sum((item["tax_amount"] for item in cart_items), 0)
 
     return render(request, "orders/cart.html", {
         "cart_items": cart_items,
         "total_price": total_price,
+        "total_tax": total_tax,
     })
 
 
 # ---------------------------
 # ADD TO CART (CLEAN VERSION)
 # ---------------------------
+@require_POST
 def cart_add(request, pid):
     cart = Cart(request)
-    product = get_object_or_404(Product, id=pid)
+    product = get_object_or_404(public_products(), id=pid)
 
     variant_id = request.POST.get("variant_id")
 
@@ -31,15 +36,10 @@ def cart_add(request, pid):
         return redirect("product_detail_page", slug=product.slug)
 
     variant = get_object_or_404(
-        ProductVariant,
+        sellable_variants(ProductVariant.objects.select_related("product", "product__seller", "color")),
         id=variant_id,
         product=product,
-        is_active=True
     )
-
-    # Prevent adding out-of-stock variants
-    if variant.stock <= 0:
-        return redirect("product_detail_page", slug=product.slug)
 
     cart.add(
         product=product,
@@ -53,6 +53,7 @@ def cart_add(request, pid):
 # ---------------------------
 # REMOVE FROM CART (FIXED)
 # ---------------------------
+@require_POST
 def cart_remove(request, pid):
     cart = Cart(request)
 
@@ -66,11 +67,15 @@ def cart_remove(request, pid):
 # ---------------------------
 # UPDATE CART (FIXED)
 # ---------------------------
+@require_POST
 def cart_update(request, pid):
 
     cart = Cart(request)
 
-    variant = get_object_or_404(ProductVariant, id=pid)
+    variant = get_object_or_404(
+        sellable_variants(ProductVariant.objects.select_related("product", "product__seller", "color")),
+        id=pid,
+    )
 
     if request.method == "POST":
 
@@ -94,6 +99,7 @@ def cart_update(request, pid):
 # ---------------------------
 # CLEAR CART (FULL RESET)
 # ---------------------------
+@require_POST
 def clear_cart(request):
     cart = Cart(request)
 
@@ -105,6 +111,7 @@ def clear_cart(request):
 
     return redirect("cart_detail")
 
+@require_POST
 def decrease(request, pid):
     cart = Cart(request)
 

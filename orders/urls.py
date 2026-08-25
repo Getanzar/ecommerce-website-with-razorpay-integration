@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import commerce, views
 
 urlpatterns = [
     path("webhooks/razorpayx/", views.razorpayx_webhook, name="razorpayx_webhook"),
@@ -7,19 +7,19 @@ urlpatterns = [
     # Checkout
     path(
         "checkout/",
-        views.checkout,
+        commerce.checkout,
         name="checkout",
     ),
 
     path(
         "cod-checkout/",
-        views.cod_checkout,
+        commerce.cod_checkout,
         name="cod_checkout",
     ),
 
     path(
         "payment-success/",
-        views.payment_success,
+        commerce.payment_success,
         name="payment_success",
     ),
 

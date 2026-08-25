@@ -2216,6 +2216,18 @@ def approve_return(request, return_id):
         # -------------------------
 
         requested_refund_status = request.POST.get("refund_status", "Pending")
+        if requested_refund_status == "Processed" and return_request.order.payment_method == "online":
+            try:
+                from payments.services import request_refund
+                refund_amount = return_request.order_item.total if return_request.order_item else return_request.order.total_price
+                request_refund(
+                    return_request.order,
+                    refund_amount,
+                    f"Approved return #{return_request.pk}",
+                )
+            except Exception as exc:
+                messages.error(request, f"Return remains pending because the refund could not be submitted: {exc}")
+                return redirect("returns_management")
         return_request.status = "Completed" if requested_refund_status == "Processed" else "Approved"
 
         return_request.admin_note = request.POST.get(

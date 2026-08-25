@@ -14,7 +14,7 @@ class GroceryStoreForm(RequiredGPSMixin, forms.ModelForm):
 class GroceryProductForm(forms.ModelForm):
     class Meta:
         model = GroceryProduct
-        fields = ("category", "name", "brand", "image", "unit", "mrp", "price", "stock", "is_active", "is_perishable")
+        fields = ("category", "name", "brand", "image", "unit", "mrp", "price", "gst_rate", "stock", "is_active", "is_perishable")
 
     def clean(self):
         cleaned = super().clean()

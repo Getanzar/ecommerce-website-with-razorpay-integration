@@ -1,9 +1,15 @@
+import json
+
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from .forms import ProductReviewForm
 from orders.models import OrderItem
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import generics
+from django.core.paginator import Paginator
+from django.templatetags.static import static
+from django.views.decorators.http import require_POST
 
 from .models import (
     Category,
@@ -16,7 +22,8 @@ from .models import (
 )
 
 from .serializers import ProductSerializer
-from django.db.models import Q, Case, When, IntegerField, Prefetch
+from django.db.models import Avg, Count, Q, Case, When, IntegerField, Prefetch
+from .catalog import in_stock_products, public_products, with_storefront_variants
 
 # ----------------------
 # FRONTEND VIEWS
@@ -121,9 +128,9 @@ def search_view(request):
 
         results = (
 
-            Product.objects
+            with_storefront_variants(in_stock_products(Product.objects.filter(q)))
 
-            .filter(q, is_active=True)
+            .select_related("category", "seller")
 
             .distinct()
 
@@ -179,28 +186,30 @@ def search_view(request):
 
 
 def home(request):
-
-    categories = Category.objects.prefetch_related(
-        Prefetch(
-            "products",
-            queryset=Product.objects.filter(
-                is_active=True,
-                stock__gt=0
-            )
-        )
+    storefront_products = in_stock_products().select_related("category", "seller").annotate(
+        approved_review_count=Count(
+            "reviews",
+            filter=Q(reviews__is_approved=True),
+            distinct=True,
+        ),
+        storefront_rating=Avg(
+            "reviews__rating",
+            filter=Q(reviews__is_approved=True),
+        ),
     )
 
-    # New Arrivals
-    new_arrivals = Product.objects.filter(
-        is_active=True,
-        stock__gt=0
-    ).order_by("-created")[:8]
+    categories = (
+        Category.objects.filter(products__in=in_stock_products())
+        .distinct()
+        .order_by("name")
+    )
 
-    # Trending (temporary)
-    trending_products = Product.objects.filter(
-        is_active=True,
-        stock__gt=0
-    ).order_by("?")[:8]
+    new_arrivals = with_storefront_variants(storefront_products).order_by("-created")[:8]
+    trending_products = with_storefront_variants(storefront_products).order_by(
+        "-approved_review_count",
+        "-storefront_rating",
+        "-created",
+    )[:8]
 
     return render(
         request,
@@ -214,8 +223,8 @@ def home(request):
 
 def product_list_page(request):
 
-    products = Product.objects.filter(
-        is_active=True
+    products = with_storefront_variants(
+        in_stock_products().select_related("category", "seller")
     ).order_by('-created')
 
     return render(
@@ -227,151 +236,132 @@ def product_list_page(request):
     )
 
 def product_detail_page(request, slug):
-
     product = get_object_or_404(
-        Product,
+        public_products(Product.objects.select_related("category", "seller")),
         slug=slug,
-        is_active=True
     )
-
-    # Product gallery images
-    extra_images = product.images.all()
-
-    # Colors with their images
-# Colors with images
-    colors = (
-        product.colors
-        .order_by("display_order")
-    )
-
-    # Active variants grouped by color
-    variants = (
+    extra_images = list(product.images.order_by("display_order", "id"))
+    colors = product.colors.filter(variants__is_active=True).distinct().order_by("display_order", "id")
+    variants = list(
         product.variants
         .filter(is_active=True)
         .select_related("color")
-        .order_by(
-            "color__display_order",
-            "size"
-        )
+        .order_by("color__display_order", "size")
     )
-    has_stock = variants.filter(stock__gt=0).exists()
-
-    # Create color-wise size mapping
+    in_stock_variants = [variant for variant in variants if variant.stock > 0]
+    has_stock = bool(in_stock_variants)
+    starting_price = min(
+        (variant.customer_price_with_tax for variant in in_stock_variants),
+        default=product.customer_price_with_tax,
+    )
     color_sizes = {}
-
     for variant in variants:
-
         color_id = variant.color.id
-
         if color_id not in color_sizes:
             color_sizes[color_id] = []
-
         color_sizes[color_id].append({
             "id": variant.id,
             "size": variant.size,
             "stock": variant.stock,
-            "price": variant.final_price,
+            "price": variant.customer_price_with_tax,
         })
-
-
-    # Approved reviews
-    reviews = (
+    reviews_queryset = (
         product.reviews
         .filter(is_approved=True)
         .select_related("user")
     )
-
-
+    review_stats = reviews_queryset.aggregate(average=Avg("rating"), count=Count("id"))
+    review_count = review_stats["count"]
+    rating_average = round(review_stats["average"], 1) if review_stats["average"] is not None else 0
+    reviews = Paginator(reviews_queryset, 10).get_page(request.GET.get("reviews"))
     review_form = ProductReviewForm()
-
-
-    # Related products
     related_products = (
-        Product.objects
-        .filter(
-            category=product.category,
-            is_active=True,
-            stock__gt=0
-        )
+        with_storefront_variants(in_stock_products(Product.objects.filter(category=product.category)))
         .exclude(id=product.id)
-        .prefetch_related(
-            "images",
-            "colors"
-        )
+        .select_related("category", "seller")
+        .prefetch_related("images", "colors")
         .order_by("-created")[:4]
     )
-
-
-    # Wishlist + review permission
     is_in_wishlist = False
     can_review = False
-
     if request.user.is_authenticated:
-
         is_in_wishlist = Wishlist.objects.filter(
             user=request.user,
             product=product
         ).exists()
-
-
         can_review = OrderItem.objects.filter(
             product=product,
             order__user=request.user,
             order__status="Delivered"
         ).exists()
-
-
-    context = {
-
-        "product": product,
-
-        "extra_images": extra_images,
-
-        # color images
-        "colors": colors,
-
-        # all variants
-        "variants": variants,
-
-        "has_stock": has_stock,
-
-        # javascript will use this
-        "color_sizes": color_sizes,
-
-        "reviews": reviews,
-
-        "review_form": review_form,
-
-        "related_products": related_products,
-
-        "is_in_wishlist": is_in_wishlist,
-
-        "can_review": can_review,
-
-    }
-
-
-    return render(
-        request,
-        "products/product_detail.html",
-        context
+    product_image_url = request.build_absolute_uri(
+        product.image.url if product.image else static("images/product-placeholder.svg")
     )
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": product.name,
+        "description": product.description,
+        "image": [product_image_url],
+        "sku": str(product.pk),
+        "brand": {"@type": "Brand", "name": product.seller.store_name if product.seller_id else "ZIYAMART"},
+        "offers": {
+            "@type": "Offer",
+            "url": request.build_absolute_uri(),
+            "priceCurrency": "INR",
+            "price": str(starting_price),
+            "availability": "https://schema.org/InStock" if has_stock else "https://schema.org/OutOfStock",
+        },
+    }
+    if review_count:
+        schema["aggregateRating"] = {
+            "@type": "AggregateRating",
+            "ratingValue": str(rating_average),
+            "reviewCount": str(review_count),
+        }
+    context = {
+        "product": product,
+        "extra_images": extra_images,
+        "colors": colors,
+        "variants": variants,
+        "has_stock": has_stock,
+        "color_sizes": color_sizes,
+        "reviews": reviews,
+        "review_count": review_count,
+        "rating_average": rating_average,
+        "review_form": review_form,
+        "related_products": related_products,
+        "is_in_wishlist": is_in_wishlist,
+        "can_review": can_review,
+        "starting_price": starting_price,
+        "product_image_url": product_image_url,
+        "product_schema_json": (
+            json.dumps(schema)
+            .replace("<", "\\u003C")
+            .replace(">", "\\u003E")
+            .replace("&", "\\u0026")
+        ),
+        "meta_description": (product.description or f"Buy {product.name} on ZIYAMART")[:160],
+        "return_window_days": getattr(settings, "RETURN_WINDOW_DAYS", 7),
+    }
+    return render(request, "products/product_detail.html", context)
 
 # ----------------------
 # API VIEWS
 # ----------------------
 
 class ProductList(generics.ListAPIView):
-    queryset = Product.objects.filter(
-        is_active=True,
-        stock__gt=0
-        )
     serializer_class = ProductSerializer
 
+    def get_queryset(self):
+        return with_storefront_variants(in_stock_products().select_related("seller"))
+
 class ProductDetail(generics.RetrieveAPIView):
-    queryset = Product.objects.filter(is_active=True, stock__gt=0)
     serializer_class = ProductSerializer
     lookup_field = 'slug'
+
+    def get_queryset(self):
+        return public_products().select_related("seller")
 
 
 
@@ -382,8 +372,8 @@ class ProductDetail(generics.RetrieveAPIView):
 def category_page(request, category_id):
     category = get_object_or_404(Category, id=category_id)
     subcategories = category.subcategories.filter(
-    products__is_active=True
-).distinct()
+        products__in=in_stock_products()
+    ).distinct()
     return render(request, "products/category_page.html", {
     "category": category,
     "subcategories": subcategories,
@@ -392,19 +382,18 @@ def category_page(request, category_id):
 
 def subcategory_products(request, sub_id):
     subcategory = get_object_or_404(SubCategory, id=sub_id)
-    products = Product.objects.filter(
-    subcategory=subcategory,
-    is_active=True
-)
+    products = with_storefront_variants(in_stock_products(Product.objects.filter(
+        subcategory=subcategory,
+    )).select_related("seller", "category"))
     return render(request, "products/subcategory_products.html", {
         "subcategory": subcategory,
         "products": products,
     })
 
 @login_required
+@require_POST
 def toggle_wishlist(request, product_id):
-
-    product = get_object_or_404(Product, id=product_id)
+    product = get_object_or_404(public_products(), id=product_id)
 
     wishlist_item = Wishlist.objects.filter(
         user=request.user,
@@ -429,8 +418,13 @@ def wishlist_page(request):
 
     wishlist_items = (
         Wishlist.objects
-        .filter(user=request.user)
-        .select_related("product")
+        .filter(user=request.user, product__in=public_products())
+        .select_related("product", "product__seller")
+        .prefetch_related(Prefetch(
+            "product__variants",
+            queryset=ProductVariant.objects.filter(is_active=True, stock__gt=0).select_related("color"),
+            to_attr="storefront_variants",
+        ))
         .order_by("-created_at")
     )
 
@@ -443,15 +437,9 @@ def wishlist_page(request):
     )
 
 @login_required
+@require_POST
 def add_review(request, product_id):
-
-    product = get_object_or_404(Product, id=product_id)
-
-    if request.method != "POST":
-        return redirect(
-            "product_detail_page",
-            slug=product.slug
-        )
+    product = get_object_or_404(public_products(), id=product_id)
 
     # Only delivered orders can review
     has_purchased = OrderItem.objects.filter(
@@ -495,6 +483,13 @@ def add_review(request, product_id):
         messages.success(
             request,
             "Thank you for your review!"
+        )
+    else:
+        messages.error(
+            request,
+            "Please correct your review: " + " ".join(
+                error for errors in form.errors.values() for error in errors
+            ),
         )
 
     return redirect(

@@ -6,9 +6,34 @@
 {{ product.name }} | Z I Y A
 {% endblock %}
 
+{% block meta_description %}{{ meta_description }}{% endblock %}
+
+{% block extra_head %}
+<link rel="canonical" href="{{ request.build_absolute_uri }}">
+<meta property="og:type" content="product">
+<meta property="og:title" content="{{ product.name }}">
+<meta property="og:description" content="{{ meta_description }}">
+<meta property="og:url" content="{{ request.build_absolute_uri }}">
+<meta property="og:image" content="{{ product_image_url }}">
+<meta property="product:price:amount" content="{{ starting_price }}">
+<meta property="product:price:currency" content="INR">
+<script type="application/ld+json">{{ product_schema_json|safe }}</script>
+<style>
+  .product-main-image{height:clamp(380px,52vw,650px);object-fit:cover;background:#f1f5f9}
+  .product-thumb{width:70px;height:70px;object-fit:cover;cursor:pointer}
+  .product-color{box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .related-product-image{height:280px;object-fit:cover;background:#f1f5f9}
+  @media(max-width:576px){
+    .product-main-image{height:360px}
+    .product-thumb{width:52px;height:52px}
+    .product-detail-shell{padding-top:1rem!important}
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<div class="container py-5">
+<div class="container py-5 product-detail-shell">
 
 <div class="row g-5">
 
@@ -30,8 +55,11 @@
 
 <img
 src="{{ product.image.url }}"
-class="thumb-image img-thumbnail active-thumb"
-style="width:70px;height:70px;object-fit:cover;cursor:pointer;">
+class="thumb-image product-thumb img-thumbnail active-thumb"
+alt="View main image of {{ product.name }}"
+role="button"
+tabindex="0"
+loading="lazy">
 
 {% endif %}
 
@@ -39,8 +67,11 @@ style="width:70px;height:70px;object-fit:cover;cursor:pointer;">
 
 <img
 src="{{ img.image.url }}"
-class="thumb-image img-thumbnail"
-style="width:70px;height:70px;object-fit:cover;cursor:pointer;">
+class="thumb-image product-thumb img-thumbnail"
+alt="View another image of {{ product.name }}"
+role="button"
+tabindex="0"
+loading="lazy">
 
 {% endfor %}
 
@@ -59,17 +90,17 @@ style="width:70px;height:70px;object-fit:cover;cursor:pointer;">
 <img
 id="mainImage"
 src="{{ product.image.url }}"
-class="img-fluid w-100"
-style="height:650px;object-fit:cover;"
+class="img-fluid w-100 product-main-image"
+fetchpriority="high"
 alt="{{ product.name }}">
 
 {% else %}
 
 <img
 id="mainImage"
-src="{% static 'img/default.jpg' %}"
-class="img-fluid w-100"
-style="height:650px;object-fit:cover;">
+src="{% static 'images/product-placeholder.svg' %}"
+class="img-fluid w-100 product-main-image"
+alt="Image coming soon for {{ product.name }}">
 
 {% endif %}
 
@@ -97,7 +128,7 @@ style="height:650px;object-fit:cover;">
 
 <span class="text-warning fs-5">
 
-{% with avg=product.average_rating %}
+{% with avg=rating_average %}
     <span class="text-warning fs-5">
         {% for i in "12345" %}
             {% if forloop.counter <= avg|floatformat:0 %}
@@ -113,8 +144,8 @@ style="height:650px;object-fit:cover;">
 
 <span class="text-muted ms-2">
 
-{{ product.average_rating|floatformat:1 }} / 5
-({{ product.review_count }} Reviews)
+{{ rating_average|floatformat:1 }} / 5
+({{ review_count }} Reviews)
 
 </span>
 
@@ -124,9 +155,11 @@ style="height:650px;object-fit:cover;">
 id="productPrice"
 class="fw-bold mb-4">
 
-₹{{ product.customer_price }}
+₹{{ starting_price }}
 
 </h2>
+
+<p class="small text-success mb-4">Inclusive of merchandise GST and platform-fee GST. Customer delivery charge: ₹0.</p>
 
 <p class="text-muted">
 
@@ -196,9 +229,12 @@ Choose Color
 
 <button
 type="button"
-class="color-btn border border-2 rounded-circle"
+class="color-btn product-color border border-2 rounded-circle"
 
 data-color="{{ color.id }}"
+aria-label="Select {{ color.name }} color"
+aria-pressed="false"
+title="{{ color.name }}"
 
 {% if color.image %}
 data-image="{{ color.image.url }}"
@@ -238,7 +274,9 @@ class="btn btn-outline-dark size-btn"
 data-color="{{ variant.color.id }}"
 data-variant="{{ variant.id }}"
 data-stock="{{ variant.stock }}"
-data-price="{{ variant.final_price }}"
+data-price="{{ variant.customer_price_with_tax }}"
+aria-label="Select size {{ variant.size }}{% if variant.stock <= 0 %}, out of stock{% endif %}"
+aria-pressed="false"
 
 {% if variant.image %}
 data-image="{{ variant.image.url }}"
@@ -298,18 +336,18 @@ id="selectedVariant">
 
 <button type="submit" id="cartButton"
 class="btn {% if has_stock %}btn-dark{% else %}btn-secondary{% endif %} btn-lg w-100"
-{% if not has_stock %}disabled aria-disabled="true"{% endif %}>
+disabled aria-disabled="true">
 {% if has_stock %}🛒 Add to Cart{% else %}Out of Stock{% endif %}
 </button>
 
 </form>
-</br>
+
 
 {% if user.is_authenticated %}
 
-<a
-    href="{% url 'toggle_wishlist' product.id %}"
-    class="btn {% if is_in_wishlist %}btn-danger{% else %}btn-outline-danger{% endif %} w-100">
+<form method="post" action="{% url 'toggle_wishlist' product.id %}">
+    {% csrf_token %}
+    <button type="submit" class="btn {% if is_in_wishlist %}btn-danger{% else %}btn-outline-danger{% endif %} w-100 mt-3">
 
     {% if is_in_wishlist %}
         ❤️ Remove from Wishlist
@@ -317,7 +355,8 @@ class="btn {% if has_stock %}btn-dark{% else %}btn-secondary{% endif %} btn-lg w
         🤍 Save to Wishlist
     {% endif %}
 
-</a>
+    </button>
+</form>
 
 {% else %}
 
@@ -349,11 +388,11 @@ Login to Save Wishlist
 
 <h4>🚚</h4>
 
-<strong>Free Shipping</strong>
+<strong>₹0 Customer Delivery</strong>
 
 <div class="small text-muted">
 
-On eligible orders
+Seller-sponsored delivery
 
 </div>
 
@@ -371,7 +410,7 @@ On eligible orders
 
 <div class="small text-muted">
 
-7-day return
+{{ return_window_days }}-day return after delivery
 
 </div>
 
@@ -478,7 +517,7 @@ Product Description
 </div>
 {% endif %}
 
-<h3 class="fw-bold mb-4">
+<h3 class="fw-bold mb-4" id="reviews">
 
 Customer Reviews
 
@@ -534,6 +573,20 @@ Customer Reviews
 
 {% endfor %}
 
+{% if reviews.paginator.num_pages > 1 %}
+<nav aria-label="Customer review pages" class="mt-4">
+  <ul class="pagination justify-content-center">
+    {% if reviews.has_previous %}
+    <li class="page-item"><a class="page-link" href="?reviews={{ reviews.previous_page_number }}#reviews">Previous</a></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ reviews.number }} of {{ reviews.paginator.num_pages }}</span></li>
+    {% if reviews.has_next %}
+    <li class="page-item"><a class="page-link" href="?reviews={{ reviews.next_page_number }}#reviews">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
 {% else %}
 
 <div class="alert alert-light">
@@ -572,11 +625,11 @@ Related Products
 
 {% if related.image %}
 
-<img src="{{ related.image.url }}" class="card-img-top">
+<img src="{{ related.image.url }}" class="card-img-top related-product-image" alt="{{ related.name }}" loading="lazy">
 
 {% else %}
 
-<img src="{% static 'img/default.jpg' %}" class="card-img-top">
+<img src="{% static 'images/product-placeholder.svg' %}" class="card-img-top related-product-image" alt="Image coming soon for {{ related.name }}" loading="lazy">
 
 {% endif %}
 
@@ -592,7 +645,7 @@ Related Products
 
 <p>
 
-₹{{ related.customer_price }}
+₹{{ related.storefront_price }}
 
 </p>
 
@@ -630,7 +683,7 @@ const mainImage=document.getElementById("mainImage");
 
 document.querySelectorAll(".thumb-image").forEach(img=>{
 
-img.addEventListener("click",function(){
+const activateThumbnail=function(){
 
 mainImage.src=this.src;
 
@@ -638,6 +691,14 @@ document.querySelectorAll(".thumb-image").forEach(i=>i.classList.remove("border-
 
 this.classList.add("border-dark");
 
+};
+
+img.addEventListener("click",activateThumbnail);
+img.addEventListener("keydown",function(event){
+if(event.key==="Enter" || event.key===" "){
+event.preventDefault();
+activateThumbnail.call(this);
+}
 });
 
 });
@@ -663,8 +724,10 @@ colors.forEach(btn=>{
 btn.onclick=function(){
 
 colors.forEach(c=>c.classList.remove("border-dark"));
+colors.forEach(c=>c.setAttribute("aria-pressed","false"));
 
 this.classList.add("border-dark");
+this.setAttribute("aria-pressed","true");
 
 activeColor=this.dataset.color;
 
@@ -672,9 +735,10 @@ variant.value="";
 
 badge.innerHTML=productHasStock?"Select a size":"Out of Stock";
 
-badge.className=productHasStock?"badge bg-secondary":"badge bg-danger fs-6";
+badge.className=productHasStock?"badge bg-secondary fs-6":"badge bg-danger fs-6";
 
 cartButton.disabled=true;
+cartButton.setAttribute("aria-disabled","true");
 cartButton.innerHTML=productHasStock?"🛒 Add to Cart":"Out of Stock";
 
 if(this.dataset.image){
@@ -700,8 +764,10 @@ sizes.forEach(btn=>{
 btn.onclick=function(){
 
 sizes.forEach(b=>b.classList.remove("active"));
+sizes.forEach(b=>b.setAttribute("aria-pressed","false"));
 
 this.classList.add("active");
+this.setAttribute("aria-pressed","true");
 
 variant.value=this.dataset.variant;
 
@@ -722,6 +788,7 @@ badge.innerHTML=stock+" in stock";
 badge.className="badge bg-success fs-6";
 
 cartButton.disabled=false;
+cartButton.setAttribute("aria-disabled","false");
 cartButton.innerHTML="🛒 Add to Cart";
 
 }else{
@@ -731,6 +798,7 @@ badge.innerHTML="Out of Stock";
 badge.className="badge bg-danger fs-6";
 
 cartButton.disabled=true;
+cartButton.setAttribute("aria-disabled","true");
 cartButton.innerHTML="Out of Stock";
 
 }
@@ -750,6 +818,13 @@ alert("Please select a color and size.");
 }
 
 });
+
+if(colors.length && productHasStock){
+const firstAvailableColor=[...colors].find(color=>
+  [...sizes].some(size=>size.dataset.color===color.dataset.color && parseInt(size.dataset.stock)>0)
+);
+(firstAvailableColor || colors[0]).click();
+}
 
 });
 
