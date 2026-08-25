@@ -116,3 +116,39 @@ class GroceryMarketplaceTests(TestCase):
         cart = self.client.session["grocery_cart"]
         self.assertEqual(cart["store_id"], self.store.pk)
         self.assertNotIn(str(other_product.pk), cart["items"])
+
+    def test_grocery_cart_is_visible_and_quantity_can_be_updated(self):
+        self.client.get(reverse("grocery_home"), {"pincode": "243638"})
+        self.client.post(reverse("grocery_cart_add", args=[self.product.pk]))
+
+        home = self.client.get(reverse("grocery_home"), {"pincode": "243638"})
+        self.assertContains(home, "Grocery cart")
+        self.assertContains(home, ">1</span>", html=False)
+
+        response = self.client.post(
+            reverse("grocery_cart_update", args=[self.product.pk]),
+            {"quantity": 4},
+        )
+        self.assertRedirects(response, reverse("grocery_cart"))
+        self.assertEqual(self.client.session["grocery_cart"]["items"][str(self.product.pk)], 4)
+
+    def test_pending_online_order_can_be_retried_but_not_prepared(self):
+        order = GroceryOrder.objects.create(
+            user=self.customer, store=self.store, full_name="Test Customer",
+            phone="9999999999", address="Market Road", city="Sahaswan",
+            state="Uttar Pradesh", pincode="243638", subtotal="250.00",
+            delivery_fee="20.00", total="270.00", payment_method="online",
+            payment_status="Pending", delivery_mode="local",
+            razorpay_order_id="order_retry_grocery",
+        )
+        self.client.login(username="grocery-customer", password="test-password")
+        response = self.client.get(reverse("grocery_payment_retry", args=[order.pk]))
+        self.assertContains(response, "Complete your payment")
+
+        self.client.login(username="kirana-owner", password="test-password")
+        response = self.client.post(
+            reverse("grocery_seller_update_order", args=[order.pk]), {"status": "accepted"},
+        )
+        self.assertRedirects(response, reverse("grocery_seller_orders"))
+        order.refresh_from_db()
+        self.assertEqual(order.status, "placed")

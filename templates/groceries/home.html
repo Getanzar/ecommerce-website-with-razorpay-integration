@@ -1,6 +1,33 @@
-{% extends "base.html" %}{% block title %}Groceries | ZIYAMART{% endblock %}{% block content %}
-<style>.g-hero{background:linear-gradient(135deg,#effff4,#fff8dc);border-radius:24px}.store-card{transition:.2s}.store-card:hover{transform:translateY(-4px)}.store-img{height:180px;object-fit:cover;background:#f5f5f5}</style>
-<section class="g-hero p-4 p-md-5 my-4"><span class="badge text-bg-success mb-3">Groceries near you</span><h1 class="display-5 fw-bold">Daily essentials, from trusted local kirana stores</h1><p class="text-muted">Enter your delivery pincode to see live stock and realistic delivery estimates.</p><form class="row g-2"><div class="col-sm-8 col-lg-4"><input name="pincode" value="{{ pincode }}" inputmode="numeric" maxlength="6" class="form-control form-control-lg" placeholder="6-digit pincode" required></div><div class="col-auto"><button class="btn btn-success btn-lg">Find stores</button></div></form></section>
+{% extends "base.html" %}
+{% block title %}Groceries | ZIYAMART{% endblock %}
+{% block content %}
+<style>
+  .g-hero{background:linear-gradient(135deg,#e9fff1,#fff8dc);border:1px solid rgba(24,115,62,.08);border-radius:28px;overflow:hidden;position:relative}
+  .g-hero:after{background:radial-gradient(circle,#45a863 0 3px,transparent 4px);background-size:24px 24px;content:"";height:180px;opacity:.12;position:absolute;right:-20px;top:-28px;width:240px}
+  .g-hero>*{position:relative;z-index:1}.store-card{border-radius:20px;overflow:hidden;transition:.2s}.store-card:hover{transform:translateY(-4px)}
+  .store-img{height:180px;object-fit:cover;background:#f5f5f5}.g-cart-btn{background:#fff;border:1px solid rgba(23,75,42,.14);color:#174b2a}
+</style>
+<section class="g-hero p-4 p-md-5 my-4">
+  <div class="d-flex flex-column flex-lg-row gap-4 align-items-lg-center">
+    <div class="flex-grow-1">
+      <span class="badge text-bg-success mb-3">Groceries near you</span>
+      <h1 class="display-5 fw-bold">Daily essentials, from trusted local kirana stores</h1>
+      <p class="text-muted">Enter your delivery pincode to see live stock and realistic delivery estimates.</p>
+      <form class="row g-2" method="get">
+        <div class="col-sm-8 col-lg-5"><input name="pincode" value="{{ pincode }}" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" class="form-control form-control-lg" placeholder="6-digit pincode" required></div>
+        <div class="col-auto"><button class="btn btn-success btn-lg">Find stores</button></div>
+      </form>
+    </div>
+    <a class="btn g-cart-btn btn-lg px-4 shadow-sm" href="{% url 'grocery_cart' %}"><i class="bi bi-basket2 me-2"></i>Grocery cart{% if grocery_cart_count %}<span class="badge text-bg-success ms-2">{{ grocery_cart_count }}</span>{% endif %}</a>
+  </div>
+</section>
 {% if pincode and not area %}<div class="alert alert-warning">Groceries are not available at {{ pincode }} yet.</div>{% endif %}
-<div class="row g-4 mb-5">{% for store in stores %}<div class="col-md-6 col-lg-4"><a class="card store-card h-100 text-decoration-none text-dark border-0 shadow-sm" href="{% url 'grocery_store' store.slug %}?pincode={{ pincode }}">{% if store.image %}<img class="card-img-top store-img" src="{{ store.image.url }}" alt="{{ store.name }}">{% else %}<div class="store-img d-flex align-items-center justify-content-center display-3">🛒</div>{% endif %}<div class="card-body"><div class="d-flex"><h2 class="h5 me-auto">{{ store.name }}</h2><span class="badge text-bg-success">Open</span></div><p class="text-muted mb-2">{{ store.description|truncatechars:90 }}</p><strong>{{ store.estimated_delivery_minutes }}–{{ store.estimated_delivery_minutes|add:30 }} min</strong> · Delivery ₹{{ store.delivery_fee }}</div></a></div>{% empty %}{% if area %}<p class="text-muted">No kirana stores are open in this area right now.</p>{% endif %}{% endfor %}</div>
+<div class="row g-4 mb-5">
+  {% for store in stores %}
+  <div class="col-md-6 col-lg-4"><a class="card store-card h-100 text-decoration-none text-dark border-0 shadow-sm" href="{% url 'grocery_store' store.slug %}?pincode={{ pincode }}">
+    {% if store.image %}<img class="card-img-top store-img" src="{{ store.image.url }}" alt="{{ store.name }}">{% else %}<div class="store-img d-flex align-items-center justify-content-center display-3">🛒</div>{% endif %}
+    <div class="card-body"><div class="d-flex"><h2 class="h5 me-auto">{{ store.name }}</h2><span class="badge text-bg-success">Open</span></div><p class="text-muted mb-2">{{ store.description|truncatechars:90 }}</p><strong>{{ store.estimated_delivery_minutes }}–{{ store.estimated_delivery_minutes|add:30 }} min</strong> · Delivery ₹{{ store.delivery_fee }}</div>
+  </a></div>
+  {% empty %}{% if area %}<p class="text-muted">No kirana stores are open in this area right now.</p>{% endif %}{% endfor %}
+</div>
 {% endblock %}

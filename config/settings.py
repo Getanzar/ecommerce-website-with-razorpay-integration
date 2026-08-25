@@ -125,6 +125,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 
                 'products.context_processors.categories_processor',
+                'products.context_processors.commerce_carts_processor',
             ],
         },
     },

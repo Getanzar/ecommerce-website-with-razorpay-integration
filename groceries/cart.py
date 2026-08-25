@@ -24,6 +24,16 @@ class GroceryCart:
             self.data["store_id"] = None
         self.save()
 
+    def set_quantity(self, product, quantity):
+        key = str(product.pk)
+        if key not in self.data["items"]:
+            raise ValueError("That product is not in your grocery cart.")
+        if quantity <= 0:
+            self.remove(product.pk)
+            return
+        self.data["items"][key] = min(quantity, product.stock, 20)
+        self.save()
+
     def clear(self):
         self.data = {"store_id": None, "items": {}}
         self.save()

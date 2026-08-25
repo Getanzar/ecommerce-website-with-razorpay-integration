@@ -118,3 +118,33 @@ class FoodOrderingTests(TestCase):
         response = self.client.post(reverse("food_cart_add", args=[self.option.pk]))
         self.assertRedirects(response, reverse("food_home"))
         self.assertFalse(self.client.session.get("food_cart", {}).get("items"))
+
+    def test_food_cart_quantity_can_be_updated(self):
+        self.client.post(reverse("food_cart_add", args=[self.option.pk]), {"quantity": 1})
+        response = self.client.post(
+            reverse("food_cart_update", args=[self.option.pk]), {"quantity": 3},
+        )
+        self.assertRedirects(response, reverse("food_cart"))
+        self.assertEqual(
+            self.client.session["food_cart"]["items"][str(self.option.pk)]["quantity"], 3,
+        )
+
+    def test_pending_online_order_can_be_retried_but_not_prepared(self):
+        order = FoodOrder.objects.create(
+            user=self.user, restaurant=self.restaurant, full_name="Test Customer",
+            phone="9999999999", address="Market Road", city="Sahaswan",
+            state="Uttar Pradesh", pincode="243638", subtotal="180.00",
+            delivery_fee="20.00", total="200.00", payment_method="online",
+            payment_status="Pending", razorpay_order_id="order_retry_food",
+        )
+        self.client.login(username="customer", password="test-password")
+        response = self.client.get(reverse("food_payment_retry", args=[order.pk]))
+        self.assertContains(response, "Complete your payment")
+
+        self.client.login(username="owner", password="test-password")
+        response = self.client.post(
+            reverse("food_seller_update_order", args=[order.pk]), {"status": "accepted"},
+        )
+        self.assertRedirects(response, reverse("food_seller_orders"))
+        order.refresh_from_db()
+        self.assertEqual(order.status, "placed")

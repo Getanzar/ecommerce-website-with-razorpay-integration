@@ -56,12 +56,16 @@ def cart_detail(request):
     return render(request, "food/cart.html", {"rows": rows, "restaurant": restaurant, "subtotal": cart.subtotal, "total": pricing["grand_total"] if pricing else Decimal("0"), "pricing": pricing})
 
 
+@require_POST
 def cart_add(request, option_id):
-    if request.method != "POST":
-        return redirect("food_home")
     option = get_object_or_404(MenuItemOption.objects.select_related("item__restaurant"), pk=option_id, is_available=True, item__is_available=True)
-    if not option.item.restaurant.accepts_orders:
+    restaurant = option.item.restaurant
+    if not restaurant.accepts_orders:
         messages.error(request, "This restaurant is currently closed and is not accepting orders.")
+        return redirect("food_home")
+    pincode = request.session.get("food_pincode", "243638")
+    if restaurant.pincode != pincode or not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
+        messages.error(request, "Select a serviceable delivery pincode before adding food.")
         return redirect("food_home")
     try:
         FoodCart(request).add(option, max(1, int(request.POST.get("quantity", 1))), request.POST.get("note", "").strip())
@@ -71,9 +75,22 @@ def cart_add(request, option_id):
     return redirect("food_restaurant", slug=option.item.restaurant.slug)
 
 
+@require_POST
 def cart_remove(request, option_id):
-    if request.method == "POST":
-        FoodCart(request).remove(option_id)
+    FoodCart(request).remove(option_id)
+    return redirect("food_cart")
+
+
+@require_POST
+def cart_update(request, option_id):
+    get_object_or_404(MenuItemOption, pk=option_id, is_available=True, item__is_available=True)
+    try:
+        quantity = int(request.POST.get("quantity", ""))
+        if quantity < 0:
+            raise ValueError
+        FoodCart(request).set_quantity(option_id, quantity)
+    except (TypeError, ValueError):
+        messages.error(request, "Enter a valid food quantity between 0 and 20.")
     return redirect("food_cart")
 
 
@@ -156,6 +173,17 @@ def payment_confirm(request, order_id):
     from .settlements import create_food_settlement
     create_food_settlement(order)
     return redirect("food_order_success", order_id=order.pk)
+
+
+@login_required
+def payment_retry(request, order_id):
+    order = get_object_or_404(FoodOrder, pk=order_id, user=request.user, payment_method="online")
+    if order.payment_status == "Paid":
+        return redirect("food_order_success", order_id=order.pk)
+    if order.payment_status != "Pending" or order.status == "cancelled":
+        messages.error(request, "This food order is not available for payment.")
+        return redirect("food_orders")
+    return render(request, "food/payment.html", {"order": order, "razorpay_key_id": settings.RAZORPAY_KEY_ID})
 
 
 @login_required
@@ -265,6 +293,9 @@ def seller_update_order(request, order_id):
     seller = _restaurant_seller(request)
     order = get_object_or_404(FoodOrder, pk=order_id, restaurant__seller=seller)
     if request.method == "POST":
+        if order.payment_method == "online" and order.payment_status != "Paid":
+            messages.error(request, "This online order cannot be prepared until payment is confirmed.")
+            return redirect("food_seller_orders")
         status = request.POST.get("status", "")
         transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"preparing", "cancelled"}, "preparing": {"ready"}, "ready": set(), "out_for_delivery": set(), "delivered": set(), "cancelled": set()}
         if status in transitions.get(order.status, set()):

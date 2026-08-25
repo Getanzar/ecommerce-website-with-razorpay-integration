@@ -28,6 +28,16 @@ class FoodCart:
             self.data["restaurant_id"] = None
         self.save()
 
+    def set_quantity(self, option_id, quantity):
+        key = str(option_id)
+        if key not in self.data["items"]:
+            raise ValueError("That item is not in your food cart.")
+        if quantity <= 0:
+            self.remove(option_id)
+            return
+        self.data["items"][key]["quantity"] = min(quantity, 20)
+        self.save()
+
     def clear(self):
         self.data = {"restaurant_id": None, "items": {}}
         self.save()

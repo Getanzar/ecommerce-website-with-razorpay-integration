@@ -82,6 +82,21 @@ def cart_remove(request, product_id):
     return redirect("grocery_cart")
 
 
+@require_POST
+def cart_update(request, product_id):
+    product = get_object_or_404(GroceryProduct, pk=product_id)
+    try:
+        quantity = int(request.POST.get("quantity", ""))
+        if quantity < 0:
+            raise ValueError
+        GroceryCart(request).set_quantity(product, quantity)
+        if quantity > product.stock:
+            messages.info(request, f"Quantity adjusted to the {product.stock} currently in stock.")
+    except (TypeError, ValueError):
+        messages.error(request, "Enter a valid grocery quantity between 0 and 20.")
+    return redirect("grocery_cart")
+
+
 @login_required
 @transaction.atomic
 def checkout(request):
@@ -161,6 +176,17 @@ def payment_confirm(request, order_id):
 
 
 @login_required
+def payment_retry(request, order_id):
+    order = get_object_or_404(GroceryOrder, pk=order_id, user=request.user, payment_method="online")
+    if order.payment_status == "Paid":
+        return redirect("grocery_order_success", order_id=order.pk)
+    if order.payment_status != "Pending" or order.status == "cancelled":
+        messages.error(request, "This grocery order is not available for payment.")
+        return redirect("grocery_orders")
+    return render(request, "groceries/payment.html", {"order": order, "razorpay_key_id": settings.RAZORPAY_KEY_ID})
+
+
+@login_required
 def order_success(request, order_id):
     order = get_object_or_404(GroceryOrder.objects.prefetch_related("items"), pk=order_id, user=request.user)
     return render(request, "groceries/order_success.html", {"order": order})
@@ -221,6 +247,9 @@ def seller_orders(request):
 @require_POST
 def seller_update_order(request, order_id):
     store = get_object_or_404(GroceryStore, seller=_kirana_seller(request)); order = get_object_or_404(GroceryOrder, pk=order_id, store=store)
+    if order.payment_method == "online" and order.payment_status != "Paid":
+        messages.error(request, "This online order cannot be prepared until payment is confirmed.")
+        return redirect("grocery_seller_orders")
     transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"packing", "cancelled"}, "packing": {"ready", "cancelled"}, "ready": set(), "shipped": set()}
     status = request.POST.get("status", "")
     if status not in transitions.get(order.status, set()):

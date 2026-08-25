@@ -10,7 +10,7 @@ class SellerProductForm(forms.ModelForm):
     back_image = forms.ImageField(
         label="Back photo",
         widget=forms.ClearableFileInput(
-            attrs={"class": "form-control", "accept": "image/*", "capture": "environment"}
+            attrs={"class": "form-control", "accept": "image/*"}
         ),
         help_text="Upload a clear photo of the back of the product.",
     )
@@ -52,9 +52,9 @@ class SellerProductForm(forms.ModelForm):
             "subcategory"
         ].queryset.select_related("category").order_by("name")
         self.fields["price"].label = "Your selling price"
-        self.fields["image"].label = "Front photo"
+        self.fields["image"].label = "Main product picture"
         self.fields["image"].widget.attrs.update(
-            {"accept": "image/*", "capture": "environment"}
+            {"accept": "image/*"}
         )
         self.fields["image"].required = True
         self.fields["description"].required = True

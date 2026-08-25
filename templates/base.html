@@ -464,9 +464,17 @@ opacity:.9;
     </a>
 
     <div class="mobile-nav-actions d-flex d-lg-none align-items-center ms-auto">
-      <a href="{% url 'cart_detail' %}" class="nav-icon-link" aria-label="Shopping cart">
-        <i class="bi bi-bag" aria-hidden="true"></i>
-      </a>
+      <div class="dropdown">
+        <button class="nav-icon-link position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open shopping carts">
+          <i class="bi bi-bag" aria-hidden="true"></i>
+          {% if all_cart_count %}<span class="cart-count-badge">{{ all_cart_count }}</span>{% endif %}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end storefront-dropdown cart-switcher-menu">
+          <li><a class="dropdown-item" href="{% url 'cart_detail' %}"><i class="bi bi-box-seam"></i><span><strong>Product cart</strong><small>Marketplace items</small></span>{% if marketplace_cart_count %}<span class="cart-menu-count">{{ marketplace_cart_count }}</span>{% endif %}</a></li>
+          <li><a class="dropdown-item" href="{% url 'food_cart' %}"><i class="bi bi-cup-hot"></i><span><strong>Food cart</strong><small>Restaurant meals</small></span>{% if food_cart_count %}<span class="cart-menu-count">{{ food_cart_count }}</span>{% endif %}</a></li>
+          <li><a class="dropdown-item" href="{% url 'grocery_cart' %}"><i class="bi bi-basket2"></i><span><strong>Grocery cart</strong><small>Local essentials</small></span>{% if grocery_cart_count %}<span class="cart-menu-count">{{ grocery_cart_count }}</span>{% endif %}</a></li>
+        </ul>
+      </div>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
               data-bs-target="#mainNavbar" aria-controls="mainNavbar"
               aria-expanded="false" aria-label="Open navigation">
@@ -503,9 +511,17 @@ opacity:.9;
         <a href="{% url 'wishlist_page' %}" class="nav-icon-link d-none d-lg-inline-flex" aria-label="Wishlist">
           <i class="bi bi-heart" aria-hidden="true"></i>
         </a>
-        <a href="{% url 'cart_detail' %}" class="nav-icon-link d-none d-lg-inline-flex" aria-label="Shopping cart">
-          <i class="bi bi-bag" aria-hidden="true"></i>
-        </a>
+        <div class="dropdown d-none d-lg-block">
+          <button class="nav-icon-link position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open shopping carts">
+            <i class="bi bi-bag" aria-hidden="true"></i>
+            {% if all_cart_count %}<span class="cart-count-badge">{{ all_cart_count }}</span>{% endif %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end storefront-dropdown cart-switcher-menu">
+            <li><a class="dropdown-item" href="{% url 'cart_detail' %}"><i class="bi bi-box-seam"></i><span><strong>Product cart</strong><small>Marketplace items</small></span>{% if marketplace_cart_count %}<span class="cart-menu-count">{{ marketplace_cart_count }}</span>{% endif %}</a></li>
+            <li><a class="dropdown-item" href="{% url 'food_cart' %}"><i class="bi bi-cup-hot"></i><span><strong>Food cart</strong><small>Restaurant meals</small></span>{% if food_cart_count %}<span class="cart-menu-count">{{ food_cart_count }}</span>{% endif %}</a></li>
+            <li><a class="dropdown-item" href="{% url 'grocery_cart' %}"><i class="bi bi-basket2"></i><span><strong>Grocery cart</strong><small>Local essentials</small></span>{% if grocery_cart_count %}<span class="cart-menu-count">{{ grocery_cart_count }}</span>{% endif %}</a></li>
+          </ul>
+        </div>
 
         {% if request.user.is_authenticated %}
         <div class="dropdown account-menu">
@@ -516,6 +532,8 @@ opacity:.9;
           <ul class="dropdown-menu dropdown-menu-end storefront-dropdown">
             <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="bi bi-person"></i> My profile</a></li>
             <li><a class="dropdown-item" href="{% url 'my_orders' %}"><i class="bi bi-box-seam"></i> My orders</a></li>
+            <li><a class="dropdown-item" href="{% url 'food_orders' %}"><i class="bi bi-cup-hot"></i> Food orders</a></li>
+            <li><a class="dropdown-item" href="{% url 'grocery_orders' %}"><i class="bi bi-basket2"></i> Grocery orders</a></li>
             <li><a class="dropdown-item" href="{% url 'seller_application' %}"><i class="bi bi-shop"></i> Sell with us</a></li>
             {% if request.user.delivery_agent %}
             <li><a class="dropdown-item" href="{% url 'delivery_dashboard' %}"><i class="bi bi-bicycle"></i> Delivery dashboard</a></li>
