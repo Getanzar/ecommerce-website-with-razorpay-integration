@@ -33,6 +33,20 @@ class MarketplacePricingTests(TestCase):
         self.product.seller = None
         self.assertEqual(self.product.customer_price, Decimal("100.00"))
 
+    def test_long_product_names_generate_database_safe_unique_slugs(self):
+        long_name = "Premium embroidered festive collection " + ("designer " * 28)
+
+        first = Product.objects.create(
+            category=self.product.category, name=long_name, price=Decimal("100.00")
+        )
+        second = Product.objects.create(
+            category=self.product.category, name=long_name, price=Decimal("100.00")
+        )
+
+        self.assertLessEqual(len(first.slug), 255)
+        self.assertLessEqual(len(second.slug), 255)
+        self.assertNotEqual(first.slug, second.slug)
+
     @override_settings(PLATFORM_FEE_GST_PERCENT="18.00")
     def test_customer_tax_inclusive_price_matches_checkout_policy(self):
         self.assertEqual(self.product.customer_price_with_tax, Decimal("116.80"))

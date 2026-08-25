@@ -90,7 +90,9 @@ class Product(models.Model):
     )
 
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
+    # Product names may be up to 255 characters, so generated slugs need the
+    # same database capacity. SlugField otherwise defaults to only 50.
+    slug = models.SlugField(max_length=255, unique=True)
     description = models.TextField(blank=True)
 
     # Base product price (used when variant price is not specified)
@@ -151,12 +153,14 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.name)
+            max_length = self._meta.get_field("slug").max_length
+            base_slug = slugify(self.name)[:max_length] or "product"
             slug = base_slug
             counter = 1
 
             while Product.objects.filter(slug=slug).exists():
-                slug = f"{base_slug}-{counter}"
+                suffix = f"-{counter}"
+                slug = f"{base_slug[:max_length - len(suffix)]}{suffix}"
                 counter += 1
 
             self.slug = slug
