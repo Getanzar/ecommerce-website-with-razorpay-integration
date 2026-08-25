@@ -14,6 +14,7 @@ urlpatterns = [
     path("addresses/", include("addresses.urls")),
     path("food/", include("food.urls")),
     path("groceries/", include("groceries.urls")),
+    path("delivery/", include("delivery.urls")),
 ]
 
 # Serve static files only in development

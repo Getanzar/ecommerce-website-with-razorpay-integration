@@ -7,7 +7,7 @@ from django.utils.text import slugify
 
 
 class GroceryServiceArea(models.Model):
-    DELIVERY_CHOICES = (("local", "Store/local rider"), ("delhivery", "Delhivery parcel"))
+    DELIVERY_CHOICES = (("local", "ZIYAMART local delivery agent"),)
     pincode = models.CharField(max_length=6, unique=True, validators=[RegexValidator(r"^\d{6}$")])
     city = models.CharField(max_length=80, blank=True)
     delivery_mode = models.CharField(max_length=20, choices=DELIVERY_CHOICES, default="local")
@@ -24,6 +24,11 @@ class GroceryStore(models.Model):
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="groceries/stores/", blank=True, null=True)
     address = models.TextField()
+    pincode = models.CharField(max_length=6, default="", validators=[RegexValidator(r"^\d{6}$")])
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    gps_verified_at = models.DateTimeField(auto_now=True)
     phone = models.CharField(max_length=15)
     minimum_order = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     delivery_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)
@@ -99,6 +104,10 @@ class GroceryOrder(models.Model):
     city = models.CharField(max_length=80)
     state = models.CharField(max_length=80)
     pincode = models.CharField(max_length=6)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    gps_verified_at = models.DateTimeField(auto_now_add=True, null=True)
     substitution_preference = models.CharField(max_length=20, choices=(("refund", "Refund unavailable items"), ("contact", "Contact me for substitutes")), default="refund")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     delivery_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)

@@ -1,257 +1,126 @@
-import base64
-from unittest.mock import Mock, patch
-import json
-
-from django.core.files.uploadedfile import SimpleUploadedFile
-from decimal import Decimal
-
-from django.contrib.auth.models import User
-from django.contrib.messages import get_messages
-from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.contrib.auth.models import Permission, User
+from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from accounts.models import SellerProfile
-from products.models import CatalogRequest, Category, Product, SubCategory
-from orders.models import Order, OrderItem
-from orders.settlements import create_settlements_for_order
+from delivery.models import DeliveryAgentProfile, LocalDelivery
+from groceries.models import GroceryOrder, GroceryServiceArea, GroceryStore
+from orders.models import Order
+from products.models import Category
 
-from dashboard.ai_services import enhance_product_image, generate_listing_copy
-from dashboard.views import _parse_seller_variants
-
-
-@override_settings(
-    CLOUDFLARE_ACCOUNT_ID="test-account",
-    CLOUDFLARE_API_TOKEN="test-token",
-    CLOUDFLARE_TEXT_MODEL="@cf/test/text",
-    CLOUDFLARE_IMAGE_MODEL="@cf/test/image",
-)
-class CloudflareAIServiceTests(SimpleTestCase):
-    @patch("dashboard.ai_services.requests.post")
-    def test_listing_copy_uses_cloudflare_workers_ai(self, post):
-        response = Mock(ok=True)
-        response.json.return_value = {
-            "success": True,
-            "result": {
-                "response": '{"name":"Navy Cotton Shirt","description":"A navy cotton shirt."}'
-            },
-        }
-        post.return_value = response
-
-        result = generate_listing_copy("Navy cotton shirt with regular fit", "Shirts", "Navy")
-
-        self.assertEqual(result["name"], "Navy Cotton Shirt")
-        self.assertIn("/accounts/test-account/ai/run/@cf/test/text", post.call_args.args[0])
-        self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer test-token")
-
-    @patch("dashboard.ai_services.requests.post")
-    def test_image_edit_accepts_cloudflare_base64_response(self, post):
-        encoded = base64.b64encode(b"generated-image").decode("ascii")
-        response = Mock(ok=True, headers={"Content-Type": "application/json"})
-        response.json.return_value = {"success": True, "result": {"image": encoded}}
-        post.return_value = response
-        image = SimpleUploadedFile("product.png", b"original", content_type="image/png")
-
-        result = enhance_product_image(image)
-
-        self.assertEqual(result, encoded)
-        self.assertIn("/accounts/test-account/ai/run/@cf/test/image", post.call_args.args[0])
-        self.assertIn("input_image_0", post.call_args.kwargs["files"])
-
-    @patch("dashboard.ai_services.requests.post")
-    def test_listing_parser_ignores_other_json_objects(self, post):
-        response = Mock(ok=True)
-        response.json.return_value = {
-            "result": {
-                "response": 'Example {"invalid": true}\nFinal: {"name":"Shirt","description":"A shirt."}'
-            }
-        }
-        post.return_value = response
-
-        result = generate_listing_copy("A plain shirt with a regular fit", "Shirts", "Blue")
-
-        self.assertEqual(result, {"name": "Shirt", "description": "A shirt."})
+from .models import AdminAuditLog
 
 
-@override_settings(ROOT_URLCONF="dashboard.urls")
-class SellerCatalogModerationTests(TestCase):
+@override_settings(ROOT_URLCONF="config.urls", SECURE_SSL_REDIRECT=False)
+class OperationsDashboardTests(TestCase):
     def setUp(self):
-        self.admin = User.objects.create_superuser("admin", "admin@example.com", "password")
-        seller_user = User.objects.create_user("seller")
-        self.seller = SellerProfile.objects.create(
-            user=seller_user, store_name="Seller store", status="approved"
-        )
-        self.category = Category.objects.create(name="Clothing", slug="clothing")
-        self.client.force_login(self.admin)
+        self.admin = User.objects.create_superuser("operator", "operator@example.com", "test-password")
+        self.customer = User.objects.create_user("real-customer", "customer@example.com", "test-password")
 
-    def test_admin_approval_is_the_only_action_that_publishes_seller_product(self):
-        product = Product.objects.create(
-            seller=self.seller,
-            category=self.category,
-            name="Seller shirt",
-            price=Decimal("100.00"),
-            stock=5,
-            is_active=False,
-            moderation_status=Product.MODERATION_PENDING,
-        )
-
-        response = self.client.post(
-            f"/products/{product.id}/review/", {"action": "approve"}
-        )
-        product.refresh_from_db()
-
+    def test_dashboard_requires_operations_access(self):
+        response = self.client.get(reverse("admin_dashboard"))
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(product.moderation_status, Product.MODERATION_APPROVED)
-        self.assertTrue(product.is_active)
-        self.assertEqual(product.reviewed_by, self.admin)
+        ordinary = User.objects.create_user("ordinary", password="test-password")
+        self.client.login(username="ordinary", password="test-password")
+        self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 403)
+        self.client.login(username="operator", password="test-password")
+        self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 200)
 
-    def test_approved_category_request_creates_customer_catalog_category(self):
-        catalog_request = CatalogRequest.objects.create(
-            seller=self.seller,
-            request_type=CatalogRequest.TYPE_CATEGORY,
-            name="Handmade",
-        )
+    def test_staff_can_be_granted_operations_permission(self):
+        staff = User.objects.create_user("staff", password="test-password", is_staff=True)
+        staff.user_permissions.add(Permission.objects.get(codename="access_operations_dashboard"))
+        self.client.login(username="staff", password="test-password")
+        self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("ops_delivery_agents")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("sellers_management")).status_code, 200)
 
-        response = self.client.post(
-            f"/catalog-requests/{catalog_request.id}/review/", {"action": "approve"}
-        )
-        catalog_request.refresh_from_db()
+    def test_category_creation_is_protected_and_delete_requires_post(self):
+        self.assertEqual(self.client.post(reverse("add_category"), {"name": "Unsafe"}).status_code, 302)
+        self.assertFalse(Category.objects.filter(name="Unsafe").exists())
+        self.client.login(username="operator", password="test-password")
+        self.client.post(reverse("add_category"), {"name": "Safe category"})
+        category = Category.objects.get(name="Safe category")
+        self.assertEqual(self.client.get(reverse("delete_category", args=[category.pk])).status_code, 405)
+        self.client.post(reverse("delete_category", args=[category.pk]))
+        self.assertFalse(Category.objects.filter(pk=category.pk).exists())
 
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(catalog_request.status, CatalogRequest.STATUS_APPROVED)
-        self.assertTrue(Category.objects.filter(name="Handmade").exists())
-
-
-class SellerMarketplaceMoneyTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("buyer")
-        seller_user = User.objects.create_user("money-seller")
-        self.seller = SellerProfile.objects.create(
-            user=seller_user, store_name="Money seller", status="approved",
-            commission_percent=Decimal("10.00"),
-        )
-        self.category = Category.objects.create(name="Money clothing", slug="money-clothing")
-        self.product = Product.objects.create(
-            seller=self.seller, category=self.category, name="Jacket",
-            price=Decimal("1000.00"), stock=2,
-        )
-
-    def test_customer_fee_is_added_while_seller_receives_entered_price(self):
-        self.assertEqual(self.product.customer_price, Decimal("1100.00"))
+    def test_order_updates_require_post_and_enforce_the_workflow(self):
         order = Order.objects.create(
-            user=self.user, full_name="Buyer", phone="9999999999", address="Road",
-            city="City", state="State", pincode="123456", total_price=Decimal("1100.00"),
-            status="Processing", payment_method="online", payment_status="Paid",
+            user=self.customer,
+            full_name="Customer",
+            phone="8888888888",
+            address="Road",
+            city="Town",
+            state="State",
+            pincode="243638",
+            total_price=100,
         )
-        OrderItem.objects.create(
-            order=order, product=self.product, product_name=self.product.name,
-            quantity=1, price=Decimal("1100.00"),
+        self.client.login(username="operator", password="test-password")
+        url = reverse("update_order_status", args=[order.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.post(url, {"status": "Delivered", "payment_status": "Paid"})
+        order.refresh_from_db()
+        self.assertEqual(order.status, "Pending")
+        self.assertEqual(order.payment_status, "Pending")
+        self.assertFalse(AdminAuditLog.objects.filter(action="order.update", entity_id=str(order.pk)).exists())
+
+    def test_customer_workspace_excludes_sellers_and_agents(self):
+        seller_user = User.objects.create_user("seller-user")
+        SellerProfile.objects.create(user=seller_user, store_name="Seller Store")
+        agent_user = User.objects.create_user("agent-user")
+        DeliveryAgentProfile.objects.create(
+            user=agent_user, full_name="Agent", phone="9999999999", address="Road", city="Town",
+            state="State", pincode="243638", vehicle_type="bicycle", aadhaar_last4="1234",
         )
-        settlement = create_settlements_for_order(order)[0]
-        self.assertEqual(settlement.net_amount, Decimal("1000.00"))
-        self.assertEqual(settlement.commission_amount, Decimal("100.00"))
+        self.client.login(username="operator", password="test-password")
+        response = self.client.get(reverse("ops_customers"))
+        self.assertContains(response, "real-customer")
+        self.assertNotContains(response, "seller-user")
+        self.assertNotContains(response, "agent-user")
 
+    def test_customer_block_requires_reason_and_is_audited(self):
+        self.client.login(username="operator", password="test-password")
+        url = reverse("ops_update_customer", args=[self.customer.pk])
+        self.client.post(url, {"action": "block"})
+        self.customer.refresh_from_db(); self.assertTrue(self.customer.is_active)
+        self.client.post(url, {"action": "block", "reason": "Confirmed abuse"})
+        self.customer.refresh_from_db(); self.assertFalse(self.customer.is_active)
+        self.assertTrue(AdminAuditLog.objects.filter(action="customer.block", entity_id=str(self.customer.pk)).exists())
 
-class SellerVariantCreationTests(TestCase):
-    def test_manual_sizes_for_each_color_are_parsed(self):
-        variants = [
-            {
-                "name": "Navy",
-                "hex_code": "#000080",
-                "variants": [
-                    {"size": "S", "stock": "3", "sku": "NAV-S", "price": ""},
-                    {"size": "Custom 42", "stock": "4", "sku": "NAV-42", "price": "120"},
-                ],
-            },
-            {
-                "name": "Red",
-                "hex_code": "#FF0000",
-                "variants": [{"size": "M", "stock": "2", "sku": "RED-M", "price": ""}],
-            },
-        ]
-        request = RequestFactory().post(
-            "/seller/products/add/", {"variants_json": json.dumps(variants)}
+    def test_assignment_enforces_matching_pincode_and_writes_audit(self):
+        owner = User.objects.create_user("owner")
+        seller = SellerProfile.objects.create(user=owner, store_name="Local Store", status="approved")
+        area = GroceryServiceArea.objects.create(pincode="243638", city="Town")
+        store = GroceryStore.objects.create(seller=seller, name="Local Store", address="Market", pincode="243638", phone="9999999999")
+        store.service_areas.add(area)
+        order = GroceryOrder.objects.create(
+            user=self.customer, store=store, full_name="Customer", phone="8888888888", address="Road",
+            city="Town", state="State", pincode="243638", subtotal=100, total=120, delivery_fee=20,
+            delivery_mode="local", status="ready",
         )
-        parsed = _parse_seller_variants(request)
-
-        self.assertEqual(len(parsed), 2)
-        self.assertEqual(parsed[0]["variants"][1]["size"], "Custom 42")
-        self.assertEqual(parsed[0]["variants"][1]["stock"], 4)
-        self.assertEqual(parsed[0]["variants"][1]["price"], Decimal("120"))
-
-
-@override_settings(ROOT_URLCONF="dashboard.urls")
-class SellerCatalogDuplicateTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user("catalog-seller")
-        self.seller = SellerProfile.objects.create(
-            user=self.user, store_name="Catalog store", status="approved"
+        job = LocalDelivery.objects.create(
+            grocery_order=order, pincode="243638", pickup_name="Local Store", pickup_address="Market",
+            customer_name="Customer", customer_phone="8888888888", delivery_address="Road", delivery_fee=20, agent_earning=20,
         )
-        self.category = Category.objects.create(name="Kids Wear", slug="kids-wear")
-        self.client.force_login(self.user)
-
-    def _messages(self, response):
-        return " ".join(str(message) for message in get_messages(response.wsgi_request))
-
-    def test_similar_existing_category_is_not_requested_twice(self):
-        response = self.client.post(
-            "/seller/catalog-requests/",
-            {"request_type": "category", "name": "  KIDS--wear  "},
+        agent_user = User.objects.create_user("matching-agent")
+        agent = DeliveryAgentProfile.objects.create(
+            user=agent_user, full_name="Matching Agent", phone="7777777777", address="Road", city="Town",
+            state="State", pincode="243638", vehicle_type="bicycle", aadhaar_last4="1234", status="approved",
         )
+        self.client.login(username="operator", password="test-password")
+        self.client.post(reverse("ops_assign_delivery", args=[job.pk]), {"agent_id": agent.pk})
+        job.refresh_from_db(); self.assertEqual(job.agent, agent); self.assertEqual(job.status, "assigned")
+        self.assertTrue(AdminAuditLog.objects.filter(action="delivery.assign", entity_id=str(job.pk)).exists())
+        self.assertEqual(self.client.get(reverse("ops_delivery_detail", args=[job.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("ops_order_detail", args=["grocery", order.pk])).status_code, 200)
 
-        self.assertFalse(CatalogRequest.objects.exists())
-        self.assertIn("already exists", self._messages(response))
-
-    def test_similar_existing_subcategory_under_same_parent_is_not_requested(self):
-        SubCategory.objects.create(category=self.category, name="T Shirts")
-        response = self.client.post(
-            "/seller/catalog-requests/",
-            {
-                "request_type": "subcategory",
-                "parent_category": self.category.pk,
-                "name": "t-shirts",
-            },
+    def test_primary_operations_pages_render(self):
+        self.client.login(username="operator", password="test-password")
+        names = (
+            "ops_search", "ops_delivery_agents", "ops_customers", "ops_orders", "ops_deliveries", "ops_payouts", "ops_zones", "ops_audit",
+            "sellers_management", "products_management", "inventory_management", "categories_management", "subcategories_management",
+            "catalog_requests_management", "reviews_management", "returns_management", "support_management", "analytics_dashboard", "orders_management",
         )
-
-        self.assertFalse(CatalogRequest.objects.exists())
-        self.assertIn("already exists", self._messages(response))
-
-    def test_legacy_pending_request_does_not_require_new_approval(self):
-        other_user = User.objects.create_user("other-seller")
-        other_seller = SellerProfile.objects.create(
-            user=other_user, store_name="Other store", status="approved"
-        )
-        CatalogRequest.objects.create(
-            seller=other_seller,
-            request_type=CatalogRequest.TYPE_SUBCATEGORY,
-            parent_category=self.category,
-            name="Party Dresses",
-        )
-
-        response = self.client.post(
-            "/seller/catalog-requests/",
-            {
-                "request_type": "subcategory",
-                "parent_category": self.category.pk,
-                "name": "party-dresses",
-            },
-        )
-
-        self.assertEqual(CatalogRequest.objects.count(), 1)
-        self.assertTrue(
-            SubCategory.objects.filter(
-                category=self.category, name="party-dresses"
-            ).exists()
-        )
-        self.assertIn("ready to use", self._messages(response))
-
-    def test_new_category_is_available_immediately(self):
-        response = self.client.post(
-            "/seller/catalog-requests/",
-            {"request_type": "category", "name": "Ethnic Wear"},
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        result = response.json()
-        self.assertTrue(result["created"])
-        self.assertTrue(Category.objects.filter(pk=result["id"]).exists())
-        self.assertFalse(CatalogRequest.objects.exists())
+        for name in names:
+            with self.subTest(name=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 200)

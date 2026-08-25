@@ -30,6 +30,14 @@ class Restaurant(models.Model):
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="restaurants/", blank=True, null=True)
     cuisine = models.CharField(max_length=150, blank=True)
+    pincode = models.CharField(
+        max_length=6, default="",
+        validators=[RegexValidator(r"^\d{6}$", "Enter a valid 6-digit pincode.")],
+    )
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    gps_verified_at = models.DateTimeField(auto_now=True)
     preparation_minutes = models.PositiveSmallIntegerField(default=30)
     minimum_order = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     delivery_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)
@@ -124,6 +132,10 @@ class FoodOrder(models.Model):
     city = models.CharField(max_length=80)
     state = models.CharField(max_length=80)
     pincode = models.CharField(max_length=6)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    gps_accuracy_meters = models.PositiveIntegerField(blank=True, null=True)
+    gps_verified_at = models.DateTimeField(auto_now_add=True, null=True)
     include_cutlery = models.BooleanField(default=False)
     delivery_note = models.CharField(max_length=300, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)

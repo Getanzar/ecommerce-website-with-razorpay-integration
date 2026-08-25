@@ -24,7 +24,7 @@
             <tbody>
                 {% for seller in sellers %}
                     <tr>
-                        <td><strong>{{ seller.store_name }}</strong><br><small class="text-muted">Applied {{ seller.created_at|date:"d M Y" }}</small></td>
+                        <td><a class="fw-bold text-decoration-none" href="{% url 'ops_seller_detail' seller.pk %}">{{ seller.store_name }}</a><br><small class="text-muted">Applied {{ seller.created_at|date:"d M Y" }}</small></td>
                         <td>{{ seller.user.get_full_name|default:seller.user.username }}<br><small class="text-muted">{{ seller.user.email }}</small></td>
                         <td>{{ seller.business_phone|default:"—" }}</td>
                         <td>{{ seller.products.count }}</td>

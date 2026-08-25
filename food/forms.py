@@ -2,12 +2,13 @@ from django import forms
 from django.forms import inlineformset_factory
 
 from .models import FoodOrder, MenuItem, MenuItemOption, MenuSection, Restaurant
+from delivery.forms import RequiredGPSMixin
 
 
-class RestaurantForm(forms.ModelForm):
+class RestaurantForm(RequiredGPSMixin, forms.ModelForm):
     class Meta:
         model = Restaurant
-        fields = ("name", "description", "image", "cuisine", "preparation_minutes", "minimum_order", "delivery_fee", "accepts_orders", "service_areas")
+        fields = ("name", "description", "image", "cuisine", "pincode", "latitude", "longitude", "gps_accuracy_meters", "preparation_minutes", "minimum_order", "delivery_fee", "accepts_orders", "service_areas")
         widgets = {"description": forms.Textarea(attrs={"rows": 3}), "service_areas": forms.CheckboxSelectMultiple()}
 
 
@@ -35,10 +36,10 @@ class MenuSectionForm(forms.ModelForm):
         fields = ("name", "display_order")
 
 
-class FoodCheckoutForm(forms.ModelForm):
+class FoodCheckoutForm(RequiredGPSMixin, forms.ModelForm):
     class Meta:
         model = FoodOrder
-        fields = ("full_name", "phone", "address", "city", "state", "pincode", "include_cutlery", "delivery_note", "payment_method")
+        fields = ("full_name", "phone", "address", "city", "state", "pincode", "latitude", "longitude", "gps_accuracy_meters", "include_cutlery", "delivery_note", "payment_method")
         widgets = {"address": forms.Textarea(attrs={"rows": 3}), "delivery_note": forms.Textarea(attrs={"rows": 2, "placeholder": "Landmark or delivery instructions"})}
 
     def clean_pincode(self):

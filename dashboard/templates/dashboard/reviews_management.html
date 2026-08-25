@@ -255,28 +255,13 @@ Reviews Management
 
 {% if not review.is_approved %}
 
-<a
-href="{% url 'approve_review' review.id %}"
-class="btn btn-sm btn-success">
-
-    <i class="bi bi-check-circle"></i>
-    Approve
-
-</a>
+<form method="post" action="{% url 'approve_review' review.id %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-check-circle"></i> Approve</button></form>
 
 {% endif %}
 
 
 
-<a
-href="{% url 'delete_review' review.id %}"
-class="btn btn-sm btn-danger"
-onclick="return confirm('Delete this review permanently?');">
-
-    <i class="bi bi-trash"></i>
-    Delete
-
-</a>
+<form method="post" action="{% url 'delete_review' review.id %}" class="d-inline" onsubmit="return confirm('Delete this review permanently?');">{% csrf_token %}<button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Delete</button></form>
 
 
 

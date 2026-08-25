@@ -32,14 +32,14 @@ def restaurant_list(request):
         request.session["food_pincode"] = pincode
     restaurants = Restaurant.objects.none()
     if area:
-        restaurants = area.restaurants.filter(accepts_orders=True, seller__status="approved")
+        restaurants = area.restaurants.filter(pincode=pincode, accepts_orders=True, seller__status="approved")
     return render(request, "food/restaurant_list.html", {"restaurants": restaurants, "pincode": pincode, "serviceable": bool(area)})
 
 
 def restaurant_menu(request, slug):
     restaurant = get_object_or_404(Restaurant, slug=slug, accepts_orders=True, seller__status="approved")
     pincode = request.GET.get("pincode", request.session.get("food_pincode", "243638")).strip()
-    if not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
+    if restaurant.pincode != pincode or not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
         messages.error(request, "This restaurant does not deliver to that pincode.")
         return redirect(f"/food/?pincode={pincode}")
     sections = restaurant.sections.prefetch_related("items__options")
@@ -90,8 +90,8 @@ def checkout(request):
     form = FoodCheckoutForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         pincode = form.cleaned_data["pincode"]
-        if not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
-            form.add_error("pincode", "This restaurant does not deliver to this pincode.")
+        if restaurant.pincode != pincode or not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
+            form.add_error("pincode", "This restaurant does not deliver to that pincode. Local food delivery requires the restaurant and customer to have the same pincode.")
         elif cart.subtotal < restaurant.minimum_order:
             messages.error(request, f"Minimum order is ₹{restaurant.minimum_order}.")
         else:
@@ -250,12 +250,15 @@ def seller_update_order(request, order_id):
     order = get_object_or_404(FoodOrder, pk=order_id, restaurant__seller=seller)
     if request.method == "POST":
         status = request.POST.get("status", "")
-        transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"preparing", "cancelled"}, "preparing": {"ready"}, "ready": {"out_for_delivery"}, "out_for_delivery": {"delivered"}, "delivered": set(), "cancelled": set()}
+        transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"preparing", "cancelled"}, "preparing": {"ready"}, "ready": set(), "out_for_delivery": set(), "delivered": set(), "cancelled": set()}
         if status in transitions.get(order.status, set()):
             order.status = status
             if status == "delivered" and order.payment_method == "cod":
                 order.payment_status = "Paid"
             order.save(update_fields=["status", "payment_status", "updated_at"])
+            if status == "ready":
+                from delivery.services import ensure_food_delivery
+                ensure_food_delivery(order)
             if status == "delivered":
                 from .settlements import create_food_settlement
                 create_food_settlement(order)

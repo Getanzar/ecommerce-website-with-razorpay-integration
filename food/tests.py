@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import SellerProfile
 from .models import FoodOrder, FoodServiceArea, MenuItem, MenuItemOption, MenuSection, Restaurant
@@ -16,7 +17,7 @@ class FoodOrderingTests(TestCase):
         area, _ = FoodServiceArea.objects.get_or_create(
             pincode="243638", defaults={"city": "Sahaswan"}
         )
-        self.restaurant = Restaurant.objects.create(seller=seller, name="Test Kitchen", delivery_fee="20.00")
+        self.restaurant = Restaurant.objects.create(seller=seller, name="Test Kitchen", pincode="243638", latitude="28.073100", longitude="78.750200", gps_accuracy_meters=15, delivery_fee="20.00")
         self.restaurant.service_areas.add(area)
         section = MenuSection.objects.create(restaurant=self.restaurant, name="Main course")
         item = MenuItem.objects.create(restaurant=self.restaurant, section=section, name="Veg Biryani")
@@ -34,6 +35,7 @@ class FoodOrderingTests(TestCase):
         response = self.client.post(reverse("food_checkout"), {
             "full_name": "Test Customer", "phone": "9999999999", "address": "Market Road",
             "city": "Sahaswan", "state": "Uttar Pradesh", "pincode": "243638",
+            "latitude": "28.074000", "longitude": "78.751000", "gps_accuracy_meters": "12", "gps_captured_at": timezone.now().isoformat(),
             "include_cutlery": "on", "delivery_note": "Call on arrival", "payment_method": "cod",
         })
         self.assertRedirects(response, reverse("food_order_success", args=[1]))
@@ -48,6 +50,7 @@ class FoodOrderingTests(TestCase):
         response = self.client.post(reverse("food_checkout"), {
             "full_name": "Test Customer", "phone": "9999999999", "address": "Elsewhere",
             "city": "Delhi", "state": "Delhi", "pincode": "110001", "payment_method": "cod",
+            "latitude": "28.630000", "longitude": "77.210000", "gps_accuracy_meters": "12", "gps_captured_at": timezone.now().isoformat(),
         })
         self.assertContains(response, "does not deliver")
         self.assertFalse(FoodOrder.objects.exists())

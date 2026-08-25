@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import operations
 
 urlpatterns = [
 
@@ -34,7 +35,27 @@ urlpatterns = [
     path("sellers/<int:seller_id>/verify-payouts/", views.verify_seller_payouts, name="verify_seller_payouts"),
 
     # Dashboard
-    path("", views.admin_dashboard, name="admin_dashboard"),
+    path("", operations.operations_home, name="admin_dashboard"),
+    path("search/", operations.global_search, name="ops_search"),
+    path("operations/agents/", operations.delivery_agents, name="ops_delivery_agents"),
+    path("operations/agents/<int:agent_id>/", operations.delivery_agent_detail, name="ops_delivery_agent_detail"),
+    path("operations/agents/<int:agent_id>/status/", operations.update_delivery_agent, name="ops_update_delivery_agent"),
+    path("operations/customers/", operations.customers, name="ops_customers"),
+    path("operations/customers/<int:customer_id>/", operations.customer_detail, name="ops_customer_detail"),
+    path("operations/customers/<int:customer_id>/status/", operations.update_customer, name="ops_update_customer"),
+    path("operations/customers/<int:customer_id>/notes/", operations.add_customer_note, name="ops_add_customer_note"),
+    path("operations/sellers/<int:seller_id>/", operations.seller_detail, name="ops_seller_detail"),
+    path("operations/orders/", operations.unified_orders, name="ops_orders"),
+    path("operations/orders/<str:kind>/<int:order_id>/", operations.unified_order_detail, name="ops_order_detail"),
+    path("operations/deliveries/", operations.local_deliveries, name="ops_deliveries"),
+    path("operations/deliveries/<int:delivery_id>/", operations.local_delivery_detail, name="ops_delivery_detail"),
+    path("operations/deliveries/<int:delivery_id>/assign/", operations.assign_delivery, name="ops_assign_delivery"),
+    path("operations/payouts/", operations.payouts, name="ops_payouts"),
+    path("operations/payouts/delivery/<int:earning_id>/paid/", operations.mark_delivery_earning_paid, name="ops_delivery_earning_paid"),
+    path("operations/zones/", operations.zones, name="ops_zones"),
+    path("operations/zones/create/", operations.create_zone, name="ops_create_zone"),
+    path("operations/zones/<int:zone_id>/toggle/", operations.toggle_zone, name="ops_toggle_zone"),
+    path("operations/audit/", operations.audit_log, name="ops_audit"),
 
     # ===========================
     # MANAGEMENT PAGES

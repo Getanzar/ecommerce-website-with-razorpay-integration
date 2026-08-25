@@ -1,0 +1,45 @@
+{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+<div class="alert alert-warning gps-capture-panel">
+  <strong>Verified GPS location required</strong>
+  <p class="mb-2">Allow precise location access while you are physically at this address. Your form cannot be submitted without a fresh GPS fix.</p>
+  <button type="button" class="btn btn-outline-dark gps-capture-button">Capture current GPS location</button>
+  <div class="small mt-2 gps-capture-status">Location not captured.</div>
+</div>
+<script>
+(() => {
+  const gpsScript = document.currentScript;
+  setTimeout(() => {
+  const form = gpsScript.closest('form');
+  const button = form.querySelector('.gps-capture-button');
+  const status = form.querySelector('.gps-capture-status');
+  const submit = form.querySelector('button[type="submit"], button:not([type])');
+  const latitude = form.querySelector('[name="latitude"]');
+  const longitude = form.querySelector('[name="longitude"]');
+  const accuracy = form.querySelector('[name="gps_accuracy_meters"]');
+  const capturedAt = form.querySelector('[name="gps_captured_at"]');
+  if (submit) submit.disabled = true;
+  function capture() {
+    if (!navigator.geolocation) { status.textContent = 'GPS is unavailable on this device.'; return; }
+    button.disabled = true; status.textContent = 'Getting a precise GPS fix…';
+    navigator.geolocation.getCurrentPosition(position => {
+      if (position.coords.accuracy > 500) {
+        status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
+        button.disabled = false; return;
+      }
+      latitude.value = position.coords.latitude.toFixed(6);
+      longitude.value = position.coords.longitude.toFixed(6);
+      accuracy.value = Math.round(position.coords.accuracy);
+      capturedAt.value = new Date().toISOString();
+      status.textContent = `GPS verified · accuracy about ${Math.round(position.coords.accuracy)} m`;
+      status.className = 'small mt-2 gps-capture-status text-success fw-semibold';
+      button.textContent = 'Capture again'; button.disabled = false;
+      if (submit) submit.disabled = false;
+    }, error => {
+      status.textContent = error.code === 1 ? 'Location permission was denied. Enable precise location in browser settings.' : 'Could not capture location. Move outdoors and try again.';
+      button.disabled = false;
+    }, {enableHighAccuracy: true, maximumAge: 0, timeout: 30000});
+  }
+  button.addEventListener('click', capture);
+  }, 0);
+})();
+</script>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Become a Delivery Partner | ZIYAMART{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card p-4 p-md-5">
+      <span class="text-success fw-bold">ZIYAMART LOCAL DELIVERY</span>
+      <h1 class="mt-2">Become a delivery partner</h1>
+      <p class="text-muted">You will receive only local food and grocery orders whose delivery pincode exactly matches your verified pincode.</p>
+      <div class="alert alert-info">Applications are reviewed by an administrator. Your identity and vehicle details must be verified before you can go online.</div>
+      <form method="post" enctype="multipart/form-data" class="row g-3">
+        {% csrf_token %}
+        {% for field in form %}
+          <div class="col-md-6 {% if field.name == 'address' %}col-md-12{% endif %}">
+            <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-dark px-4">Submit for verification</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+<style>.card input,.card select,.card textarea{display:block;width:100%;padding:.65rem .8rem;border:1px solid #d1d5db;border-radius:10px}</style>
+{% endblock %}

@@ -190,17 +190,7 @@ Categories Management
 
 
 
-                            <a 
-                            href="{% url 'delete_category' category.id %}"
-                            class="btn btn-sm btn-danger">
-
-
-                                <i class="bi bi-trash"></i>
-
-                                Delete
-
-
-                            </a>
+                            <form method="post" action="{% url 'delete_category' category.id %}" onsubmit="return confirm('Delete this category?');">{% csrf_token %}<button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Delete</button></form>
 
 
 

@@ -25,14 +25,14 @@ def grocery_home(request):
     stores = GroceryStore.objects.none()
     if area:
         request.session["grocery_pincode"] = pincode
-        stores = area.stores.filter(accepts_orders=True, seller__status="approved")
+        stores = area.stores.filter(pincode=pincode, accepts_orders=True, seller__status="approved")
     return render(request, "groceries/home.html", {"stores": stores, "pincode": pincode, "area": area})
 
 
 def store_detail(request, slug):
     store = get_object_or_404(GroceryStore, slug=slug, accepts_orders=True, seller__status="approved")
     pincode = request.GET.get("pincode", request.session.get("grocery_pincode", "")).strip()
-    if not store.service_areas.filter(pincode=pincode, is_active=True).exists():
+    if store.pincode != pincode or not store.service_areas.filter(pincode=pincode, is_active=True).exists():
         messages.error(request, "This store does not deliver to that pincode.")
         return redirect("grocery_home")
     products = store.products.filter(is_active=True, stock__gt=0).select_related("category", "store__seller")
@@ -61,7 +61,7 @@ def cart_add(request, product_id):
         messages.error(request, "This store is currently closed.")
         return redirect("grocery_home")
     pincode = request.session.get("grocery_pincode", "")
-    if not product.store.service_areas.filter(pincode=pincode, is_active=True).exists():
+    if product.store.pincode != pincode or not product.store.service_areas.filter(pincode=pincode, is_active=True).exists():
         messages.error(request, "Select a serviceable delivery pincode before adding products.")
         return redirect("grocery_home")
     try:
@@ -92,10 +92,10 @@ def checkout(request):
     form = GroceryCheckoutForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         area = store.service_areas.filter(pincode=form.cleaned_data["pincode"], is_active=True).first()
-        if not area:
-            form.add_error("pincode", "This store does not deliver to this pincode.")
-        elif area.delivery_mode == "delhivery" and any(row["product"].is_perishable for row in rows):
-            messages.error(request, "Perishable products cannot be shipped by parcel. Choose a local-delivery pincode or remove those products.")
+        if not area or store.pincode != form.cleaned_data["pincode"]:
+            form.add_error("pincode", "This store does not deliver to that pincode. Local grocery delivery requires the store and customer to have the same pincode.")
+        elif area.delivery_mode != "local":
+            messages.error(request, "Groceries are available only through local delivery in the store pincode.")
         elif cart.subtotal < store.minimum_order:
             messages.error(request, f"Minimum order is ₹{store.minimum_order}.")
         else:
@@ -106,7 +106,7 @@ def checkout(request):
             order = form.save(commit=False)
             order.user, order.store = request.user, store
             order.subtotal, order.delivery_fee = cart.subtotal, store.delivery_fee
-            order.total, order.delivery_mode = order.subtotal + order.delivery_fee, area.delivery_mode
+            order.total, order.delivery_mode = order.subtotal + order.delivery_fee, "local"
             order.save()
             for row in rows:
                 product = locked[row["product"].pk]
@@ -181,7 +181,7 @@ def seller_orders(request):
 @require_POST
 def seller_update_order(request, order_id):
     store = get_object_or_404(GroceryStore, seller=_kirana_seller(request)); order = get_object_or_404(GroceryOrder, pk=order_id, store=store)
-    transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"packing", "cancelled"}, "packing": {"ready", "cancelled"}, "ready": {"shipped"}, "shipped": {"delivered"}}
+    transitions = {"placed": {"accepted", "cancelled"}, "accepted": {"packing", "cancelled"}, "packing": {"ready", "cancelled"}, "ready": set(), "shipped": set()}
     status = request.POST.get("status", "")
     if status not in transitions.get(order.status, set()):
         messages.error(request, "That status change is not allowed.")
@@ -191,10 +191,9 @@ def seller_update_order(request, order_id):
                 item.product.stock += item.quantity
                 item.product.save(update_fields=["stock"])
         order.status = status
-        if status == "shipped" and order.delivery_mode == "delhivery":
-            order.courier = request.POST.get("courier", "Delhivery").strip(); order.tracking_number = request.POST.get("tracking_number", "").strip()
-            if not order.tracking_number:
-                messages.error(request, "Tracking number is required for Delhivery orders."); return redirect("grocery_seller_orders")
+        if status == "ready":
+            from delivery.services import ensure_grocery_delivery
+            ensure_grocery_delivery(order)
         if status == "delivered" and order.payment_method == "cod": order.payment_status = "Paid"
         order.save()
         from .emails import send_grocery_order_email

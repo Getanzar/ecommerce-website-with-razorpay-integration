@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Complete Delivery | ZIYAMART{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-6"><div class="card p-5">
+  <h1>Confirm delivery</h1><p>Ask {{ delivery.customer_name }} for the six-digit OTP sent to their registered email. Enter it only after handing over the order.</p>
+  <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-success">Complete delivery</button></form>
+</div></div></div>
+{% endblock %}

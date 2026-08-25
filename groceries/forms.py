@@ -1,12 +1,13 @@
 from django import forms
 
 from .models import GroceryOrder, GroceryProduct, GroceryStore
+from delivery.forms import RequiredGPSMixin
 
 
-class GroceryStoreForm(forms.ModelForm):
+class GroceryStoreForm(RequiredGPSMixin, forms.ModelForm):
     class Meta:
         model = GroceryStore
-        fields = ("name", "description", "image", "address", "phone", "minimum_order", "delivery_fee", "estimated_delivery_minutes", "service_areas")
+        fields = ("name", "description", "image", "address", "pincode", "latitude", "longitude", "gps_accuracy_meters", "phone", "minimum_order", "delivery_fee", "estimated_delivery_minutes", "service_areas")
         widgets = {"description": forms.Textarea(attrs={"rows": 3}), "address": forms.Textarea(attrs={"rows": 2}), "service_areas": forms.CheckboxSelectMultiple()}
 
 
@@ -22,10 +23,10 @@ class GroceryProductForm(forms.ModelForm):
         return cleaned
 
 
-class GroceryCheckoutForm(forms.ModelForm):
+class GroceryCheckoutForm(RequiredGPSMixin, forms.ModelForm):
     class Meta:
         model = GroceryOrder
-        fields = ("full_name", "phone", "address", "city", "state", "pincode", "substitution_preference", "payment_method")
+        fields = ("full_name", "phone", "address", "city", "state", "pincode", "latitude", "longitude", "gps_accuracy_meters", "substitution_preference", "payment_method")
         widgets = {"address": forms.Textarea(attrs={"rows": 3})}
 
     def clean_pincode(self):

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Track Local Delivery | ZIYAMART{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-7"><div class="card p-5">
+  <span class="text-success fw-bold">LOCAL DELIVERY</span><h1 id="delivery-status">{{ delivery.get_status_display }}</h1>
+  <p>{{ delivery.order_kind }} order #{{ delivery.source_order.pk }} · {{ delivery.pincode }}</p>
+  {% if delivery.agent %}<p><strong>Delivery partner:</strong> {{ delivery.agent.full_name }}</p>{% endif %}
+  <div class="progress" style="height:12px"><div class="progress-bar bg-success" style="width:{% if delivery.status == 'delivered' %}100{% elif delivery.status == 'out_for_delivery' %}80{% elif delivery.status == 'picked_up' %}60{% elif delivery.status == 'accepted' %}40{% else %}20{% endif %}"></div></div>
+  <div id="location-message" class="alert alert-info mt-4">Waiting for the delivery partner's live location…</div>
+  <div id="live-map" style="height:380px;border-radius:16px;overflow:hidden" aria-label="Delivery agent live location map"></div>
+  <div class="small text-muted mt-2" id="location-freshness"></div>
+</div></div></div>
+{% endblock %}
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const endpoint = "{% url 'delivery_live_location' delivery.public_id %}";
+  const mapElement = document.getElementById('live-map');
+  const message = document.getElementById('location-message');
+  const freshness = document.getElementById('location-freshness');
+  let map, marker, accuracyCircle, timer;
+
+  function showLocation(data) {
+    document.getElementById('delivery-status').textContent = data.status_label;
+    if (!data.available) {
+      message.className = 'alert alert-info mt-4';
+      message.textContent = data.tracking_complete ? 'This delivery is complete.' : 'Waiting for the delivery partner to start live tracking…';
+      return;
+    }
+    const point = [data.latitude, data.longitude];
+    if (!map) {
+      map = L.map(mapElement).setView(point, 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
+      marker = L.marker(point).addTo(map).bindPopup('Your delivery partner');
+      accuracyCircle = L.circle(point, {radius: data.accuracy || 0, color: '#16a34a', fillOpacity: .08}).addTo(map);
+    } else {
+      marker.setLatLng(point); accuracyCircle.setLatLng(point).setRadius(data.accuracy || 0); map.panTo(point);
+    }
+    message.className = 'alert alert-success mt-4';
+    message.textContent = data.tracking_complete ? 'Final recorded delivery location.' : 'Delivery partner location is live.';
+    freshness.textContent = `Last GPS update: ${new Date(data.updated_at).toLocaleString()} · accuracy about ${data.accuracy || 0} m`;
+  }
+
+  async function refresh() {
+    try {
+      const response = await fetch(endpoint, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
+      if (!response.ok) throw new Error('Tracking unavailable');
+      const data = await response.json(); showLocation(data);
+      if (data.tracking_complete && timer) clearInterval(timer);
+    } catch (error) {
+      message.className = 'alert alert-warning mt-4'; message.textContent = 'Live location is temporarily unavailable. Retrying…';
+    }
+  }
+  refresh(); timer = setInterval(refresh, 10000);
+})();
+</script>
+{% endblock %}

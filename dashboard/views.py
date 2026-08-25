@@ -28,7 +28,6 @@ from products.models import (
     ProductVariant,
     CatalogRequest,
 )
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
 from products.models import ProductReview
@@ -51,6 +50,7 @@ from .ai_services import (
     generate_listing_copy,
     generate_listing_from_photos,
 )
+from .security import audit, operations_admin_required
 
 # ✅ Only allow superusers (admins) to access dashboard
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
@@ -731,7 +731,7 @@ def seller_ai_confirm_payment(request):
     })
 
 
-@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+@operations_admin_required
 def sellers_management(request):
     sellers = SellerProfile.objects.select_related("user").prefetch_related(
         "products"
@@ -752,7 +752,7 @@ def sellers_management(request):
 
 
 @require_POST
-@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+@operations_admin_required
 def update_seller_status(request, seller_id):
     seller = get_object_or_404(SellerProfile, id=seller_id)
     new_status = request.POST.get("status")
@@ -762,8 +762,10 @@ def update_seller_status(request, seller_id):
         messages.error(request, "Invalid seller status.")
         return redirect("sellers_management")
 
+    old_status = seller.status
     seller.status = new_status
     seller.save(update_fields=["status", "updated_at"])
+    audit(request, "seller.status", seller, f"Seller {seller.store_name}: {old_status} → {new_status}")
 
     if new_status == "approved":
         messages.success(request, f"{seller.store_name} is now approved to sell.")
@@ -774,7 +776,7 @@ def update_seller_status(request, seller_id):
 
 
 @require_POST
-@user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
+@operations_admin_required
 def verify_seller_payouts(request, seller_id):
     seller = get_object_or_404(SellerProfile, id=seller_id)
     if not seller.kyc_complete:
@@ -785,6 +787,7 @@ def verify_seller_payouts(request, seller_id):
         seller.status = "approved"
         seller.payouts_enabled = True
         seller.save(update_fields=["status", "payouts_enabled", "updated_at"])
+        audit(request, "seller.payouts_enabled", seller, f"Enabled payouts for {seller.store_name}")
         messages.success(request, f"{seller.store_name} is verified and automatic payouts are enabled.")
     return redirect("sellers_management")
 
@@ -812,6 +815,7 @@ def shipping_orders_list(request):
 
 
 # ✅ Mark order as shipped
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def mark_order_shipped(request, order_id):
     order = get_object_or_404(Order, id=order_id)
@@ -823,6 +827,7 @@ def mark_order_shipped(request, order_id):
 
 
 # ✅ Add Category
+@operations_admin_required
 def add_category(request):
     if request.method == "POST":
         name = request.POST.get("name")
@@ -832,6 +837,7 @@ def add_category(request):
 
 
 # ✅ Delete Category
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def delete_category(request, id):
     category = get_object_or_404(Category, id=id)
@@ -842,6 +848,7 @@ def delete_category(request, id):
 
 
 # ✅ Add SubCategory
+@operations_admin_required
 def add_subcategory(request):
     categories = Category.objects.all()
     if request.method == "POST":
@@ -854,6 +861,7 @@ def add_subcategory(request):
 
 
 # ✅ Delete SubCategory
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def delete_subcategory(request, id):
     subcategory = get_object_or_404(SubCategory, id=id)
@@ -1154,6 +1162,7 @@ def delete_product(request, id):
         },
     )
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def toggle_product_status(request, id):
 
@@ -1270,7 +1279,8 @@ def review_catalog_request(request, request_id):
     return redirect("catalog_requests_management")
 
 
-@csrf_exempt
+@require_POST
+@operations_admin_required
 def ajax_add_category(request):
 
     if request.method == "POST":
@@ -1302,7 +1312,8 @@ def ajax_add_category(request):
     })
 
 
-@csrf_exempt
+@require_POST
+@operations_admin_required
 def ajax_add_subcategory(request):
 
     if request.method == "POST":
@@ -1859,72 +1870,79 @@ def order_detail_ajax(request, order_id):
     })
 
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def update_order_status(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
 
-    if request.method == "POST":
+    new_status = request.POST.get("status")
+    payment_status = request.POST.get("payment_status")
+    old_status = order.status
+    old_payment_status = order.payment_status
 
-        new_status = request.POST.get("status")
-        payment_status = request.POST.get("payment_status")
-        old_status = order.status
+    valid_flow = {
+        "Pending": ["Processing", "Cancelled"],
+        "Processing": ["Packed", "Cancelled"],
+        "Packed": ["Shipped", "Cancelled"],
+        "Shipped": ["Out for Delivery"],
+        "Out for Delivery": ["Delivered"],
+        "Delivered": ["Returned"],
+        "Cancelled": [],
+        "Returned": [],
+    }
+    valid_payment_statuses = {choice[0] for choice in Order.PAYMENT_STATUS_CHOICES}
+    if new_status != old_status and new_status not in valid_flow.get(old_status, []):
+        messages.error(request, f"Order cannot move from {old_status} to {new_status}.")
+        return redirect("orders_management")
+    if payment_status not in valid_payment_statuses:
+        messages.error(request, "Invalid payment status.")
+        return redirect("orders_management")
 
-        valid_flow = {
-            "Pending": ["Processing", "Cancelled"],
-            "Processing": ["Packed", "Cancelled"],
-            "Packed": ["Shipped", "Cancelled"],
-            "Shipped": ["Out for Delivery"],
-            "Out for Delivery": ["Delivered"],
-            "Delivered": ["Returned"],
-            "Cancelled": [],
-            "Returned": [],
-        }
+    # Remove the new badge after the first valid admin action.
+    if order.is_new:
+        order.is_new = False
 
-                # Remove NEW badge after first admin action
-        if order.is_new:
-            order.is_new = False
-
-        if (
+    if (
             order.status == "Pending"
             and new_status == "Processing"
-        ):
-            order.confirmed_at = timezone.now()
-            order.confirmed_by = request.user
+    ):
+        order.confirmed_at = timezone.now()
+        order.confirmed_by = request.user
 
-        elif (
+    elif (
             order.status == "Processing"
             and new_status == "Packed"
-        ):
-            order.packed_at = timezone.now()
+    ):
+        order.packed_at = timezone.now()
 
-        elif (
+    elif (
             order.status == "Packed"
             and new_status == "Shipped"
-        ):
-            order.shipped_at = timezone.now()
+    ):
+        order.shipped_at = timezone.now()
 
-        elif (
+    elif (
             order.status == "Shipped"
             and new_status == "Out for Delivery"
-        ):
-            order.out_for_delivery_at = timezone.now()
+    ):
+        order.out_for_delivery_at = timezone.now()
 
-        elif (
+    elif (
             order.status == "Out for Delivery"
             and new_status == "Delivered"
-        ):
-            order.delivered_at = timezone.now()
+    ):
+        order.delivered_at = timezone.now()
 
-        elif new_status == "Cancelled":
-            order.cancelled_at = timezone.now()
-        order.status = new_status
-        order.payment_status = payment_status
+    elif new_status == "Cancelled":
+        order.cancelled_at = timezone.now()
+    order.status = new_status
+    order.payment_status = payment_status
 
-        order.save()
+    order.save()
 
-        from orders.settlements import create_settlements_for_order
-        create_settlements_for_order(order)
+    from orders.settlements import create_settlements_for_order
+    create_settlements_for_order(order)
 
     # -------------------------------
     # ORDER TIMELINE
@@ -1952,10 +1970,17 @@ def update_order_status(request, order_id):
         from orders.emails import send_order_status_email
         send_order_status_email(order, old_status)
 
-        messages.success(
-            request,
-            "Order updated successfully."
-        )
+    audit(
+        request,
+        "order.update",
+        order,
+        f"Parcel order #{order.pk} updated",
+        old_status=old_status,
+        new_status=new_status,
+        old_payment_status=old_payment_status,
+        new_payment_status=payment_status,
+    )
+    messages.success(request, "Order updated successfully.")
 
     return redirect("orders_management")
 
@@ -2132,6 +2157,7 @@ def edit_inventory(request, id):
     )
 
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def approve_review(request, id):
 
@@ -2148,6 +2174,7 @@ def approve_review(request, id):
     return redirect("reviews_management")
 
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def delete_review(request, id):
 
@@ -2162,6 +2189,7 @@ def delete_review(request, id):
 
     return redirect("reviews_management")
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 @transaction.atomic
 def approve_return(request, return_id):
@@ -2246,6 +2274,7 @@ def approve_return(request, return_id):
 
     return redirect("returns_management")
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def reject_return(request, return_id):
 
@@ -2306,6 +2335,7 @@ def support_ticket_detail(request, ticket_id):
     )
 
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def reply_support_ticket(request, ticket_id):
 
@@ -2344,6 +2374,7 @@ def reply_support_ticket(request, ticket_id):
     )
 
 
+@require_POST
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def update_support_status(request, ticket_id):
 

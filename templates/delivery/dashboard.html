@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Delivery Dashboard | ZIYAMART{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div><span class="text-success fw-bold">DELIVERY PARTNER</span><h1 class="mb-0">Hello, {{ agent.full_name }}</h1><div class="text-muted">Verified pincode: {{ agent.pincode }} · {{ agent.city }}</div></div>
+  <div class="text-end"><div class="h4 mb-2">₹{{ earnings }} earned</div>
+    <form method="post" action="{% url 'delivery_toggle_online' %}">{% csrf_token %}
+      <button class="btn {% if agent.is_online %}btn-success{% else %}btn-outline-dark{% endif %}" {% if agent.status != 'approved' %}disabled{% endif %}>
+        {% if agent.is_online %}Online — go offline{% else %}Go online{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+{% if agent.status != 'approved' %}<div class="alert alert-warning"><strong>{{ agent.get_status_display }}</strong>. Orders will appear after administrator verification.</div>{% endif %}
+
+<h3 class="mt-4">Active deliveries</h3>
+<div class="row g-3 mb-5">
+{% for job in active %}
+  <div class="col-lg-6"><div class="card p-4 h-100">
+    <div class="d-flex justify-content-between"><strong>{{ job.order_kind }} order #{{ job.source_order.pk }}</strong><span class="badge text-bg-primary">{{ job.get_status_display }}</span></div>
+    <div class="mt-3"><strong>Pickup:</strong> {{ job.pickup_name }}<br>{{ job.pickup_address }}</div>
+    <div class="mt-2"><strong>Deliver:</strong> {{ job.customer_name }}<br>{{ job.delivery_address }}<br>{{ job.customer_phone }}</div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination={{ job.pickup_latitude }},{{ job.pickup_longitude }}">Navigate to seller</a>
+    {% if job.status == 'picked_up' or job.status == 'out_for_delivery' %}<a class="btn btn-outline-primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination={{ job.customer_latitude }},{{ job.customer_longitude }}">Navigate to customer</a>{% endif %}
+    {% if job.status == 'assigned' %}<form method="post" action="{% url 'delivery_update' job.pk %}">{% csrf_token %}<input type="hidden" name="status" value="accepted"><button class="btn btn-dark">Accept assignment</button></form>{% endif %}
+    {% if job.status == 'accepted' %}<form method="post" action="{% url 'delivery_update' job.pk %}">{% csrf_token %}<input type="hidden" name="status" value="picked_up"><button class="btn btn-dark">Confirm pickup</button></form>{% endif %}
+    {% if job.status == 'picked_up' %}<form method="post" action="{% url 'delivery_update' job.pk %}">{% csrf_token %}<input type="hidden" name="status" value="out_for_delivery"><button class="btn btn-dark">Start delivery</button></form>{% endif %}
+    {% if job.status == 'out_for_delivery' %}<a class="btn btn-success" href="{% url 'delivery_complete' job.pk %}">Enter customer OTP</a>{% endif %}
+    </div>
+    {% if job.status == 'accepted' or job.status == 'picked_up' or job.status == 'out_for_delivery' %}
+    <div class="mt-3 p-3 bg-light rounded">
+      <div class="d-flex align-items-center gap-2"><span class="badge text-bg-secondary" id="tracking-badge-{{ job.pk }}">GPS starting…</span><small id="tracking-message-{{ job.pk }}">Allow location access to share your live position with this customer.</small></div>
+      <button type="button" class="btn btn-sm btn-outline-success mt-2 live-tracking-start" data-job-id="{{ job.pk }}" data-url="{% url 'delivery_location_update' job.pk %}">Start live tracking</button>
+    </div>
+    {% endif %}
+    {% if job.pickup_latitude and job.customer_latitude %}<div class="route-map mt-3" style="height:280px;border-radius:14px" data-pickup-lat="{{ job.pickup_latitude }}" data-pickup-lng="{{ job.pickup_longitude }}" data-customer-lat="{{ job.customer_latitude }}" data-customer-lng="{{ job.customer_longitude }}"></div>{% endif %}
+  </div></div>
+{% empty %}<p class="text-muted">No active deliveries.</p>{% endfor %}
+</div>
+
+<h3>Available in {{ agent.pincode }}</h3>
+<div class="row g-3 mb-5">
+{% for job in available %}
+  <div class="col-lg-4"><div class="card p-4 h-100"><strong>{{ job.order_kind }} order #{{ job.source_order.pk }}</strong><div class="my-2">Pickup: {{ job.pickup_name }}</div><div class="text-muted">Delivery earning ₹{{ job.agent_earning }}</div><form class="mt-3" method="post" action="{% url 'delivery_accept' job.pk %}">{% csrf_token %}<button class="btn btn-dark">Accept order</button></form></div></div>
+{% empty %}<p class="text-muted">{% if agent.can_deliver %}No ready orders in your pincode right now.{% else %}Go online to see available orders.{% endif %}</p>{% endfor %}
+</div>
+
+<h3>Recent completed deliveries</h3>
+<div class="table-responsive"><table class="table"><thead><tr><th>Order</th><th>Pincode</th><th>Completed</th><th>Earning</th></tr></thead><tbody>{% for job in history %}<tr><td>{{ job.order_kind }} #{{ job.source_order.pk }}</td><td>{{ job.pincode }}</td><td>{{ job.delivered_at }}</td><td>₹{{ job.agent_earning }}</td></tr>{% empty %}<tr><td colspan="4">No completed deliveries yet.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
+{% block scripts %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const trackers = new Map();
+  const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+  function startTracking(button) {
+    const jobId = button.dataset.jobId;
+    const message = document.getElementById(`tracking-message-${jobId}`);
+    const badge = document.getElementById(`tracking-badge-${jobId}`);
+    if (!navigator.geolocation) { badge.textContent = 'Unavailable'; message.textContent = 'This device does not support GPS location.'; return; }
+    if (trackers.has(jobId)) return;
+    const watchId = navigator.geolocation.watchPosition(async position => {
+      const body = new URLSearchParams({latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy});
+      try {
+        const response = await fetch(button.dataset.url, {method: 'POST', headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'}, body});
+        if (!response.ok) throw new Error('Location update rejected');
+        badge.className = 'badge text-bg-success'; badge.textContent = 'Live';
+        message.textContent = `Location shared · accuracy about ${Math.round(position.coords.accuracy)} m`;
+        button.textContent = 'Live tracking active'; button.disabled = true;
+      } catch (error) {
+        badge.className = 'badge text-bg-warning'; badge.textContent = 'Retrying';
+        message.textContent = 'Unable to update location. Check your connection.';
+      }
+    }, error => {
+      badge.className = 'badge text-bg-danger'; badge.textContent = 'GPS off';
+      message.textContent = error.code === 1 ? 'Location permission was denied. Enable it in browser settings.' : 'Current location is unavailable.';
+      trackers.delete(jobId);
+    }, {enableHighAccuracy: true, maximumAge: 10000, timeout: 20000});
+    trackers.set(jobId, watchId);
+  }
+  document.querySelectorAll('.live-tracking-start').forEach(button => { button.addEventListener('click', () => startTracking(button)); startTracking(button); });
+  window.addEventListener('beforeunload', () => trackers.forEach(id => navigator.geolocation.clearWatch(id)));
+  document.querySelectorAll('.route-map').forEach(element => {
+    const pickup = [Number(element.dataset.pickupLat), Number(element.dataset.pickupLng)];
+    const customer = [Number(element.dataset.customerLat), Number(element.dataset.customerLng)];
+    const routeMap = L.map(element); const bounds = L.latLngBounds([pickup, customer]);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(routeMap);
+    L.marker(pickup).addTo(routeMap).bindPopup('Seller pickup').openPopup();
+    L.marker(customer).addTo(routeMap).bindPopup('Customer delivery');
+    L.polyline([pickup, customer], {color: '#16a34a', dashArray: '6,8'}).addTo(routeMap);
+    routeMap.fitBounds(bounds.pad(.25), {maxZoom: 16});
+  });
+})();
+</script>
+{% endblock %}
