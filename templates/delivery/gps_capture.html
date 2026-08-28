@@ -13,19 +13,45 @@
   const button = form.querySelector('.gps-capture-button');
   const status = form.querySelector('.gps-capture-status');
   const submit = form.querySelector('button[type="submit"], button:not([type])');
-  const latitude = form.querySelector('[name="latitude"]');
-  const longitude = form.querySelector('[name="longitude"]');
-  const accuracy = form.querySelector('[name="gps_accuracy_meters"]');
+  // This component is shared by customer, store and seller forms. Seller
+  // fields are prefixed with "business_", so match by field-name suffix.
+  const latitude = form.querySelector('[name="latitude"], [name$="_latitude"]');
+  const longitude = form.querySelector('[name="longitude"], [name$="_longitude"]');
+  const accuracy = form.querySelector('[name="gps_accuracy_meters"], [name$="_gps_accuracy_meters"]');
   const capturedAt = form.querySelector('[name="gps_captured_at"]');
   if (submit) submit.disabled = true;
   function capture() {
     if (!navigator.geolocation) { status.textContent = 'GPS is unavailable on this device.'; return; }
+    if (!latitude || !longitude || !accuracy || !capturedAt) {
+      status.textContent = 'Location fields could not be loaded. Refresh the page and try again.';
+      button.disabled = false;
+      return;
+    }
     button.disabled = true; status.textContent = 'Finding your location…';
+    let finished = false;
+    let watchId = null;
+    const hardTimeout = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      status.textContent = 'Location is taking too long. Turn on device Location, then tap Try again.';
+      button.textContent = 'Try again';
+      button.disabled = false;
+    }, 15000);
+
+    function finish() {
+      if (finished) return false;
+      finished = true;
+      window.clearTimeout(hardTimeout);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      return true;
+    }
 
     function accept(position) {
       if (position.coords.accuracy > 500) {
         return false;
       }
+      if (!finish()) return true;
       latitude.value = position.coords.latitude.toFixed(6);
       longitude.value = position.coords.longitude.toFixed(6);
       accuracy.value = Math.round(position.coords.accuracy);
@@ -38,6 +64,7 @@
     }
 
     function fail(error) {
+      if (!finish()) return;
       if (error.code === error.PERMISSION_DENIED) {
         status.textContent = 'Location permission was denied. Enable precise location in browser settings.';
       } else if (error.code === error.TIMEOUT) {
@@ -48,26 +75,12 @@
       button.disabled = false;
     }
 
-    // A recent device fix is usually instant. If it is unavailable or too
-    // imprecise, make one short high-accuracy request instead of waiting 30s.
-    navigator.geolocation.getCurrentPosition(position => {
+    // watchPosition returns a cached/current reading quickly and can improve it
+    // moments later. The first reading within 500 m is enough for verification.
+    watchId = navigator.geolocation.watchPosition(position => {
       if (accept(position)) return;
-      status.textContent = 'Improving GPS accuracy…';
-      navigator.geolocation.getCurrentPosition(position => {
-        if (!accept(position)) {
-          status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
-          button.disabled = false;
-        }
-      }, fail, {enableHighAccuracy: true, maximumAge: 0, timeout: 12000});
-    }, () => {
-      status.textContent = 'Getting a precise GPS fix…';
-      navigator.geolocation.getCurrentPosition(position => {
-        if (!accept(position)) {
-          status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
-          button.disabled = false;
-        }
-      }, fail, {enableHighAccuracy: true, maximumAge: 0, timeout: 12000});
-    }, {enableHighAccuracy: false, maximumAge: 120000, timeout: 4000});
+      status.textContent = `Improving GPS accuracy (currently ${Math.round(position.coords.accuracy)} m)…`;
+    }, fail, {enableHighAccuracy: true, maximumAge: 300000, timeout: 12000});
   }
   button.addEventListener('click', capture);
   }, 0);
