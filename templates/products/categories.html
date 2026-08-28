@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Shop by category | ZIYAMART{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="text-center mb-4">
+    <h1 class="h2 fw-bold">Shop by category</h1>
+    <p class="text-muted">Choose a category, then select a subcategory to see its products.</p>
+  </div>
+  <div class="row g-4">
+    {% for category in categories %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <a class="card h-100 border-0 shadow-sm text-decoration-none text-dark" href="{% url 'category_page' category.id %}">
+          {% if category.background_image %}
+            <img class="card-img-top" src="{{ category.background_image.url }}" alt="" loading="lazy" style="height: 190px; object-fit: cover;">
+          {% elif category.image %}
+            <img class="card-img-top" src="{{ category.image.url }}" alt="" loading="lazy" style="height: 190px; object-fit: cover;">
+          {% else %}
+            <div class="d-flex align-items-center justify-content-center bg-light" style="height: 190px;"><i class="bi bi-grid fs-1" aria-hidden="true"></i></div>
+          {% endif %}
+          <div class="card-body text-center">
+            <h2 class="h6 fw-semibold mb-2">{{ category.name }}</h2>
+            <span class="small text-muted">View subcategories <i class="bi bi-arrow-right"></i></span>
+          </div>
+        </a>
+      </div>
+    {% empty %}
+      <div class="col-12 text-center text-muted">No categories with available products were found.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

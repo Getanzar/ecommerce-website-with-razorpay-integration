@@ -45,6 +45,18 @@ class SignUpTests(TestCase):
                 with self.assertRaises(ValueError):
                     form.save()
 
+    def test_duplicate_signup_post_does_not_create_any_user(self):
+        original_count = get_user_model().objects.count()
+        for field, duplicate_value in {
+            "username": "ExistingUser",
+            "email": "EXISTING@example.com",
+            "phone": "9876543210",
+        }.items():
+            with self.subTest(field=field):
+                response = self.client.post(reverse("signup"), {**self.data, field: duplicate_value})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(get_user_model().objects.count(), original_count)
+
     @patch("accounts.utils.send_transactional_email", return_value=True)
     def test_valid_signup_sends_otp_and_redirects_to_verification(self, send_email):
         response = self.client.post(reverse("signup"), self.data)

@@ -20,11 +20,11 @@
   if (submit) submit.disabled = true;
   function capture() {
     if (!navigator.geolocation) { status.textContent = 'GPS is unavailable on this device.'; return; }
-    button.disabled = true; status.textContent = 'Getting a precise GPS fix…';
-    navigator.geolocation.getCurrentPosition(position => {
+    button.disabled = true; status.textContent = 'Finding your location…';
+
+    function accept(position) {
       if (position.coords.accuracy > 500) {
-        status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
-        button.disabled = false; return;
+        return false;
       }
       latitude.value = position.coords.latitude.toFixed(6);
       longitude.value = position.coords.longitude.toFixed(6);
@@ -34,10 +34,40 @@
       status.className = 'small mt-2 gps-capture-status text-success fw-semibold';
       button.textContent = 'Capture again'; button.disabled = false;
       if (submit) submit.disabled = false;
-    }, error => {
-      status.textContent = error.code === 1 ? 'Location permission was denied. Enable precise location in browser settings.' : 'Could not capture location. Move outdoors and try again.';
+      return true;
+    }
+
+    function fail(error) {
+      if (error.code === error.PERMISSION_DENIED) {
+        status.textContent = 'Location permission was denied. Enable precise location in browser settings.';
+      } else if (error.code === error.TIMEOUT) {
+        status.textContent = 'Location timed out. Move near a window or outdoors, then try again.';
+      } else {
+        status.textContent = 'Could not capture location. Check that device location is enabled and try again.';
+      }
       button.disabled = false;
-    }, {enableHighAccuracy: true, maximumAge: 0, timeout: 30000});
+    }
+
+    // A recent device fix is usually instant. If it is unavailable or too
+    // imprecise, make one short high-accuracy request instead of waiting 30s.
+    navigator.geolocation.getCurrentPosition(position => {
+      if (accept(position)) return;
+      status.textContent = 'Improving GPS accuracy…';
+      navigator.geolocation.getCurrentPosition(position => {
+        if (!accept(position)) {
+          status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
+          button.disabled = false;
+        }
+      }, fail, {enableHighAccuracy: true, maximumAge: 0, timeout: 12000});
+    }, () => {
+      status.textContent = 'Getting a precise GPS fix…';
+      navigator.geolocation.getCurrentPosition(position => {
+        if (!accept(position)) {
+          status.textContent = `GPS accuracy is only ${Math.round(position.coords.accuracy)} m. Move outdoors and try again.`;
+          button.disabled = false;
+        }
+      }, fail, {enableHighAccuracy: true, maximumAge: 0, timeout: 12000});
+    }, {enableHighAccuracy: false, maximumAge: 120000, timeout: 4000});
   }
   button.addEventListener('click', capture);
   }, 0);

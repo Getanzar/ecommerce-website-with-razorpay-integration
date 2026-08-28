@@ -29,6 +29,7 @@ urlpatterns = [
     ),
 
     path("search/", views.search_view, name="search"),
+    path("categories/", views.categories_page, name="categories_page"),
     path("category/<int:category_id>/", views.category_page, name="category_page"),
     path("subcategory/<int:sub_id>/", views.subcategory_products, name="subcategory_products"),  # ✅ added
 

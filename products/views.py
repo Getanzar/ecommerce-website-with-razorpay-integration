@@ -369,6 +369,14 @@ class ProductDetail(generics.RetrieveAPIView):
 # CATEGORY & SUBCATEGORY VIEWS
 # ----------------------
 
+def categories_page(request):
+    categories = (
+        Category.objects.filter(products__in=in_stock_products())
+        .distinct()
+        .order_by("name")
+    )
+    return render(request, "products/categories.html", {"categories": categories})
+
 def category_page(request, category_id):
     category = get_object_or_404(Category, id=category_id)
     subcategories = category.subcategories.filter(

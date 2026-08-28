@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -34,6 +35,20 @@ def signup_view(request):
                 # Validation gives useful field errors; the database constraint
                 # closes the small race where two requests use the same phone.
                 with transaction.atomic():
+                    # Recheck immediately before writing. Besides protecting
+                    # against stale/double form submissions, this guarantees
+                    # that a duplicate response never leaves a new User behind.
+                    duplicate_fields = []
+                    if User.objects.filter(username__iexact=form.cleaned_data["username"]).exists():
+                        duplicate_fields.append(("username", "This username is already taken."))
+                    if User.objects.filter(email__iexact=form.cleaned_data["email"]).exists():
+                        duplicate_fields.append(("email", "An account with this email already exists."))
+                    if UserProfile.objects.filter(phone=form.cleaned_data["phone"]).exists():
+                        duplicate_fields.append(("phone", "This phone number is already registered."))
+                    if duplicate_fields:
+                        for field, error in duplicate_fields:
+                            form.add_error(field, error)
+                        return render(request, "accounts/signup.html", {"form": form})
                     user = form.save()
             except IntegrityError:
                 form.add_error(

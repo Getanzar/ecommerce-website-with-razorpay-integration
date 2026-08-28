@@ -72,7 +72,7 @@
         <h2 id="category-heading">Shop by category</h2>
         <p>Find what fits your day, your style and your neighbourhood.</p>
       </div>
-      <a class="home-text-link" href="{% url 'product_list_page' %}"><span>Browse everything</span><i class="bi bi-arrow-right"></i></a>
+      <a class="home-text-link" href="{% url 'categories_page' %}"><span>Browse everything</span><i class="bi bi-arrow-right"></i></a>
     </div>
     <div class="home-category-grid">
       {% for category in categories|slice:":8" %}
@@ -135,7 +135,7 @@
       </div>
     </div>
     <div class="home-service-grid">
-      <a class="home-service-card" href="{% url 'product_list_page' %}">
+      <a class="home-service-card" href="{% url 'categories_page' %}">
         <span class="service-icon"><i class="bi bi-bag-check" aria-hidden="true"></i></span>
         <h3>Marketplace</h3>
         <p>Discover considered products from verified sellers with secure checkout and itemized pricing.</p>
