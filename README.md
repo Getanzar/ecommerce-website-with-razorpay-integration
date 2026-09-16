@@ -1,5 +1,7 @@
 # 🛒 Django E-Commerce with Razorpay Integration
 
+Mobile payment, notification, rider, seller and device-security rollout instructions are in [mobile_app/RELEASE.md](mobile_app/RELEASE.md).
+
 A full-featured **E-Commerce web application** built with **Django** that allows users to browse products, add them to cart, checkout securely, and pay using **Razorpay (UPI, Cards, Netbanking)**.  
 
 This project demonstrates **end-to-end web development skills** – backend, frontend, authentication, session-based cart, order management, and real-world **payment gateway integration**.

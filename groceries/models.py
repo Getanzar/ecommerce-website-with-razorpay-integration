@@ -95,6 +95,20 @@ class GroceryProduct(models.Model):
         return f"{self.store}: {self.name}"
 
 
+class GroceryCartItem(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="grocery_cart_items", on_delete=models.CASCADE)
+    product = models.ForeignKey(GroceryProduct, related_name="cart_items", on_delete=models.CASCADE)
+    quantity = models.PositiveSmallIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("user", "product"), name="unique_mobile_grocery_cart_product")]
+
+    @property
+    def total(self):
+        return self.product.customer_price * self.quantity
+
+
 class GroceryOrder(models.Model):
     STATUS_CHOICES = (("placed", "Placed"), ("accepted", "Accepted"), ("packing", "Packing"), ("ready", "Ready"), ("shipped", "Shipped"), ("delivered", "Delivered"), ("cancelled", "Cancelled"))
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="grocery_orders", on_delete=models.PROTECT)

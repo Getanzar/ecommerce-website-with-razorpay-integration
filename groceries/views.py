@@ -228,6 +228,9 @@ def seller_toggle_store(request):
 @login_required
 def seller_product(request, product_id=None):
     seller = _kirana_seller(request); store = get_object_or_404(GroceryStore, seller=seller)
+    if product_id is None and (store.latitude is None or store.longitude is None):
+        messages.error(request, "Set and verify your store location in Store settings before adding products. This saved location is used as the pickup point for every grocery delivery.")
+        return redirect("grocery_seller_setup")
     product = get_object_or_404(GroceryProduct, pk=product_id, store=store) if product_id else None
     form = GroceryProductForm(request.POST or None, request.FILES or None, instance=product)
     if request.method == "POST" and form.is_valid():

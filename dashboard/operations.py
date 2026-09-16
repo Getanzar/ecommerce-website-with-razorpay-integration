@@ -269,18 +269,38 @@ def local_delivery_detail(request, delivery_id):
     })
 
 
+@operations_admin_required
+def delivery_proof(request, evidence_id):
+    from mobile_api.models import DeliveryEvidence
+    from django.http import FileResponse, Http404
+    evidence = get_object_or_404(DeliveryEvidence, pk=evidence_id, kind="photo")
+    if not evidence.photo:
+        raise Http404
+    response = FileResponse(evidence.photo.open("rb"), content_type="image/jpeg")
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @require_POST
 @operations_admin_required
 @transaction.atomic
 def assign_delivery(request, delivery_id):
     job = get_object_or_404(LocalDelivery.objects.select_for_update(), pk=delivery_id)
-    agent = get_object_or_404(DeliveryAgentProfile, pk=request.POST.get("agent_id"), status="approved", pincode=job.pincode)
-    if job.status not in {"available", "assigned"}:
-        messages.error(request, "Only available or not-yet-accepted assignments can be changed.")
+    agent = get_object_or_404(DeliveryAgentProfile.objects.select_for_update(), pk=request.POST.get("agent_id"), status="approved", pincode=job.pincode)
+    reason = request.POST.get("reason", "").strip()[:500]
+    if job.status not in {"available", "assigned", "accepted"}:
+        messages.error(request, "Jobs already picked up require a supervised handover; assignment was not changed.")
+    elif job.status == "accepted" and not reason:
+        messages.error(request, "A reason is required to reassign an accepted job.")
+    elif job.source_order.status.lower() in {"cancelled", "returned"} or (job.source_order.payment_method != "cod" and job.source_order.payment_status != "Paid"):
+        messages.error(request, "This order is not ready for dispatch.")
     else:
         old_agent = job.agent
         job.agent = agent; job.status = "assigned"; job.assigned_at = timezone.now()
         job.save(update_fields=["agent", "status", "assigned_at", "updated_at"])
+        from mobile_api.models import DeliveryEvidence
+        DeliveryEvidence.objects.create(delivery=job, actor=request.user, kind="dispatch", reason=reason or "Agent assigned by dispatch")
         audit(request, "delivery.assign", job, f"Delivery #{job.pk} assigned to {agent.full_name}", previous_agent_id=getattr(old_agent, "pk", None))
         messages.success(request, "Delivery assignment updated.")
     return redirect("ops_deliveries")

@@ -19,7 +19,7 @@
 <meta property="product:price:currency" content="INR">
 <script type="application/ld+json">{{ product_schema_json|safe }}</script>
 <style>
-  .product-main-image{height:clamp(380px,52vw,650px);object-fit:cover;background:#f1f5f9}
+  .product-main-image{height:clamp(380px,52vw,650px);object-fit:contain;background:#f1f5f9}
   .product-thumb{width:70px;height:70px;object-fit:cover;cursor:pointer}
   .product-color{box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
   .related-product-image{height:280px;object-fit:cover;background:#f1f5f9}
@@ -680,16 +680,24 @@ View Product
 document.addEventListener("DOMContentLoaded",function(){
 
 const mainImage=document.getElementById("mainImage");
+const thumbnails=[...document.querySelectorAll(".thumb-image")];
+function showProductImage(url){
+if(!url) return;
+mainImage.src=url;
+thumbnails.forEach(img=>{
+const active=img.src===mainImage.src;
+img.classList.toggle("border-dark",active);
+img.classList.toggle("active-thumb",active);
+img.setAttribute("aria-pressed",String(active));
+});
+}
+showProductImage(thumbnails[0]?.src);
 
 document.querySelectorAll(".thumb-image").forEach(img=>{
 
 const activateThumbnail=function(){
 
-mainImage.src=this.src;
-
-document.querySelectorAll(".thumb-image").forEach(i=>i.classList.remove("border-dark"));
-
-this.classList.add("border-dark");
+showProductImage(this.src);
 
 };
 
@@ -743,7 +751,7 @@ cartButton.innerHTML=productHasStock?"🛒 Add to Cart":"Out of Stock";
 
 if(this.dataset.image){
 
-mainImage.src=this.dataset.image;
+showProductImage(this.dataset.image);
 
 }
 
@@ -775,7 +783,7 @@ price.innerHTML="₹"+this.dataset.price;
 
 if(this.dataset.image){
 
-mainImage.src=this.dataset.image;
+showProductImage(this.dataset.image);
 
 }
 

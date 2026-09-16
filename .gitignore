@@ -7,6 +7,7 @@ __pycache__/
 # Virtual environments
 venv/
 .venv/
+.python-packages/
 
 # Environment variables (IMPORTANT)
 .env
@@ -25,6 +26,8 @@ htmlcov/
 
 # Node (if frontend exists)
 node_modules/
+.pnpm-store/
+private_media/
 
 # IDE files
 .vscode/
@@ -33,3 +36,8 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Mobile projects - kept separately
+mobile_app/
+mobile_api/
+.ui_review.sqlite3

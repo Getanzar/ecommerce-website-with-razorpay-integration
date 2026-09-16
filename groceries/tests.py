@@ -104,6 +104,19 @@ class GroceryMarketplaceTests(TestCase):
         self.client.post(reverse("grocery_seller_toggle"))
         self.store.refresh_from_db(); self.assertTrue(self.store.accepts_orders)
 
+    def test_product_form_reuses_store_location_without_requesting_gps(self):
+        self.client.login(username="kirana-owner", password="test-password")
+        response = self.client.get(reverse("grocery_seller_add_product"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Capture current GPS location")
+        self.assertContains(response, "category")
+
+        self.store.latitude = None
+        self.store.longitude = None
+        self.store.save(update_fields=["latitude", "longitude"])
+        response = self.client.get(reverse("grocery_seller_add_product"))
+        self.assertRedirects(response, reverse("grocery_seller_setup"))
+
     def test_cart_rejects_products_from_another_store(self):
         other_owner = User.objects.create_user("other-kirana")
         seller = SellerProfile.objects.create(user=other_owner, store_name="Other Store", business_category="Grocery", status="approved")

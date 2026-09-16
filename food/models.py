@@ -116,6 +116,21 @@ class MenuItemOption(models.Model):
         return (self.price * (Decimal("1") + fee / Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+class FoodCartItem(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="food_cart_items", on_delete=models.CASCADE)
+    option = models.ForeignKey(MenuItemOption, related_name="cart_items", on_delete=models.CASCADE)
+    quantity = models.PositiveSmallIntegerField(default=1)
+    note = models.CharField(max_length=300, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("user", "option"), name="unique_mobile_food_cart_option")]
+
+    @property
+    def total(self):
+        return self.option.customer_price * self.quantity
+
+
 class FoodOrder(models.Model):
     STATUS_CHOICES = (
         ("placed", "Placed"), ("accepted", "Accepted"),

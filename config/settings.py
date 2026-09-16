@@ -83,6 +83,7 @@ INSTALLED_APPS = [
 
     # Third Party
     'rest_framework',
+    'rest_framework.authtoken',
     'cloudinary',
     'cloudinary_storage',
 
@@ -97,6 +98,7 @@ INSTALLED_APPS = [
     'groceries',
     'delivery',
     'payments',
+    'mobile_api',
 ]
 
 MIDDLEWARE = [
@@ -174,7 +176,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # DRF (optional)
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'mobile_api.authentication.DeviceAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
 }
 
@@ -185,6 +190,12 @@ STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', 'sk_test_xxx')
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
 DELHIVERY_PICKUP_LOCATION = "ziyamart garments bazaar wilson gunj pathantola road, sahaswan, budaun, uttar-pradesh, 243638"
 DELHIVERY_ORIGIN_PINCODE = os.getenv("DELHIVERY_ORIGIN_PINCODE", "243638")
@@ -218,6 +229,9 @@ RAZORPAYX_ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER", "")
 SELLER_PAYOUT_MODE = os.getenv("SELLER_PAYOUT_MODE", "IMPS")
 RAZORPAYX_WEBHOOK_SECRET = os.getenv("RAZORPAYX_WEBHOOK_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+MOBILE_COD_MAX_TOTAL = os.getenv("MOBILE_COD_MAX_TOTAL", "50000.00")
+PRIVATE_MEDIA_ROOT = Path(os.getenv("PRIVATE_MEDIA_ROOT") or BASE_DIR / "private_media")
+EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "")
 
 # Transactional email is sent through the Brevo HTTP API in config.email.
 DEFAULT_FROM_EMAIL = BREVO_SENDER_EMAIL

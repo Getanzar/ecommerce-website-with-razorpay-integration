@@ -169,6 +169,16 @@ def _sync_order_payment(payment, paid):
             return
     if not order:
         return
+    # A failed native attempt can be retried on the same provider order. Do not
+    # release stock or cancel that order while Razorpay may still capture it.
+    from mobile_api.models import CheckoutSession
+    mobile_kind = {"parcel": "shop", "food": "food", "grocery": "grocery"}.get(payment.channel_name)
+    mobile_checkout = CheckoutSession.objects.filter(user=order.user, order_kind=mobile_kind, order_id=order.pk, status="completed").exists()
+    if mobile_checkout and not paid:
+        if order.payment_status != "Paid":
+            order.payment_status = "Failed"
+            order.save(update_fields=["payment_status", "updated_at"])
+        return
     order.payment_status = "Paid" if paid else "Failed"
     fields = ["payment_status", "updated_at"]
     if paid and hasattr(order, "razorpay_payment_id"):
