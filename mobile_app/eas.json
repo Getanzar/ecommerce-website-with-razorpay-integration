@@ -25,10 +25,11 @@
                                      "android":  {
                                                      "buildType":  "app-bundle"
                                                  },
-                                     "env":  {
-                                                 "EXPO_PUBLIC_APP_ENV":  "production",
-                                                 "ZIYAMART_EAS_LIFECYCLE_CHECK":  "1"
-                                             }
+                                     "env": {
+                                            "EXPO_PUBLIC_APP_ENV": "production",
+                                            "EXPO_PUBLIC_API_URL": "https://ziyamart.in/api/v1",
+                                            "ZIYAMART_EAS_LIFECYCLE_CHECK": "1"
+                                        }
                                  }
               },
     "submit":  {
