@@ -11,6 +11,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "legal_business_name",
         "user",
         "business_category",
+        "business_segment",
         "status",
         "commission_percent",
         "payouts_enabled",
@@ -18,7 +19,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "ai_images_used",
         "created_at",
     )
-    list_filter = ("status",)
+    list_filter = ("status", "business_segment")
     search_fields = ("store_name", "legal_business_name", "gstin", "user__username", "user__email")
     list_editable = ("status", "commission_percent", "payouts_enabled")
 

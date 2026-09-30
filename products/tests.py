@@ -121,6 +121,22 @@ class ProductStorefrontReadinessTests(TestCase):
         self.assertNotContains(response, pending.name)
         self.assertNotContains(response, out_of_stock.name)
 
+    def test_detail_opens_with_available_variant_selected_and_all_sizes_visible(self):
+        self.variant.stock = 0
+        self.variant.save(update_fields=["stock"])
+        color = ProductColor.objects.create(product=self.product, name="Blue")
+        available = ProductVariant.objects.create(
+            product=self.product, color=color, size="L", stock=3, price=Decimal("150.00"),
+        )
+        response = self.client.get(reverse("product_detail_page", args=[self.product.slug]))
+        self.assertEqual(response.context["default_variant"], available)
+        self.assertContains(response, f'id="selectedVariant" value="{available.pk}"')
+        self.assertContains(response, "3 in stock")
+        self.assertContains(response, "Black · M · Sold out")
+        self.assertContains(response, "Blue · L")
+        self.assertNotContains(response, 'style="display:none;"')
+        self.assertContains(response, f"₹{available.customer_price_with_tax}")
+
     def test_pending_product_is_hidden_from_detail_list_api_and_related_products(self):
         pending = self._create_product("Pending Launch Item", moderation_status="pending")
 

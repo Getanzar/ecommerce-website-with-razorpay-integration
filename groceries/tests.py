@@ -20,7 +20,7 @@ class GroceryMarketplaceTests(TestCase):
     def setUp(self):
         self.customer = User.objects.create_user("grocery-customer", password="test-password")
         self.owner = User.objects.create_user("kirana-owner", password="test-password")
-        seller = SellerProfile.objects.create(user=self.owner, store_name="Local Kirana", business_category="Kirana Store", status="approved", commission_percent=10)
+        seller = SellerProfile.objects.create(user=self.owner, store_name="Local Kirana", business_segment="grocery", business_category="Kirana Store", status="approved", commission_percent=10)
         self.area = GroceryServiceArea.objects.create(pincode="243638", city="Sahaswan", delivery_mode="local")
         self.store = GroceryStore.objects.create(seller=seller, name="Local Kirana", address="Main Market", pincode="243638", latitude="28.073100", longitude="78.750200", gps_accuracy_meters=15, phone="9999999999", delivery_fee=20)
         self.store.service_areas.add(self.area)
@@ -119,7 +119,7 @@ class GroceryMarketplaceTests(TestCase):
 
     def test_cart_rejects_products_from_another_store(self):
         other_owner = User.objects.create_user("other-kirana")
-        seller = SellerProfile.objects.create(user=other_owner, store_name="Other Store", business_category="Grocery", status="approved")
+        seller = SellerProfile.objects.create(user=other_owner, store_name="Other Store", business_segment="grocery", business_category="Grocery", status="approved")
         other_store = GroceryStore.objects.create(seller=seller, name="Other Store", address="Other", pincode="243638", latitude="28.073200", longitude="78.750300", gps_accuracy_meters=20, phone="8888888888")
         other_store.service_areas.add(self.area)
         other_product = GroceryProduct.objects.create(store=other_store, category=self.product.category, name="Rice", unit="1 kg", mrp=80, price=70, stock=5)

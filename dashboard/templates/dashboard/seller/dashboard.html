@@ -8,7 +8,7 @@
         <h1 class="h3 mb-1">{{ seller.store_name }}</h1>
         <p class="text-muted mb-0">Seller dashboard</p>
     </div>
-    {% if "food" in seller.business_category|lower or "restaurant" in seller.business_category|lower %}<a class="btn btn-primary" href="{% url 'food_seller_add_item' %}">Add menu item</a>{% else %}<a class="btn btn-primary" href="{% url 'seller_add_product' %}">Add product</a>{% endif %}
+    {% if seller.business_segment == "food" %}<a class="btn btn-primary" href="{% url 'food_seller_add_item' %}">Add menu item</a>{% else %}<a class="btn btn-primary" href="{% url 'seller_add_product' %}">Add product</a>{% endif %}
 </div>
 <div class="row g-3 mb-4">
     <div class="col-md-6"><div class="card border-primary"><div class="card-body"><small class="text-muted">Next payouts</small><div class="h3 mb-1">₹{{ available_balance }}</div><a href="{% url 'seller_payouts' %}">View settlement details</a></div></div></div>

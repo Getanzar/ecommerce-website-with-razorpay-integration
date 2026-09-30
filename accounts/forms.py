@@ -218,6 +218,7 @@ class SellerApplicationForm(RequiredGPSMixin, forms.ModelForm):
             "store_name",
             "legal_business_name",
             "business_category",
+            "business_segment",
             "business_phone",
             "business_address",
             "business_pincode",
@@ -235,6 +236,7 @@ class SellerApplicationForm(RequiredGPSMixin, forms.ModelForm):
             "business_category": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. Clothing, Food, Home decor"}
             ),
+            "business_segment": forms.Select(attrs={"class": "form-select"}),
             "business_phone": forms.TextInput(attrs={"class": "form-control"}),
             "business_address": forms.Textarea(
                 attrs={"class": "form-control", "rows": 4}

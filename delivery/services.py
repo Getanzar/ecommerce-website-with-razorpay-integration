@@ -13,6 +13,8 @@ from .models import DeliveryEarning, LocalDelivery
 
 def ensure_grocery_delivery(order):
     """Create an agent job only for local grocery orders; parcel orders are rejected."""
+    if order.status != "ready" or (order.payment_method != "cod" and order.payment_status != "Paid"):
+        return None
     if order.delivery_mode != "local":
         return None
     if None in (order.store.latitude, order.store.longitude, order.latitude, order.longitude):
@@ -46,6 +48,8 @@ def ensure_grocery_delivery(order):
 
 
 def ensure_food_delivery(order):
+    if order.status != "ready" or (order.payment_method != "cod" and order.payment_status != "Paid"):
+        return None
     if None in (order.restaurant.latitude, order.restaurant.longitude, order.latitude, order.longitude):
         return None
     if order.restaurant.pincode != order.pincode or not order.restaurant.service_areas.filter(pincode=order.pincode, is_active=True).exists():
@@ -73,6 +77,8 @@ def ensure_food_delivery(order):
 
 def ensure_parcel_deliveries(order, delivery_charges):
     deliveries = []
+    if order.status in {"Cancelled", "Returned"} or (order.payment_method != "cod" and order.payment_status != "Paid"):
+        return deliveries
     for charge in delivery_charges:
         if charge.provider != "local":
             continue

@@ -195,7 +195,11 @@ def _sync_order_payment(payment, paid):
         order.status = "cancelled"
         order.save(update_fields=["status", "updated_at"])
     if paid:
+        from mobile_api.notifications import notify_sellers_of_order
+        notify_sellers_of_order(order)
         if payment.channel_name == "parcel":
+            from mobile_api.checkout_delivery import dispatch_local_parcel
+            dispatch_local_parcel(order)
             from orders.settlements import create_settlements_for_order
             create_settlements_for_order(order)
         elif payment.channel_name == "food":

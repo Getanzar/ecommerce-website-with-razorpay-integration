@@ -144,6 +144,45 @@ class Product(models.Model):
         default="shirt"
     )
 
+    # -------------------------------------------------
+    # Audience / Kids Wear Filtering
+    # -------------------------------------------------
+
+    GENDER_CHOICES = [
+        ("male", "Male"),
+        ("female", "Female"),
+        ("unisex", "Unisex"),
+    ]
+
+    KIDS_AGE_GROUP_CHOICES = [
+        ("0-1", "0 - 1 Year"),
+        ("1-2", "1 - 2 Years"),
+        ("2-4", "2 - 4 Years"),
+        ("4-6", "4 - 6 Years"),
+        ("6-8", "6 - 8 Years"),
+        ("8-10", "8 - 10 Years"),
+        ("10-12", "10 - 12 Years"),
+        ("12-14", "12 - 14 Years"),
+    ]
+
+    gender = models.CharField(
+        max_length=10,
+        choices=GENDER_CHOICES,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Target gender. Useful for fashion and kids products.",
+    )
+
+    kids_age_group = models.CharField(
+        max_length=10,
+        choices=KIDS_AGE_GROUP_CHOICES,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Age group for kids products. Leave blank for non-kids products.",
+    )
+
     # Legacy sizes (will be replaced by ProductVariant later)
     available_sizes = models.JSONField(
         default=list,

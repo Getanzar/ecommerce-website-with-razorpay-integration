@@ -38,6 +38,58 @@ private_media/
 Thumbs.db
 
 # Mobile projects - kept separately
-mobile_app/
-mobile_api/
 .ui_review.sqlite3
+
+# ============================================
+# ZIYAMART MOBILE APP
+# Keep source code, ignore generated/secrets
+# ============================================
+
+mobile_app/node_modules/
+mobile_app/.expo/
+mobile_app/.env
+mobile_app/.env.*
+!mobile_app/.env.example
+
+mobile_app/dist/
+mobile_app/dist-*/
+mobile_app/build/
+mobile_app/.eas/
+
+# Native/generated build files
+mobile_app/android/.gradle/
+mobile_app/android/app/build/
+mobile_app/ios/Pods/
+
+# ============================================
+# MOBILE API
+# ============================================
+
+mobile_api/__pycache__/
+mobile_api/**/__pycache__/
+mobile_api/*.pyc
+mobile_api/**/*.pyc
+
+# Never commit local secrets/databases
+mobile_api/.env
+mobile_api/.env.*
+mobile_api/*.sqlite3
+mobile_api/*.db
+
+# Expo development QR screenshots
+mobile_app/*qr*.png
+# Local database/data backups - never commit
+backup.json
+backup_before_dashboard.json
+backup_utf8.json
+sqlite_backup.json
+
+# Local database/data backups - never commit
+backup.json
+backup_before_dashboard.json
+backup_utf8.json
+sqlite_backup.json
+
+# Local security/payment audit reports
+payment_files_audit.txt
+razorpay_audit.txt

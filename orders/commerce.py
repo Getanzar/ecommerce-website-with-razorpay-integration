@@ -167,6 +167,8 @@ def finalize_parcel_transaction(payment, provider_payment_id=""):
         from .settlements import create_settlements_for_order
         create_settlements_for_order(order)
     transaction.on_commit(lambda: _start_fulfilment(order.pk, [charge.pk for charge in charges]))
+    from mobile_api.notifications import notify_sellers_of_order
+    notify_sellers_of_order(order)
     return order
 
 
@@ -261,33 +263,115 @@ def payment_success(request):
     provider_payment_id = request.POST.get("razorpay_payment_id", "")
     signature = request.POST.get("razorpay_signature", "")
     payment = None
+
     try:
-        razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)).utility.verify_payment_signature({
+        # Step 1: Verify that the callback data has a valid Razorpay signature.
+        razorpay.Client(
+            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+        ).utility.verify_payment_signature({
             "razorpay_order_id": provider_order_id,
             "razorpay_payment_id": provider_payment_id,
             "razorpay_signature": signature,
         })
+
+        # Step 2: Match the Razorpay order to this user's checkout transaction.
         payment = PaymentTransaction.objects.get(
-            provider="razorpay", provider_order_id=provider_order_id, user=request.user,
+            provider="razorpay",
+            provider_order_id=provider_order_id,
+            user=request.user,
         )
-        order = finalize_parcel_transaction(payment, provider_payment_id)
+
+        # Step 3: Ask Razorpay directly for the authoritative payment state.
+        client = razorpay.Client(
+            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+        )
+        provider_payment = client.payment.fetch(provider_payment_id)
+
+        # Do NOT treat these validation failures as captured payments.
+        # They must not enter the automatic-refund branch below.
+        if provider_payment.get("status") != "captured":
+            return HttpResponseBadRequest(
+                "Payment has not been captured by Razorpay."
+            )
+
+        if provider_payment.get("order_id") != payment.provider_order_id:
+            return HttpResponseBadRequest(
+                "Razorpay payment does not belong to this order."
+            )
+
+        expected_amount = int(payment.amount * 100)
+        if provider_payment.get("amount") != expected_amount:
+            return HttpResponseBadRequest(
+                "Razorpay payment amount does not match the checkout total."
+            )
+
+        if provider_payment.get("currency") != "INR":
+            return HttpResponseBadRequest(
+                "Unexpected Razorpay payment currency."
+            )
+
+        # Step 4: Razorpay has confirmed that the correct payment was captured.
+        # Now it is safe to create/finalize the ZIYAMART order.
+        order = finalize_parcel_transaction(
+            payment,
+            provider_payment_id,
+        )
+
     except (ValueError, ProductVariant.DoesNotExist) as exc:
+        # We reach this branch only when Razorpay payment verification above
+        # succeeded, but local order finalization failed.
         if payment is not None:
             payment.provider_payment_id = provider_payment_id
             payment.status = "captured"
             payment.captured_at = timezone.now()
-            payment.save(update_fields=["provider_payment_id", "status", "captured_at", "updated_at"])
+            payment.save(
+                update_fields=[
+                    "provider_payment_id",
+                    "status",
+                    "captured_at",
+                    "updated_at",
+                ]
+            )
+
             try:
                 from payments.services import request_payment_refund
-                request_payment_refund(payment, payment.amount, f"Parcel checkout failed: {str(exc)[:180]}")
+
+                request_payment_refund(
+                    payment,
+                    payment.amount,
+                    f"Parcel checkout failed: {str(exc)[:180]}",
+                )
             except Exception:
-                payment.failure_reason = f"Automatic refund requires review: {str(exc)[:700]}"
-                payment.save(update_fields=["failure_reason", "updated_at"])
-        return HttpResponseBadRequest("Payment was captured but the order could not be completed; an automatic refund was requested.")
-    except (razorpay.errors.SignatureVerificationError, PaymentTransaction.DoesNotExist):
-        return HttpResponseBadRequest("Payment could not be safely matched to this checkout.")
+                payment.failure_reason = (
+                    "Automatic refund requires review: "
+                    f"{str(exc)[:700]}"
+                )
+                payment.save(
+                    update_fields=[
+                        "failure_reason",
+                        "updated_at",
+                    ]
+                )
+
+        return HttpResponseBadRequest(
+            "Payment was captured but the order could not be completed; "
+            "an automatic refund was requested."
+        )
+
+    except (
+        razorpay.errors.SignatureVerificationError,
+        PaymentTransaction.DoesNotExist,
+    ):
+        return HttpResponseBadRequest(
+            "Payment could not be safely matched to this checkout."
+        )
+
     Cart(request).clear()
-    return redirect("order_success", order_id=order.pk)
+
+    return redirect(
+        "order_success",
+        order_id=order.pk,
+    )
 
 
 @login_required

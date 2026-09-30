@@ -254,12 +254,22 @@ class ParcelCheckoutWorkflowTests(TestCase):
     @patch("orders.commerce.razorpay.Client")
     def test_parcel_online_payment_verifies_and_finalizes_once(self, razorpay_client):
         razorpay_client.return_value.order.create.return_value = {"id": "order_parcel_test_1"}
+
         checkout_response = self.client.post(
             reverse("checkout"), self._checkout_data("online"),
         )
         self.assertEqual(checkout_response.status_code, 200)
         payment = PaymentTransaction.objects.get(provider_order_id="order_parcel_test_1")
         self.assertIsNone(payment.parcel_order_id)
+
+        razorpay_client.return_value.payment.fetch.return_value = {
+            "id": "pay_parcel_test_1",
+            "order_id": "order_parcel_test_1",
+            "status": "captured",
+            "amount": int(payment.amount * 100),
+            "currency": "INR",
+        }
+
 
         response = self.client.post(reverse("payment_success"), {
             "razorpay_order_id": "order_parcel_test_1",

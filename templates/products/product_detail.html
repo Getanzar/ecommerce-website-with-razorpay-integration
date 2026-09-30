@@ -51,22 +51,10 @@
 
 <div class="d-flex flex-column gap-2">
 
-{% if product.image %}
+{% for image_url in gallery_images %}
 
 <img
-src="{{ product.image.url }}"
-class="thumb-image product-thumb img-thumbnail active-thumb"
-alt="View main image of {{ product.name }}"
-role="button"
-tabindex="0"
-loading="lazy">
-
-{% endif %}
-
-{% for img in extra_images %}
-
-<img
-src="{{ img.image.url }}"
+src="{{ image_url }}"
 class="thumb-image product-thumb img-thumbnail"
 alt="View another image of {{ product.name }}"
 role="button"
@@ -85,11 +73,11 @@ loading="lazy">
 
 <div class="border rounded-4 overflow-hidden">
 
-{% if product.image %}
+{% if default_image %}
 
 <img
 id="mainImage"
-src="{{ product.image.url }}"
+src="{{ default_image }}"
 class="img-fluid w-100 product-main-image"
 fetchpriority="high"
 alt="{{ product.name }}">
@@ -155,7 +143,7 @@ alt="Image coming soon for {{ product.name }}">
 id="productPrice"
 class="fw-bold mb-4">
 
-₹{{ starting_price }}
+₹{% if default_variant %}{{ default_variant.customer_price_with_tax }}{% else %}{{ starting_price }}{% endif %}
 
 </h2>
 
@@ -163,7 +151,7 @@ class="fw-bold mb-4">
 
 <p class="text-muted">
 
-{{ product.description|truncatewords:35 }}
+{{ product.description }}
 
 </p>
 
@@ -223,17 +211,17 @@ Choose Color
 
 </h5>
 
-<div class="d-flex gap-3 mb-4">
+<div class="d-flex flex-wrap gap-3 mb-4">
 
 {% for color in colors %}
 
 <button
 type="button"
-class="color-btn product-color border border-2 rounded-circle"
+class="color-btn product-color border border-2 rounded-circle{% if color.id == default_variant.color_id %} border-dark{% endif %}"
 
 data-color="{{ color.id }}"
 aria-label="Select {{ color.name }} color"
-aria-pressed="false"
+aria-pressed="{% if color.id == default_variant.color_id %}true{% else %}false{% endif %}"
 title="{{ color.name }}"
 
 {% if color.image %}
@@ -269,14 +257,15 @@ class="d-flex flex-wrap gap-2 mb-4">
 
 <button
 type="button"
-class="btn btn-outline-dark size-btn"
+class="btn btn-outline-dark size-btn{% if variant.id == default_variant.id %} active{% endif %}"
 
 data-color="{{ variant.color.id }}"
+data-size="{{ variant.size }}"
 data-variant="{{ variant.id }}"
 data-stock="{{ variant.stock }}"
 data-price="{{ variant.customer_price_with_tax }}"
 aria-label="Select size {{ variant.size }}{% if variant.stock <= 0 %}, out of stock{% endif %}"
-aria-pressed="false"
+aria-pressed="{% if variant.id == default_variant.id %}true{% else %}false{% endif %}"
 
 {% if variant.image %}
 data-image="{{ variant.image.url }}"
@@ -286,9 +275,9 @@ data-image="{{ variant.color.image.url }}"
 
 {% if variant.stock <= 0 %}disabled aria-disabled="true"{% endif %}
 
-style="display:none;">
+>
 
-{{ variant.size }}
+{{ variant.color.name }} · {{ variant.size }}{% if variant.stock <= 0 %} · Sold out{% endif %}
 
 </button>
 
@@ -304,9 +293,9 @@ style="display:none;">
 
 <span
 id="stockBadge"
-class="badge {% if has_stock %}bg-secondary{% else %}bg-danger{% endif %} fs-6">
+class="badge {% if has_stock %}bg-success{% else %}bg-danger{% endif %} fs-6">
 
-{% if has_stock %}Select a color{% else %}Out of Stock{% endif %}
+{% if has_stock %}{{ default_variant.stock }} in stock{% else %}Out of Stock{% endif %}
 
 </span>
 
@@ -332,11 +321,11 @@ id="cartForm">
 <input
 type="hidden"
 name="variant_id"
-id="selectedVariant">
+id="selectedVariant" value="{{ default_variant.id|default:'' }}">
 
 <button type="submit" id="cartButton"
 class="btn {% if has_stock %}btn-dark{% else %}btn-secondary{% endif %} btn-lg w-100"
-disabled aria-disabled="true">
+{% if not has_stock %}disabled{% endif %} aria-disabled="{{ has_stock|yesno:'false,true' }}">
 {% if has_stock %}🛒 Add to Cart{% else %}Out of Stock{% endif %}
 </button>
 
@@ -691,7 +680,7 @@ img.classList.toggle("active-thumb",active);
 img.setAttribute("aria-pressed",String(active));
 });
 }
-showProductImage(thumbnails[0]?.src);
+showProductImage(mainImage.src);
 
 document.querySelectorAll(".thumb-image").forEach(img=>{
 
@@ -731,6 +720,15 @@ colors.forEach(btn=>{
 
 btn.onclick=function(){
 
+const previousSize=[...sizes].find(size=>size.dataset.variant===variant.value)?.dataset.size;
+const matchingSizes=[...sizes].filter(size=>size.dataset.color===this.dataset.color);
+const nextSize=matchingSizes.find(size=>size.dataset.size===previousSize && parseInt(size.dataset.stock)>0)
+  || matchingSizes.find(size=>parseInt(size.dataset.stock)>0);
+if(nextSize){
+nextSize.click();
+return;
+}
+
 colors.forEach(c=>c.classList.remove("border-dark"));
 colors.forEach(c=>c.setAttribute("aria-pressed","false"));
 
@@ -759,7 +757,7 @@ sizes.forEach(size=>{
 
 size.classList.remove("active");
 
-size.style.display=size.dataset.color===activeColor?"inline-block":"none";
+size.setAttribute("aria-pressed","false");
 
 });
 
@@ -770,6 +768,13 @@ size.style.display=size.dataset.color===activeColor?"inline-block":"none";
 sizes.forEach(btn=>{
 
 btn.onclick=function(){
+
+activeColor=this.dataset.color;
+colors.forEach(color=>{
+const selected=color.dataset.color===activeColor;
+color.classList.toggle("border-dark",selected);
+color.setAttribute("aria-pressed",String(selected));
+});
 
 sizes.forEach(b=>b.classList.remove("active"));
 sizes.forEach(b=>b.setAttribute("aria-pressed","false"));
@@ -826,13 +831,6 @@ alert("Please select a color and size.");
 }
 
 });
-
-if(colors.length && productHasStock){
-const firstAvailableColor=[...colors].find(color=>
-  [...sizes].some(size=>size.dataset.color===color.dataset.color && parseInt(size.dataset.stock)>0)
-);
-(firstAvailableColor || colors[0]).click();
-}
 
 });
 

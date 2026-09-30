@@ -97,12 +97,21 @@ def _approved_seller_for(request):
     return seller
 
 
+def _merchandise_seller_for(request):
+    seller = _approved_seller_for(request)
+    if seller.business_segment != "shop":
+        raise PermissionDenied("Merchandise tools are not enabled for this selling segment.")
+    return seller
+
+
 @login_required
 def seller_dashboard(request):
     seller = _approved_seller_for(request)
-    if any(word in seller.business_category.lower() for word in ("grocery", "kirana", "supermarket")):
+    if seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+        raise PermissionDenied("Your selling segment needs review. Please contact support.")
+    if seller.business_segment == "grocery":
         return redirect("grocery_seller_dashboard")
-    if "food" in seller.business_category.lower() or "restaurant" in seller.business_category.lower():
+    if seller.business_segment == "food":
         from food.models import Restaurant, FoodSellerSettlement
         restaurant = Restaurant.objects.filter(seller=seller).first()
         food_orders = restaurant.orders.prefetch_related("items") if restaurant else Order.objects.none()
@@ -147,7 +156,7 @@ def seller_dashboard(request):
 
 @login_required
 def seller_products(request):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     products = Product.objects.filter(seller=seller).order_by("-created")
     return render(
         request,
@@ -158,7 +167,7 @@ def seller_products(request):
 
 @login_required
 def seller_edit_product(request, product_id):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     product = get_object_or_404(Product, id=product_id, seller=seller)
     form = SellerProductEditForm(request.POST or None, request.FILES or None, instance=product)
     if request.method == "POST" and form.is_valid():
@@ -174,7 +183,7 @@ def seller_edit_product(request, product_id):
 
 @login_required
 def seller_inventory(request, product_id):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     product = get_object_or_404(Product, id=product_id, seller=seller)
     VariantFormSet = modelformset_factory(ProductVariant, form=SellerVariantStockForm, extra=0)
     queryset = product.variants.select_related("color")
@@ -191,7 +200,7 @@ def seller_inventory(request, product_id):
 @require_POST
 @login_required
 def seller_toggle_product(request, product_id):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     product = get_object_or_404(Product, id=product_id, seller=seller)
     if product.moderation_status != Product.MODERATION_APPROVED:
         messages.error(request, "Only approved products can be made live.")
@@ -204,7 +213,7 @@ def seller_toggle_product(request, product_id):
 
 @login_required
 def seller_orders(request):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     order_items = (
         OrderItem.objects.filter(product__seller=seller)
         .select_related("order", "product", "variant")
@@ -220,7 +229,7 @@ def seller_orders(request):
 @require_POST
 @login_required
 def seller_update_order_item(request, item_id):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     item = get_object_or_404(OrderItem.objects.select_related("order"), id=item_id, product__seller=seller)
     new_status = request.POST.get("status", "")
     transitions = {
@@ -291,10 +300,11 @@ def seller_read_notifications(request):
 def seller_add_product(request):
     seller = _approved_seller_for(request)
 
-    seller_category = seller.business_category.lower()
-    if any(word in seller_category for word in ("grocery", "kirana", "supermarket")):
+    if seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+        raise PermissionDenied("Your selling segment needs review. Please contact support.")
+    if seller.business_segment == "grocery":
         return redirect("grocery_seller_add_product")
-    if "food" in seller_category or "restaurant" in seller_category:
+    if seller.business_segment == "food":
         return redirect("food_seller_add_item")
 
     if request.method == "POST":
@@ -476,7 +486,7 @@ def _matching_subcategory(parent_category, name):
 
 @login_required
 def seller_catalog_requests(request):
-    seller = _approved_seller_for(request)
+    seller = _merchandise_seller_for(request)
     if request.method == "POST":
         is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
         request_type = request.POST.get("request_type", "").strip()
@@ -763,6 +773,9 @@ def update_seller_status(request, seller_id):
         return redirect("sellers_management")
 
     old_status = seller.status
+    if new_status == "approved" and seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+        messages.error(request, "Select a valid selling segment in Django admin before approving this seller.")
+        return redirect("sellers_management")
     seller.status = new_status
     seller.save(update_fields=["status", "updated_at"])
     audit(request, "seller.status", seller, f"Seller {seller.store_name}: {old_status} → {new_status}")

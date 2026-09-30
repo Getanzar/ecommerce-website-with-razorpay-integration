@@ -175,12 +175,23 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # DRF (optional)
+CACHE_TABLE = os.getenv("DJANGO_CACHE_TABLE", "").strip()
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache" if CACHE_TABLE else "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": CACHE_TABLE or "ziyamart-local",
+    }
+}
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'mobile_api.authentication.DeviceAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    # Trust REMOTE_ADDR by default. Only change after configuring a trusted
+    # reverse proxy to strip client-supplied forwarded headers.
+    'NUM_PROXIES': int(os.getenv('DJANGO_TRUSTED_PROXY_COUNT', '0')),
 }
 
 # Stripe (optional checkout)

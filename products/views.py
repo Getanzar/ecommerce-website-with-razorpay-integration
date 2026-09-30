@@ -249,6 +249,18 @@ def product_detail_page(request, slug):
         .order_by("color__display_order", "size")
     )
     in_stock_variants = [variant for variant in variants if variant.stock > 0]
+    default_variant = next(iter(in_stock_variants), next(iter(variants), None))
+    default_image = (
+        (default_variant.image or default_variant.color.image)
+        if default_variant else None
+    ) or product.image
+    gallery_images = list(dict.fromkeys(
+        image.url
+        for image in [product.image, *(row.image for row in extra_images),
+                      *(variant.color.image for variant in variants),
+                      *(variant.image for variant in variants)]
+        if image
+    ))
     has_stock = bool(in_stock_variants)
     starting_price = min(
         (variant.customer_price_with_tax for variant in in_stock_variants),
@@ -322,6 +334,9 @@ def product_detail_page(request, slug):
     context = {
         "product": product,
         "extra_images": extra_images,
+        "gallery_images": gallery_images,
+        "default_variant": default_variant,
+        "default_image": default_image.url if default_image else next(iter(gallery_images), ""),
         "colors": colors,
         "variants": variants,
         "has_stock": has_stock,

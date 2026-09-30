@@ -20,8 +20,7 @@ def _restaurant_seller(request):
     seller = getattr(request.user, "seller_profile", None)
     if not seller or not seller.is_approved:
         raise Http404
-    category = seller.business_category.lower()
-    if "food" not in category and "restaurant" not in category:
+    if seller.business_segment != "food":
         raise Http404
     return seller
 
@@ -140,6 +139,8 @@ def checkout(request):
             )
             create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()
+            from mobile_api.notifications import notify_sellers_of_order
+            notify_sellers_of_order(order)
             if order.payment_method == "online":
                 return render(request, "food/payment.html", {"order": order, "razorpay_key_id": settings.RAZORPAY_KEY_ID})
             return redirect("food_order_success", order_id=order.pk)
@@ -241,13 +242,9 @@ def seller_add_menu_item(request):
         item.restaurant = restaurant
         item.save()
         formset.instance = item
-        options = formset.save()
-        if not options:
-            transaction.set_rollback(True)
-            form.add_error(None, "Add at least one size and price.")
-        else:
-            messages.success(request, "Menu item added.")
-            return redirect("food_seller_menu")
+        formset.save()
+        messages.success(request, "Menu item added.")
+        return redirect("food_seller_menu")
     return render(request, "food/seller/menu_item_form.html", {"form": form, "formset": formset})
 
 

@@ -16,8 +16,7 @@ from .models import GroceryCategory, GroceryOrder, GroceryOrderItem, GroceryProd
 
 def _kirana_seller(request):
     seller = getattr(request.user, "seller_profile", None)
-    category = seller.business_category.lower() if seller else ""
-    if not seller or not seller.is_approved or not any(word in category for word in ("grocery", "kirana", "supermarket")):
+    if not seller or not seller.is_approved or seller.business_segment != "grocery":
         raise PermissionDenied
     return seller
 
@@ -147,6 +146,8 @@ def checkout(request):
             create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, store.delivery_fee)
             create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()
+            from mobile_api.notifications import notify_sellers_of_order
+            notify_sellers_of_order(order)
             from .emails import send_grocery_order_email
             send_grocery_order_email(order)
             if order.payment_method == "online":

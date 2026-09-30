@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from django.core.exceptions import ValidationError
 
 
 class UserProfile(models.Model):
@@ -74,6 +75,11 @@ class SellerProfile(models.Model):
     store_name = models.CharField(max_length=150, unique=True)
     legal_business_name = models.CharField(max_length=150, blank=True)
     business_category = models.CharField(max_length=100, blank=True)
+    BUSINESS_SEGMENTS = [("shop", "Merchandise"), ("food", "Food / restaurant"), ("grocery", "Grocery / kirana")]
+    business_segment = models.CharField(
+        max_length=10, choices=BUSINESS_SEGMENTS, blank=True, default="",
+        help_text="Select the approved selling segment. Blank legacy records require review; category descriptions never grant access.",
+    )
     business_phone = models.CharField(max_length=20, blank=True)
     business_address = models.TextField(blank=True)
     business_pincode = models.CharField(max_length=6, blank=True)
@@ -120,6 +126,11 @@ class SellerProfile(models.Model):
     class Meta:
         ordering = ["store_name"]
 
+    def clean(self):
+        super().clean()
+        if self.status == "approved" and self.business_segment not in dict(self.BUSINESS_SEGMENTS):
+            raise ValidationError({"business_segment": "Select a selling segment before approving this seller."})
+
     @property
     def is_approved(self):
         return self.status == "approved"
@@ -130,6 +141,7 @@ class SellerProfile(models.Model):
             [
                 self.legal_business_name,
                 self.business_category,
+                self.business_segment in dict(self.BUSINESS_SEGMENTS),
                 self.business_pincode,
                 self.business_latitude is not None,
                 self.business_longitude is not None,

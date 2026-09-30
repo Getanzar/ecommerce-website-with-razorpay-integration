@@ -131,6 +131,13 @@ stays on hold until its carrier charge is reconciled.
 
 ## Storefront launch safeguards
 
+The backend now targets Django 5.2.17 LTS. CI covers Python 3.12 (the
+production runtime series) and 3.13 (the local development series). Install
+the pinned requirements in a fresh deployment environment. Before deployment,
+run the full test suite and migrations on a staging PostgreSQL database and
+verify admin, Cloudinary uploads and static assets. Local SQLite success does
+not replace staging or production-provider verification.
+
 Customer-facing catalog, API, wishlist, cart, and checkout paths expose only
 active, admin-approved products from approved sellers. Availability comes from
 active variant stock rather than the legacy product stock field. Product and

@@ -1,0 +1,39 @@
+{
+    "cli":  {
+                "version":  "\u003e= 16.0.0",
+                "appVersionSource":  "remote"
+            },
+    "build":  {
+                  "development":  {
+                                      "developmentClient":  true,
+                                      "distribution":  "internal",
+                                      "env":  {
+                                                  "ZIYAMART_EAS_LIFECYCLE_CHECK":  "1"
+                                              }
+                                  },
+                  "preview":  {
+                                  "distribution":  "internal",
+                                  "android":  {
+                                                  "buildType":  "apk"
+                                              },
+                                  "env":  {
+                                              "ZIYAMART_EAS_LIFECYCLE_CHECK":  "1"
+                                          }
+                              },
+                  "production":  {
+                                     "autoIncrement":  true,
+                                     "android":  {
+                                                     "buildType":  "app-bundle"
+                                                 },
+                                     "env":  {
+                                                 "EXPO_PUBLIC_APP_ENV":  "production",
+                                                 "ZIYAMART_EAS_LIFECYCLE_CHECK":  "1"
+                                             }
+                                 }
+              },
+    "submit":  {
+                   "production":  {
+
+                                  }
+               }
+}

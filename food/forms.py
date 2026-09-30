@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import inlineformset_factory
+from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from .models import FoodOrder, MenuItem, MenuItemOption, MenuSection, Restaurant
 from delivery.forms import RequiredGPSMixin
@@ -24,8 +24,30 @@ class MenuItemForm(forms.ModelForm):
             self.fields["section"].queryset = restaurant.sections.all()
 
 
+class MenuOptionForm(forms.ModelForm):
+    price = forms.DecimalField(max_digits=8, decimal_places=2, min_value=0.01)
+
+    class Meta:
+        model = MenuItemOption
+        fields = ("name", "price", "is_available")
+
+
+class BaseMenuOptionFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        if not any(
+            form.cleaned_data.get("price") is not None
+            and not form.cleaned_data.get("DELETE", False)
+            for form in self.forms
+        ):
+            raise forms.ValidationError("Add at least one size and price.")
+
+
 MenuOptionFormSet = inlineformset_factory(
-    MenuItem, MenuItemOption, fields=("name", "price", "is_available"), extra=3, can_delete=True,
+    MenuItem, MenuItemOption, form=MenuOptionForm, formset=BaseMenuOptionFormSet,
+    fields=("name", "price", "is_available"), extra=3, can_delete=True,
     widgets={"price": forms.NumberInput(attrs={"min": "0.01", "step": "0.01"})},
 )
 
