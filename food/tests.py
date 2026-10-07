@@ -197,6 +197,10 @@ class FoodOrderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         order = FoodOrder.objects.get()
         self.assertEqual(order.razorpay_order_id, "order_food_test_1")
+        razorpay_client.return_value.payment.fetch.return_value = {
+            "status": "captured", "order_id": order.razorpay_order_id,
+            "amount": int(order.total * 100), "currency": "INR",
+        }
 
         response = self.client.post(reverse("food_payment_confirm", args=[order.pk]), {
             "razorpay_order_id": "order_food_test_1",

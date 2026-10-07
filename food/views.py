@@ -166,7 +166,8 @@ def payment_confirm(request, order_id):
         capture_browser_payment(
             order, params["razorpay_order_id"], params["razorpay_payment_id"], params["razorpay_signature"],
         )
-    except (razorpay.errors.SignatureVerificationError, ValueError):
+    except (razorpay.errors.SignatureVerificationError, razorpay.errors.BadRequestError,
+            razorpay.errors.ServerError, ValueError):
         return HttpResponseBadRequest("Payment verification failed")
     order.payment_status = "Paid"
     order.razorpay_payment_id = params["razorpay_payment_id"]
