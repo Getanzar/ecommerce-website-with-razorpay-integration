@@ -227,6 +227,8 @@ def seller_application(request):
     existing_application = SellerProfile.objects.filter(user=request.user).first()
 
     if existing_application and existing_application.is_approved:
+        if existing_application.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+            return render(request, "accounts/seller_access.html", {"seller": existing_application})
         return redirect("seller_dashboard")
 
     if request.method == "POST":

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Seller profile | ZIYAMART{% endblock %}
+{% block content %}
+<div class="container py-5"><div class="row justify-content-center"><div class="col-lg-7"><div class="card shadow-sm"><div class="card-body p-4">
+<h1 class="h3">{{ seller.store_name }}</h1>
+<p>Your seller profile is already saved and approved.</p>
+<div class="alert alert-warning"><strong>Your selling segment needs to be assigned.</strong><p class="mb-0">Contact marketplace support to assign Merchandise, Food / restaurant, or Grocery / kirana to your existing profile. Your seller workspace will open after this is updated.</p></div>
+<dl class="row"><dt class="col-sm-4">Business category</dt><dd class="col-sm-8">{{ seller.business_category|default:'Not provided' }}</dd><dt class="col-sm-4">Operating address</dt><dd class="col-sm-8">{{ seller.business_address|default:'Not provided' }}</dd><dt class="col-sm-4">Pincode</dt><dd class="col-sm-8">{{ seller.business_pincode|default:'Not provided' }}</dd></dl>
+<p>You do not need to register another seller account. Your existing products and orders remain linked to this profile.</p>
+<a class="btn btn-outline-dark" href="{% url 'profile' %}">My account</a>
+</div></div></div></div></div>
+{% endblock %}

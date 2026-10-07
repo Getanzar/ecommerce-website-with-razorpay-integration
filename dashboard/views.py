@@ -106,9 +106,9 @@ def _merchandise_seller_for(request):
 
 @login_required
 def seller_dashboard(request):
-    seller = _approved_seller_for(request)
-    if seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
-        raise PermissionDenied("Your selling segment needs review. Please contact support.")
+    seller = SellerProfile.objects.filter(user=request.user).first()
+    if not seller or not seller.is_approved or seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+        return redirect("seller_application")
     if seller.business_segment == "grocery":
         return redirect("grocery_seller_dashboard")
     if seller.business_segment == "food":

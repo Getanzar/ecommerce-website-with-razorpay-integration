@@ -9,6 +9,7 @@
             <div class="card shadow-sm">
                 <div class="card-body p-4 p-md-5">
                     <h1 class="h3">Sell on ZIYAMART</h1>
+                    {% if seller and seller.status == "pending" %}<div class="alert alert-info">Your seller profile is saved and awaiting marketplace approval. You can review your details below. Your workspace opens after approval.</div>{% endif %}
                     <p class="text-muted">Provide your registered business and payout details. Your account number is never stored; only its last four digits are retained for review.</p>
                     <p class="small text-muted"><span class="text-danger" aria-hidden="true">*</span> All details are compulsory.</p>
                     {% if seller and seller.status == "suspended" %}<div class="alert alert-danger">Your seller account is suspended. Update your details and contact support.</div>{% endif %}
