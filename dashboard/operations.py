@@ -29,6 +29,8 @@ def _money_total(queryset, field):
 
 @operations_admin_required
 def operations_home(request):
+    from delivery.coverage import seller_coverage_rows
+    coverage = seller_coverage_rows()
     parcel_paid = Order.objects.filter(payment_status="Paid")
     food_paid = FoodOrder.objects.filter(payment_status="Paid")
     grocery_paid = GroceryOrder.objects.filter(payment_status="Paid")
@@ -36,6 +38,7 @@ def operations_home(request):
     pending_agents = DeliveryAgentProfile.objects.filter(status="pending")
     unassigned_jobs = LocalDelivery.objects.filter(status="available", agent__isnull=True)
     context = {
+        "coverage_gap_count": sum(not row["covered"] for row in coverage if row["seller"].status == "approved"),
         "total_orders": Order.objects.count() + FoodOrder.objects.count() + GroceryOrder.objects.count(),
         "total_revenue": _money_total(parcel_paid, "total_price") + _money_total(food_paid, "total") + _money_total(grocery_paid, "total"),
         "active_deliveries": LocalDelivery.objects.exclude(status__in=("delivered", "cancelled")).count(),
@@ -52,6 +55,26 @@ def operations_home(request):
         "recent_audit": AdminAuditLog.objects.select_related("actor")[:8],
     }
     return render(request, "dashboard/operations/home.html", context)
+
+
+@operations_admin_required
+def seller_coverage(request):
+    from delivery.coverage import seller_coverage_rows
+    query = request.GET.get("q", "").strip()
+    coverage_filter = request.GET.get("coverage", "")
+    rows = seller_coverage_rows()
+    if query:
+        rows = [row for row in rows if query.lower() in " ".join((
+            row["seller"].store_name, row["seller"].business_address, row["seller"].business_pincode,
+        )).lower()]
+    if coverage_filter == "missing":
+        rows = [row for row in rows if not row["covered"]]
+    elif coverage_filter == "online":
+        rows = [row for row in rows if row["covered"] and row["online"]]
+    return render(request, "dashboard/operations/coverage.html", {
+        "rows": Paginator(rows, 30).get_page(request.GET.get("page")),
+        "query": query, "coverage_filter": coverage_filter,
+    })
 
 
 @operations_admin_required
@@ -341,6 +364,82 @@ def mark_delivery_earning_paid(request, earning_id):
             messages.error(request, str(exc))
     return redirect("ops_payouts")
 
+@require_POST
+@operations_admin_required
+def submit_seller_settlement_payout(request, settlement_type, settlement_id):
+    settlement_models = {
+        "shop": SellerSettlement,
+        "food": FoodSellerSettlement,
+        "grocery": GrocerySellerSettlement,
+    }
+
+    model = settlement_models.get(settlement_type)
+
+    if model is None:
+        messages.error(request, "Invalid seller settlement type.")
+        return redirect("ops_payouts")
+
+    settlement = get_object_or_404(
+        model.objects.select_related("seller"),
+        pk=settlement_id,
+    )
+
+    try:
+        from accounts.seller_payouts import submit_seller_payout
+
+        provider = submit_seller_payout(settlement)
+
+        settlement.provider_payout_id = provider["id"]
+
+        if provider.get("status") == "processed":
+            settlement.status = "paid"
+            settlement.processed_at = timezone.now()
+        else:
+            settlement.status = "processing"
+            settlement.processed_at = None
+
+        settlement.failure_reason = ""
+
+        settlement.save(
+            update_fields=[
+                "provider_payout_id",
+                "status",
+                "processed_at",
+                "failure_reason",
+                "updated_at",
+            ]
+        )
+
+        audit(
+            request,
+            "seller_settlement.submitted",
+            settlement,
+            f"Submitted {settlement_type} seller settlement #{settlement.pk}",
+            seller_id=settlement.seller_id,
+            payout_amount=str(settlement.payout_amount),
+            provider_payout_id=settlement.provider_payout_id,
+        )
+
+        messages.success(
+            request,
+            "Seller payout submitted to RazorpayX.",
+        )
+
+    except Exception as exc:
+        settlement.status = "failed"
+        settlement.failure_reason = str(exc)[:1000]
+
+        settlement.save(
+            update_fields=[
+                "status",
+                "failure_reason",
+                "updated_at",
+            ]
+        )
+
+        messages.error(request, str(exc))
+
+    return redirect("ops_payouts")
 
 @require_POST
 @operations_admin_required

@@ -228,8 +228,8 @@ export type Order = {
   }[];
 };
 type Paginated<T> = { results?: T[] };
-let unauthorizedHandler: (() => void) | null = null;
-export const setUnauthorizedHandler = (handler: (() => void) | null) => { unauthorizedHandler = handler; };
+let unauthorizedHandler: ((token: string) => void) | null = null;
+export const setUnauthorizedHandler = (handler: ((token: string) => void) | null) => { unauthorizedHandler = handler; };
 
 export async function request<T>(
   path: string,
@@ -261,7 +261,7 @@ export async function request<T>(
       ? undefined
       : await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401 && token) unauthorizedHandler?.();
+    if (response.status === 401 && token) unauthorizedHandler?.(token);
     const error = new Error((data as any)?.message || (data as any)?.detail ||
       (Array.isArray(data) ? data.join(" ") : Object.entries(data || {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(" ") : value}`).join("\n")) || "Something went wrong.");
     (error as any).details = data;

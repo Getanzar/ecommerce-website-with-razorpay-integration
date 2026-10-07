@@ -24,6 +24,7 @@ from addresses.models import Address
 from cart.models import Cart, CartItem
 from products.catalog import in_stock_products, sellable_variants, with_storefront_variants
 from products.models import Category, Product, ProductVariant, Wishlist
+from products.kids_ages import matching_age_groups
 from food.models import FoodCartItem, FoodOrder, FoodOrderItem, MenuItem, MenuItemOption, Restaurant
 from groceries.models import GroceryCartItem, GroceryCategory, GroceryOrder, GroceryOrderItem, GroceryProduct, GroceryStore
 from orders.models import Order, OrderItem, OrderTimeline
@@ -313,7 +314,7 @@ class ProductListView(generics.ListAPIView):
             rows = rows.filter(gender=gender)
 
         if kids_age_group:
-            rows = rows.filter(kids_age_group=kids_age_group)
+            rows = rows.filter(kids_age_group__in=matching_age_groups(kids_age_group, Product.KIDS_AGE_GROUP_CHOICES))
         if seller:
             rows = rows.filter(seller_id=integer(seller, "seller")) if seller.isdigit() else rows.filter(seller__store_name__iexact=seller)
         if color: rows = rows.filter(variants__color__name__iexact=color)

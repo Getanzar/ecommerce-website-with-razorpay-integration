@@ -43,7 +43,7 @@ from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Count
 from django.db.models.functions import TruncMonth
 from django.core.exceptions import PermissionDenied
 from accounts.models import SellerAIPlanPurchase, SellerProfile
-from .forms import SellerProductEditForm, SellerProductForm, SellerVariantStockForm
+from .forms import ProductAudienceForm, SellerProductEditForm, SellerProductForm, SellerVariantStockForm
 from .ai_services import (
     AIListingError,
     enhance_product_image,
@@ -143,6 +143,7 @@ def seller_dashboard(request):
 
     context = {
         "seller": seller,
+        "order_alerts": request.user.notification_set.filter(title="New seller order", data__kind="shop")[:8],
         "product_count": products.count(),
         "live_product_count": products.filter(is_active=True).count(),
         "order_count": order_items.values("order_id").distinct().count(),
@@ -889,6 +890,12 @@ def delete_subcategory(request, id):
 @user_passes_test(lambda u: u.is_superuser, login_url="/admin/login/")
 def add_product(request):
 
+    audience_form = ProductAudienceForm(request.POST or None)
+    if request.method == "POST" and not audience_form.is_valid():
+        return render(request, "dashboard/add_product.html", {
+            "categories": Category.objects.all(), "subcategories": SubCategory.objects.all(),
+            "audience_form": audience_form,
+        }, status=400)
     categories = Category.objects.all().order_by("name")
 
     subcategories = (
@@ -906,6 +913,7 @@ def add_product(request):
             request,
             "dashboard/add_product.html",
             {
+                "audience_form": audience_form,
                 "categories": categories,
                 "subcategories": subcategories,
             },
@@ -1053,6 +1061,8 @@ def add_product(request):
         category=category,
         subcategory=subcategory,
         product_type=product_type,
+        gender=audience_form.cleaned_data["gender"],
+        kids_age_group=audience_form.cleaned_data["kids_age_group"],
         available_sizes=sizes,
         image=cover_image,
         is_active=True,
@@ -2065,6 +2075,12 @@ from django.utils.text import slugify
 def edit_product(request, id):
 
     product = get_object_or_404(Product, id=id)
+    audience_form = ProductAudienceForm(request.POST or None, instance=product)
+    if request.method == "POST" and not audience_form.is_valid():
+        return render(request, "dashboard/edit_product.html", {
+            "product": product, "categories": Category.objects.all(),
+            "subcategories": SubCategory.objects.all(), "audience_form": audience_form,
+        }, status=400)
 
     categories = Category.objects.all()
     subcategories = SubCategory.objects.all()
@@ -2094,6 +2110,8 @@ def edit_product(request, id):
             product.subcategory = None
 
         product.product_type = request.POST.get("product_type")
+        product.gender = audience_form.cleaned_data["gender"]
+        product.kids_age_group = audience_form.cleaned_data["kids_age_group"]
 
         # Only regenerate the slug if the product name changed
         if product.name != old_name:
@@ -2125,6 +2143,7 @@ def edit_product(request, id):
         "dashboard/edit_product.html",
         {
             "product": product,
+            "audience_form": audience_form,
             "categories": categories,
             "subcategories": subcategories,
         },

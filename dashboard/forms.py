@@ -4,7 +4,24 @@ from products.models import Product
 from products.models import ProductVariant
 
 
-class SellerProductForm(forms.ModelForm):
+class ProductAudienceMixin:
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get("category") or (self.instance.category if self.instance.category_id else None)
+        if category and category.slug == "kids-wear":
+            for field, label in (("gender", "gender"), ("kids_age_group", "age group")):
+                if not cleaned.get(field):
+                    self.add_error(field, f"Choose a {label} for Kids' Wear so customers can find this product.")
+        return cleaned
+
+
+class ProductAudienceForm(ProductAudienceMixin, forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ("category", "gender", "kids_age_group")
+
+
+class SellerProductForm(ProductAudienceMixin, forms.ModelForm):
     """The initial seller catalog form. Admin approval is required before listing."""
 
     back_image = forms.ImageField(
@@ -20,6 +37,8 @@ class SellerProductForm(forms.ModelForm):
         fields = (
             "category",
             "subcategory",
+            "gender",
+            "kids_age_group",
             "name",
             "description",
             "price",
@@ -70,11 +89,12 @@ class SellerProductForm(forms.ModelForm):
         return cleaned_data
 
 
-class SellerProductEditForm(forms.ModelForm):
+class SellerProductEditForm(ProductAudienceMixin, forms.ModelForm):
     class Meta:
         model = Product
         fields = (
             "name", "description", "price", "gst_rate", "package_weight_grams",
+            "gender", "kids_age_group",
             "package_length_cm", "package_width_cm", "package_height_cm", "image",
         )
         widgets = {

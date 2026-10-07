@@ -1,5 +1,12 @@
 # Launch progress and handoff
 
+Latest payment/carrier/rider audit: 6 October 2026. See `COMMERCE_LAUNCH.md`
+for the current blockers and rollout steps. Added authoritative website
+food/grocery capture verification, a guarded carrier booking command, and a
+read-only launch configuration check. Production rollout and physical acceptance
+remain incomplete; the earlier mobile carrier-booking gap now has a command
+but still needs scheduling and provider verification.
+
 Audit date: 28 September 2026. First implementation batch added on this date.
 
 Verified baseline: 185 backend tests passed on SQLite; 21 mobile tests passed;

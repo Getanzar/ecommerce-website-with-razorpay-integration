@@ -99,6 +99,22 @@ class CheckoutDeliveryTests(APITestCase):
         self.place("shop")
         self.assert_rider_can_claim()
 
+    @patch("mobile_api.checkout_delivery._dispatch_courier")
+    def test_mobile_dispatch_books_courier_after_commit(self, dispatch):
+        self.seed("shop")
+        with self.captureOnCommitCallbacks(execute=True):
+            order = self.place("shop")
+            dispatch.assert_not_called()
+        dispatch.assert_called_once_with(order.pk)
+
+    @patch("mobile_api.checkout_delivery._dispatch_courier")
+    @patch("payments.services.create_razorpay_order", return_value={"id": "order_courier_capture"})
+    def test_unpaid_mobile_order_does_not_dispatch_courier(self, provider, dispatch):
+        self.seed("shop")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.place("shop", "online")
+        dispatch.assert_not_called()
+
     def local_service_flow(self, kind, middle):
         self.seed(kind)
         order = self.place(kind)

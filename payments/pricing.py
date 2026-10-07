@@ -215,6 +215,7 @@ def build_grocery_pricing(rows, store):
 
 
 def build_parcel_pricing(items, destination, payment_method):
+    from delivery.coverage import has_local_coverage
     if not items:
         raise DeliveryQuoteError("Your cart no longer contains an available product.")
     line_rows = []
@@ -234,7 +235,7 @@ def build_parcel_pricing(items, destination, payment_method):
             else settings.DELHIVERY_ORIGIN_PINCODE
         )
         weight = chargeable_weight_grams(seller_items)
-        if seller and origin_pincode == destination["pincode"]:
+        if seller and origin_pincode == destination["pincode"] and has_local_coverage(origin_pincode):
             quote = quote_local_delivery(
                 seller.business_latitude, seller.business_longitude,
                 destination.get("latitude"), destination.get("longitude"),

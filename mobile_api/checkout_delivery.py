@@ -34,10 +34,19 @@ def save_delivery_records(order, quote):
 
 
 def dispatch_local_parcel(order):
-    """Local dispatch only. Carrier bookings remain a separate operation."""
+    """Dispatch persisted local and courier packages after the order commits."""
     if order.payment_method != "cod" and order.payment_status != "Paid":
         return
     if order.status in {"Cancelled", "Returned"}:
         return
+    from django.db import transaction
     from delivery.services import ensure_parcel_deliveries
     ensure_parcel_deliveries(order, order.sellerdeliverycharges.filter(provider="local").select_related("seller"))
+    transaction.on_commit(lambda: _dispatch_courier(order.pk))
+
+
+def _dispatch_courier(order_id):
+    from orders.models import Order
+    from orders.shipping import manifest_delhivery_shipments
+    order = Order.objects.get(pk=order_id)
+    manifest_delhivery_shipments(order, order.sellerdeliverycharges.filter(provider="delhivery").select_related("seller"))

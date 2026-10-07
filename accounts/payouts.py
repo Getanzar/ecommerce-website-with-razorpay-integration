@@ -8,8 +8,8 @@ class PayoutOnboardingError(Exception):
 
 def provision_seller_payout_account(seller, bank_account_number):
     """Send bank data directly to RazorpayX; persist only provider tokens."""
-    key_id = getattr(settings, "RAZORPAYX_KEY_ID", "") or getattr(settings, "RAZORPAY_KEY_ID", "")
-    key_secret = getattr(settings, "RAZORPAYX_KEY_SECRET", "") or getattr(settings, "RAZORPAY_KEY_SECRET", "")
+    key_id = getattr(settings, "RAZORPAYX_KEY_ID", "")
+    key_secret = getattr(settings, "RAZORPAYX_KEY_SECRET", "")
     if not key_id or not key_secret:
         raise PayoutOnboardingError("RazorpayX API credentials are not configured.")
 

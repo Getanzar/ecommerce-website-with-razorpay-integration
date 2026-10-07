@@ -2,23 +2,31 @@ import json
 
 import requests
 from django.conf import settings
+from django.db import transaction
 
 
+@transaction.atomic
 def manifest_delhivery_charge(order, charge):
     """Manifest one seller package and retain the complete provider response."""
+    charge = type(charge).objects.select_for_update().get(pk=charge.pk)
+    if charge.awb_number:
+        return charge
+    if charge.carrier_status in {"manifestation_failed", "manifestation_pending"}:
+        return charge
+    if order.status in {"Cancelled", "Returned"} or (order.payment_method != "cod" and order.payment_status != "Paid"):
+        return charge
     seller = charge.seller
     pickup_name = seller.delhivery_pickup_name if seller else settings.DELHIVERY_PICKUP_LOCATION
     if not settings.DELHIVERY_API_KEY:
         charge.carrier_status = "quote_only"
         charge.save(update_fields=["carrier_status"])
         return charge
+    if not pickup_name and charge.origin_pincode == settings.DELHIVERY_ORIGIN_PINCODE:
+        pickup_name = settings.DELHIVERY_PICKUP_LOCATION
     if not pickup_name:
-        if charge.origin_pincode == settings.DELHIVERY_ORIGIN_PINCODE:
-            pickup_name = settings.DELHIVERY_PICKUP_LOCATION
-        else:
-            charge.carrier_status = "pickup_registration_required"
-            charge.save(update_fields=["carrier_status"])
-            return charge
+        charge.carrier_status = "pickup_registration_required"
+        charge.save(update_fields=["carrier_status"])
+        return charge
     items = order.items.filter(product__seller=seller)
     description = ", ".join(f"{item.product_name} x{item.quantity}" for item in items)[:250]
     shipment = {
@@ -30,7 +38,7 @@ def manifest_delhivery_charge(order, charge):
         "country": "India",
         "phone": order.phone,
         "order": f"{order.pk}-{seller.pk if seller else 'platform'}",
-        "payment_mode": "COD" if order.payment_method == "cod" else "Prepaid",
+        "payment_mode": "COD" if order.payment_method == "cod" else "Pre-paid",
         "cod_amount": float(charge.customer_collection_amount) if order.payment_method == "cod" else 0,
         "total_amount": float(charge.customer_collection_amount),
         "products_desc": description or "Marketplace order",

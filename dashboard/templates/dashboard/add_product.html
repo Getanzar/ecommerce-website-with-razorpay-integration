@@ -82,6 +82,7 @@
       action="{% url 'add_product' %}">
 
 {% csrf_token %}
+{% include "dashboard/product_audience.html" %}
 
 <!-- ====================================== -->
 <!-- BASIC INFORMATION -->

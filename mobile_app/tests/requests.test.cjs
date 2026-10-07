@@ -4,6 +4,26 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
+test('401 identifies the rejected session so stale requests cannot log out a newer login', async () => {
+  const client = api(async () => ({ ok: false, status: 401, json: async () => ({ detail: 'Expired' }) }));
+  let currentToken = 'new-session';
+  client.setUnauthorizedHandler(failedToken => {
+    if (failedToken === currentToken) currentToken = null;
+  });
+  await assert.rejects(client.request('/cart/', {}, 'old-session'), /Expired/);
+  assert.equal(currentToken, 'new-session');
+  await assert.rejects(client.request('/cart/', {}, 'new-session'), /Expired/);
+  assert.equal(currentToken, null);
+});
+
+test('temporary server errors do not invalidate a session', async () => {
+  const client = api(async () => ({ ok: false, status: 503, json: async () => ({ detail: 'Unavailable' }) }));
+  let expired = false;
+  client.setUnauthorizedHandler(() => { expired = true; });
+  await assert.rejects(client.request('/cart/', {}, 'session'), /Unavailable/);
+  assert.equal(expired, false);
+});
+
 function api(fetchWithRetry) {
   const exports = {};
   const mocks = { './retry': { fetchWithRetry }, './telemetry': { reportError() {} }, 'expo-device': {}, './apiUrlSafety': { assertSafeProductionApiUrl() {} } };

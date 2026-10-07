@@ -13,6 +13,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "business_category",
         "business_segment",
         "status",
+        "delhivery_pickup_name",
         "commission_percent",
         "payouts_enabled",
         "ai_plan",
@@ -20,7 +21,14 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "business_segment")
-    search_fields = ("store_name", "legal_business_name", "gstin", "user__username", "user__email")
+    search_fields = (
+        "store_name",
+        "legal_business_name",
+        "gstin",
+        "delhivery_pickup_name",
+        "user__username",
+        "user__email",
+    )
     list_editable = ("status", "commission_percent", "payouts_enabled")
 
 

@@ -66,6 +66,39 @@ class MerchandiseUploadTests(APITestCase):
         variant = ProductVariant.objects.get(product_id=response.data["id"])
         self.assertEqual((variant.color.name, variant.size, variant.stock), ("Blue", "M", 7))
 
+    def test_kids_audience_is_exposed_required_saved_and_filterable(self):
+        self.category.slug = "kids-wear"
+        self.category.save()
+        fields = {field["name"]: field for field in self.client.get(self.path).data["fields"]}
+        self.assertIn("gender", fields)
+        self.assertIn(["3-4", "3 - 4 Years"], fields["kids_age_group"]["choices"])
+        missing = self.client.post(self.path, self.payload(), format="multipart")
+        self.assertEqual(missing.status_code, 400)
+        self.assertIn("gender", missing.data)
+        self.assertIn("kids_age_group", missing.data)
+        data = self.payload()
+        data.update(gender="female", kids_age_group="3-4")
+        created = self.client.post(self.path, data, format="multipart")
+        self.assertEqual(created.status_code, 201, created.data)
+        product = Product.objects.get(pk=created.data["id"])
+        self.assertEqual((product.gender, product.kids_age_group), ("female", "3-4"))
+        edit_path = f"/api/v1/partners/seller/products/{product.pk}/edit/"
+        fields = {field["name"]: field for field in self.client.get(edit_path).data["fields"]}
+        self.assertEqual(fields["gender"]["value"], "female")
+        self.assertEqual(fields["kids_age_group"]["value"], "3-4")
+        edit = {name: field["value"] for name, field in fields.items() if field["type"] != "image"}
+        edit["kids_age_group"] = "4-5"
+        updated = self.client.post(edit_path, edit, format="multipart")
+        self.assertEqual(updated.status_code, 200, updated.data)
+        product.refresh_from_db()
+        self.assertEqual(product.kids_age_group, "4-5")
+        product.moderation_status = Product.MODERATION_APPROVED
+        product.is_active = True
+        product.save()
+        response = self.client.get("/api/v1/products/", {"category": "kids-wear", "gender": "female", "kids_age_group": "4-5"})
+        self.assertEqual([row["id"] for row in response.data["results"]], [product.pk])
+        self.assertEqual(response.data["results"][0]["kids_age_group"], "4-5")
+
     def test_invalid_variant_batches_never_create_partial_product(self):
         for variants in ([], [{"color": "Blue", "size": "M", "stock": -1}], [{"color": "", "size": "M", "stock": 1}],
                          [{"color": "Blue", "size": "M", "stock": 1}, {"color": " blue ", "size": "m", "stock": 2}]):

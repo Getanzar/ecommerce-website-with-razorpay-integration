@@ -52,40 +52,155 @@ def razorpayx_webhook(request):
     event_id = request.headers.get("X-Razorpay-Event-Id", "")
     if not event_id:
         return HttpResponseBadRequest("Missing webhook event id")
+
+    payload_hash = hashlib.sha256(request.body).hexdigest()
+
     event, created = PaymentWebhookEvent.objects.get_or_create(
         provider="razorpayx",
         event_id=event_id,
         defaults={
             "event_type": payload.get("event", ""),
-            "payload_hash": hashlib.sha256(request.body).hexdigest(),
+            "payload_hash": payload_hash,
         },
     )
-    if not created:
+
+    if not created and event.payload_hash != payload_hash:
+        return HttpResponseBadRequest(
+            "Webhook event id was reused with different content."
+        )
+
+    if not created and event.status == "processed":
         return HttpResponse(status=204)
-    settlement = SellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
-    if not settlement:
-        from food.models import FoodSellerSettlement
-        settlement = FoodSellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
-    if not settlement:
-        from groceries.models import GrocerySellerSettlement
-        settlement = GrocerySellerSettlement.objects.filter(provider_payout_id=payout.get("id")).first()
-    if not settlement:
-        settlement = DeliveryEarning.objects.filter(provider_payout_id=payout.get("id")).first()
+
+    from food.models import FoodSellerSettlement
+    from groceries.models import GrocerySellerSettlement
+
+    payout_id = payout.get("id")
+    reference_id = payout.get("reference_id", "")
+
+    settlement = None
+
+    # First try the RazorpayX payout ID already stored locally.
+    if payout_id:
+        settlement = SellerSettlement.objects.filter(
+            provider_payout_id=payout_id
+        ).first()
+
+        if not settlement:
+            settlement = FoodSellerSettlement.objects.filter(
+                provider_payout_id=payout_id
+            ).first()
+
+        if not settlement:
+            settlement = GrocerySellerSettlement.objects.filter(
+                provider_payout_id=payout_id
+            ).first()
+
+        if not settlement:
+            settlement = DeliveryEarning.objects.filter(
+                provider_payout_id=payout_id
+            ).first()
+
+    # RazorpayX may deliver the webhook before the payout request has
+    # finished saving provider_payout_id locally. Fall back to the stable
+    # reference_id sent when the payout was created.
+    if not settlement and reference_id:
+        if reference_id.startswith("general-"):
+            settlement_id = reference_id.removeprefix("general-")
+
+            if settlement_id.isdigit():
+                settlement = SellerSettlement.objects.filter(
+                    pk=int(settlement_id)
+                ).first()
+
+        elif reference_id.startswith("food-"):
+            settlement_id = reference_id.removeprefix("food-")
+
+            if settlement_id.isdigit():
+                settlement = FoodSellerSettlement.objects.filter(
+                    pk=int(settlement_id)
+                ).first()
+
+        elif reference_id.startswith("grocery-"):
+            settlement_id = reference_id.removeprefix("grocery-")
+
+            if settlement_id.isdigit():
+                settlement = GrocerySellerSettlement.objects.filter(
+                    pk=int(settlement_id)
+                ).first()
+
+        elif reference_id.startswith("agent-earning-"):
+            earning_id = reference_id.removeprefix("agent-earning-")
+
+            if earning_id.isdigit():
+                settlement = DeliveryEarning.objects.filter(
+                    pk=int(earning_id)
+                ).first()
+
+    # If reference matching recovered a payout that arrived before our
+
+    # A reference_id may only recover a settlement whose RazorpayX payout
+    # ID has not been saved yet, or whose saved payout ID matches this
+    # webhook. Never allow one payout to update another payout's settlement.
+    if (
+        settlement
+        and settlement.provider_payout_id
+        and settlement.provider_payout_id != payout_id
+    ):
+        settlement = None
+
+    # local save, persist the RazorpayX payout ID now.
+    if (
+        settlement
+        and payout_id
+        and not settlement.provider_payout_id
+    ):
+        settlement.provider_payout_id = payout_id
     if settlement:
         provider_status = payout.get("status")
+
         if provider_status == "processed":
-            settlement.status, settlement.failure_reason = "paid", ""
+            settlement.status = "paid"
+            settlement.failure_reason = ""
+
         elif provider_status in {"rejected", "cancelled", "reversed"}:
             settlement.status = "failed"
-            settlement.failure_reason = payout.get("failure_reason") or provider_status
-        else:
+            settlement.failure_reason = (
+                payout.get("failure_reason") or provider_status
+            )
+
+        elif settlement.status != "paid":
+            # Non-terminal RazorpayX states such as queued/pending/processing
+            # may move an unfinished payout to processing, but must never
+            # regress an already completed payout back from paid.
             settlement.status = "processing"
         if isinstance(settlement, DeliveryEarning):
-            settlement.paid_at = timezone.now() if provider_status == "processed" else None
-            settlement.save(update_fields=["status", "paid_at", "failure_reason"])
+            if provider_status == "processed":
+                settlement.paid_at = timezone.now()
+            elif settlement.status != "paid":
+                settlement.paid_at = None
+            settlement.save(
+                update_fields=[
+                    "provider_payout_id",
+                    "status",
+                    "paid_at",
+                    "failure_reason",
+                ]
+            )
         else:
-            settlement.processed_at = timezone.now() if provider_status == "processed" else None
-            settlement.save(update_fields=["status", "processed_at", "failure_reason", "updated_at"])
+            if provider_status == "processed":
+                settlement.processed_at = timezone.now()
+            elif settlement.status != "paid":
+                settlement.processed_at = None
+            settlement.save(
+                    update_fields=[
+                        "provider_payout_id",
+                        "status",
+                        "processed_at",
+                        "failure_reason",
+                        "updated_at",
+                    ]
+                )
     event.status = "processed" if settlement else "ignored"
     event.processed_at = timezone.now()
     event.save(update_fields=["status", "processed_at"])

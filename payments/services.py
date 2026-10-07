@@ -127,7 +127,19 @@ def capture_browser_payment(order, provider_order_id, payment_id, signature):
         "razorpay_payment_id": payment_id,
         "razorpay_signature": signature,
     }
-    razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)).utility.verify_payment_signature(params)
+    if not provider_order_id or provider_order_id != order.razorpay_order_id:
+        raise ValueError("Payment does not belong to this order.")
+    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    client.utility.verify_payment_signature(params)
+    expected = money(getattr(order, "total_price", getattr(order, "total", 0)))
+    provider_payment = client.payment.fetch(payment_id)
+    if (
+        provider_payment.get("status") != "captured"
+        or provider_payment.get("order_id") != provider_order_id
+        or provider_payment.get("amount") != int(expected * 100)
+        or provider_payment.get("currency") != "INR"
+    ):
+        raise ValueError("Razorpay has not confirmed the correct captured payment.")
     payment = PaymentTransaction.objects.select_for_update().filter(
         provider="razorpay", provider_order_id=provider_order_id,
     ).first()
@@ -135,7 +147,6 @@ def capture_browser_payment(order, provider_order_id, payment_id, signature):
         raise ValueError("This provider order is already associated with another payment.")
     if not payment:
         payment = create_payment_transaction(order, provider_order_id)
-    expected = money(getattr(order, "total_price", getattr(order, "total", 0)))
     if payment.amount != expected:
         raise ValueError("Payment amount does not match the order total.")
     payment.provider_payment_id = payment_id

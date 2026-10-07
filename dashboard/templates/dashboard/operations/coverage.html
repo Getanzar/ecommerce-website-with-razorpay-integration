@@ -1,0 +1,21 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% block title %}Seller areas & rider coverage | ZIYAMART{% endblock %}
+{% block page_title %}Seller areas & rider coverage{% endblock %}
+{% block content %}
+<p>Same-pincode parcel orders use local riders where approved riders cover the area. Otherwise they use Delhivery. Offline riders can claim waiting jobs when they go online. Food and grocery service areas remain managed separately.</p>
+<form method="get" class="d-flex gap-2 mb-4">
+  <input class="form-control" name="q" value="{{ query }}" placeholder="Search seller, area or pincode" aria-label="Search seller areas">
+  <select class="form-select" name="coverage" aria-label="Rider coverage"><option value="">All coverage</option><option value="missing" {% if coverage_filter == 'missing' %}selected{% endif %}>No local coverage</option><option value="online" {% if coverage_filter == 'online' %}selected{% endif %}>Online riders</option></select>
+  <button class="btn btn-primary">Search</button>
+</form>
+<div class="card table-responsive"><table class="table mb-0"><thead><tr><th>Seller / status</th><th>Operating area</th><th>Approved / online / pending riders</th><th>Local coverage</th><th>Pickup setup</th></tr></thead><tbody>
+{% for row in rows %}<tr>
+<td><a href="{% url 'ops_seller_detail' row.seller.pk %}">{{ row.seller.store_name }}</a><br>{{ row.seller.get_status_display }}</td>
+<td>{{ row.seller.business_address|default:'Address missing' }}<br><strong>{{ row.seller.business_pincode|default:'Pincode missing' }}</strong></td>
+<td>{{ row.approved }} / {{ row.online }} / {{ row.pending }}<br><a href="{% url 'ops_delivery_agents' %}?pincode={{ row.seller.business_pincode|urlencode }}">Manage riders</a></td>
+<td>{% if row.zone_disabled %}Zone disabled{% elif not row.covered %}No approved riders — courier{% elif row.online %}Riders online{% else %}Covered — riders offline{% endif %}</td>
+<td>{% if row.gps_ready %}GPS saved{% else %}GPS missing{% endif %}<br>{% if row.seller.delhivery_pickup_name %}Courier pickup name: {{ row.seller.delhivery_pickup_name }}{% else %}Courier pickup name missing{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="5">No sellers match this search.</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="d-flex gap-3 mt-3">{% if rows.has_previous %}<a href="?q={{ query|urlencode }}&coverage={{ coverage_filter|urlencode }}&page={{ rows.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ rows.number }} of {{ rows.paginator.num_pages }}</span>{% if rows.has_next %}<a href="?q={{ query|urlencode }}&coverage={{ coverage_filter|urlencode }}&page={{ rows.next_page_number }}">Next</a>{% endif %}<a href="{% url 'ops_zones' %}">Manage delivery zones</a></div>
+{% endblock %}

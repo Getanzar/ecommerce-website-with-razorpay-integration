@@ -37,6 +37,7 @@ urlpatterns = [
 
     # Dashboard
     path("", operations.operations_home, name="admin_dashboard"),
+    path("operations/coverage/", operations.seller_coverage, name="ops_seller_coverage"),
     path("search/", operations.global_search, name="ops_search"),
     path("operations/agents/", operations.delivery_agents, name="ops_delivery_agents"),
     path("operations/agents/<int:agent_id>/", operations.delivery_agent_detail, name="ops_delivery_agent_detail"),
@@ -53,6 +54,11 @@ urlpatterns = [
     path("operations/deliveries/<int:delivery_id>/assign/", operations.assign_delivery, name="ops_assign_delivery"),
     path("operations/payouts/", operations.payouts, name="ops_payouts"),
     path("operations/payouts/delivery/<int:earning_id>/paid/", operations.mark_delivery_earning_paid, name="ops_delivery_earning_paid"),
+    path(
+    "operations/payouts/seller/<str:settlement_type>/<int:settlement_id>/submit/",
+    operations.submit_seller_settlement_payout,
+    name="ops_submit_seller_payout",
+    ),
     path("operations/payouts/cod/<int:remittance_id>/confirm/", operations.confirm_cod_remittance, name="ops_confirm_cod_remittance"),
     path("operations/payouts/shipping/<int:charge_id>/reconcile/", operations.reconcile_delivery_charge, name="ops_reconcile_delivery_charge"),
     path("operations/zones/", operations.zones, name="ops_zones"),

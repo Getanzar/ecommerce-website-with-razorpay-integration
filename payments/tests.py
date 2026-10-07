@@ -235,6 +235,11 @@ class ParcelCheckoutWorkflowTests(TestCase):
         }
 
     def test_parcel_cod_creates_itemized_untaxed_local_delivery_ledger(self):
+        from delivery.models import DeliveryAgentProfile
+        DeliveryAgentProfile.objects.create(
+            user=User.objects.create_user("parcel-local-rider"),
+            status="approved", pincode="243638", is_online=True,
+        )
         response = self.client.post(reverse("cod_checkout"), self._checkout_data("cod"))
 
         order = Order.objects.get()

@@ -143,3 +143,155 @@ class OTPEmailBrandingTests(TestCase):
         self.assertTrue(send_password_reset_otp(self.user))
         self.assertEqual(send_email.call_args.kwargs["to_email"], self.user.email)
         self.assertIn("html_content", send_email.call_args.kwargs)
+
+
+class SellerPayoutCredentialTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="payout-seller",
+            email="seller@example.com",
+        )
+        self.seller = SellerProfile.objects.create(
+            user=user,
+            store_name="Payout Test Store",
+            legal_business_name="Payout Test Store",
+            business_phone="9999999999",
+            bank_account_holder="Test Seller",
+            bank_ifsc_code="SBIN0001234",
+        )
+
+    @override_settings(
+        RAZORPAYX_KEY_ID="",
+        RAZORPAYX_KEY_SECRET="",
+        RAZORPAY_KEY_ID="customer-payment-key",
+        RAZORPAY_KEY_SECRET="customer-payment-secret",
+    )
+    @patch("accounts.payouts.requests.post")
+    def test_payout_onboarding_does_not_fallback_to_checkout_credentials(
+        self, post
+    ):
+        from .payouts import PayoutOnboardingError, provision_seller_payout_account
+
+        with self.assertRaises(PayoutOnboardingError):
+            provision_seller_payout_account(
+                self.seller,
+                "123456789012",
+            )
+
+        post.assert_not_called()
+        self.seller.refresh_from_db()
+        self.assertEqual(self.seller.razorpay_contact_id, "")
+        self.assertEqual(self.seller.razorpay_fund_account_id, "")
+        self.assertFalse(self.seller.payouts_enabled)
+
+class SellerPayoutSubmissionTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="seller-payout-submit",
+            email="seller-payout@example.com",
+        )
+
+        self.seller = SellerProfile.objects.create(
+            user=user,
+            store_name="Seller Payout Test Store",
+            legal_business_name="Seller Payout Test Store",
+            business_segment="shop",
+            razorpay_fund_account_id="fa_test_seller_123",
+            payouts_enabled=True,
+            status="approved",
+        )
+
+    @override_settings(
+        RAZORPAYX_KEY_ID="rzp_test_x_key",
+        RAZORPAYX_KEY_SECRET="rzp_test_x_secret",
+        RAZORPAYX_ACCOUNT_NUMBER="2323230000000000",
+        SELLER_PAYOUT_MODE="IMPS",
+        RAZORPAY_KEY_ID="checkout_key_must_not_be_used",
+        RAZORPAY_KEY_SECRET="checkout_secret_must_not_be_used",
+    )
+    @patch("accounts.seller_payouts.requests.post")
+    def test_seller_payout_uses_razorpayx_credentials_and_correct_amount(
+        self, post
+    ):
+        from types import SimpleNamespace
+
+        from .seller_payouts import submit_seller_payout
+
+        response = post.return_value
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "id": "pout_test_seller_123",
+            "status": "queued",
+        }
+
+        settlement = SimpleNamespace(
+            pk=42,
+            seller=self.seller,
+            status="scheduled",
+            provider_payout_id="",
+            payout_amount="900.00",
+            payout_reference_key="general-42",
+        )
+
+        result = submit_seller_payout(settlement)
+
+        self.assertEqual(result["id"], "pout_test_seller_123")
+
+        post.assert_called_once()
+
+        _, kwargs = post.call_args
+
+        self.assertEqual(
+            kwargs["auth"],
+            ("rzp_test_x_key", "rzp_test_x_secret"),
+        )
+        self.assertEqual(
+            kwargs["headers"]["X-Payout-Idempotency"],
+            "general-42",
+        )
+        self.assertEqual(
+            kwargs["json"]["account_number"],
+            "2323230000000000",
+        )
+        self.assertEqual(
+            kwargs["json"]["fund_account_id"],
+            "fa_test_seller_123",
+        )
+        self.assertEqual(kwargs["json"]["amount"], 90000)
+        self.assertEqual(kwargs["json"]["currency"], "INR")
+        self.assertEqual(kwargs["json"]["mode"], "IMPS")
+        self.assertEqual(
+            kwargs["json"]["reference_id"],
+            "general-42",
+        )
+
+    @override_settings(
+        RAZORPAYX_KEY_ID="rzp_test_x_key",
+        RAZORPAYX_KEY_SECRET="rzp_test_x_secret",
+        RAZORPAYX_ACCOUNT_NUMBER="2323230000000000",
+    )
+    @patch("accounts.seller_payouts.requests.post")
+    def test_seller_payout_requires_enabled_seller_account(self, post):
+        from types import SimpleNamespace
+
+        from .seller_payouts import (
+            SellerPayoutError,
+            submit_seller_payout,
+        )
+
+        self.seller.payouts_enabled = False
+        self.seller.save(update_fields=["payouts_enabled"])
+
+        settlement = SimpleNamespace(
+            pk=43,
+            seller=self.seller,
+            status="scheduled",
+            provider_payout_id="",
+            payout_amount="900.00",
+            payout_reference_key="general-43",
+        )
+
+        with self.assertRaises(SellerPayoutError):
+            submit_seller_payout(settlement)
+
+        post.assert_not_called()

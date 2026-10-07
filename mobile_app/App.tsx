@@ -1,3 +1,4 @@
+import { KIDS_AGE_OPTIONS } from "./src/kidsAges";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -234,7 +235,7 @@ function AuthModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onAuthenticated: (token: string, user: User) => void;
+  onAuthenticated: (token: string, user: User) => Promise<void>;
 }) {
   const [mode, setMode] = useState<"login" | "signup" | "resume" | "otp" | "forgot" | "reset">("login");
   const [identity, setIdentity] = useState("");
@@ -279,7 +280,7 @@ function AuthModal({
     try {
       if (mode === "login") {
         const result = await login(identity, password);
-        onAuthenticated(result.token, result.user);
+        await onAuthenticated(result.token, result.user);
         onClose();
       } else if (mode === "signup") {
         const result = await signup({ username, email, phone, password });
@@ -301,7 +302,7 @@ function AuthModal({
         setMessage(result.message);
       } else if (mode === "otp") {
         const result = await verifyOtp(email, otp);
-        onAuthenticated(result.token, result.user);
+        await onAuthenticated(result.token, result.user);
         onClose();
       } else if (mode === "forgot") {
         const result = await requestPasswordReset(email);
@@ -1208,7 +1209,14 @@ function ZiyaApp() {
   const [imageZoomVisible, setImageZoomVisible] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [category, setCategory] = useState<Category | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, updateToken] = useState<string | null>(null);
+  const activeToken = useRef<string | null>(null);
+  const sessionVersion = useRef(0);
+  const setToken = (value: string | null) => {
+    sessionVersion.current++;
+    activeToken.current = value;
+    updateToken(value);
+  };
   const catalogParams = tab === "Search" ? { q: query, sort, ...filters } : {
     category: category?.slug,
     gender: category?.slug === "kids-wear" ? kidsGender : "",
@@ -1241,8 +1249,6 @@ function ZiyaApp() {
   const [inboxVisible, setInboxVisible] = useState(false);
   const [notificationOrder, setNotificationOrder] = useState<Order | null>(null);
   const [partnerTarget, setPartnerTarget] = useState<NotificationTarget | null>(null);
-  const activeToken = useRef(token);
-  activeToken.current = token;
   useEffect(() => { setNotificationOrder(null); setPartnerTarget(null); }, [token]);
   const openNotification = async (data: NotificationTarget = {}) => {
     if (!token) return;
@@ -1274,11 +1280,13 @@ function ZiyaApp() {
     return () => { cancelled = true; subscription?.remove(); };
   }, [token]);
   useEffect(() => {
-    setUnauthorizedHandler(() => {
+    setUnauthorizedHandler((failedToken) => {
+      if (activeToken.current !== failedToken) return;
       setToken(null); setUser(null);
       setCart({ items: [], item_count: 0, subtotal: "0" });
       setFoodCart([]); setGroceryCart([]);
-      SecureStore.deleteItemAsync("ziyamart_token");
+      void SecureStore.deleteItemAsync("ziyamart_token").catch(() => {});
+      void AsyncStorage.removeItem("ziyamart_token").catch(() => {});
       Alert.alert("Session expired", "Please sign in again to continue.");
       setAuthVisible(true);
     });
@@ -1291,36 +1299,30 @@ function ZiyaApp() {
     return () => { active = false; };
   }, []);
   useEffect(() => {
-    Promise.all([
+    const version = sessionVersion.current;
+    let cancelled = false;
+    void Promise.all([
       SecureStore.getItemAsync("ziyamart_token"),
       AsyncStorage.getItem("ziyamart_token"),
     ]).then(async ([secureToken, legacyToken]) => {
+      if (cancelled || version !== sessionVersion.current) return;
       const saved = secureToken || legacyToken;
+      if (!saved) return;
       if (!secureToken && legacyToken) {
         await SecureStore.setItemAsync("ziyamart_token", legacyToken);
         await AsyncStorage.removeItem("ziyamart_token");
       }
-      if (saved) {
-        setToken(saved);
-        Promise.all([
-          getCart(saved),
-          getProfile(saved),
-          getFoodCart(saved),
-          getGroceryCart(saved),
-        ])
-          .then(([bag, profile, food, grocery]) => {
-            setCart(bag);
-            setUser(profile);
-            setFoodCart(foodRows(food));
-            setGroceryCart(groceryRows(grocery));
-          })
-          .catch(() => {
-            setToken(null);
-            SecureStore.deleteItemAsync("ziyamart_token");
-            AsyncStorage.removeItem("ziyamart_token");
-          });
-      }
+      if (cancelled || version !== sessionVersion.current) return;
+      setToken(saved);
+      // Cart/network failures must not invalidate a saved session.
+      void getProfile(saved).then(profile => {
+        if (!cancelled && activeToken.current === saved) setUser(profile);
+      }).catch(() => {});
+      void syncSessionCarts(saved);
+    }).catch(() => {
+      if (!cancelled) Alert.alert("Sign-in unavailable", "Could not read your saved session. Please sign in again.");
     });
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => {
     AsyncStorage.getItem("ziyamart_location")
@@ -1352,18 +1354,21 @@ function ZiyaApp() {
     cart.item_count +
     foodCart.reduce((n, row) => n + row.quantity, 0) +
     groceryCart.reduce((n, row) => n + row.quantity, 0);
+  const syncSessionCarts = async (sessionToken: string) => {
+    const [shop, food, grocery] = await Promise.allSettled([
+      getCart(sessionToken), getFoodCart(sessionToken), getGroceryCart(sessionToken),
+    ]);
+    if (activeToken.current !== sessionToken) return;
+    if (shop.status === "fulfilled") setCart(shop.value);
+    if (food.status === "fulfilled") setFoodCart(foodRows(food.value));
+    if (grocery.status === "fulfilled") setGroceryCart(groceryRows(grocery.value));
+  };
   const authenticate = async (nextToken: string, nextUser: User) => {
+    await SecureStore.setItemAsync("ziyamart_token", nextToken);
     setToken(nextToken);
     setUser(nextUser);
-    await SecureStore.setItemAsync("ziyamart_token", nextToken);
-    const [shop, food, grocery] = await Promise.all([
-      getCart(nextToken),
-      getFoodCart(nextToken),
-      getGroceryCart(nextToken),
-    ]);
-    setCart(shop);
-    setFoodCart(foodRows(food));
-    setGroceryCart(groceryRows(grocery));
+    void AsyncStorage.removeItem("ziyamart_token").catch(() => {});
+    void syncSessionCarts(nextToken);
   };
   const rememberSearch = (value: string) => {
     const clean = value.trim();
@@ -2119,16 +2124,7 @@ function ZiyaApp() {
                         gap: 10,
                       }}
                     >
-                      {[
-                        ["0-1", "0–1 Year"],
-                        ["1-2", "1–2 Years"],
-                        ["2-4", "2–4 Years"],
-                        ["4-6", "4–6 Years"],
-                        ["6-8", "6–8 Years"],
-                        ["8-10", "8–10 Years"],
-                        ["10-12", "10–12 Years"],
-                        ["12-14", "12–14 Years"],
-                      ].map(([value, label]) => (
+                      {KIDS_AGE_OPTIONS.map(([value, label]) => (
                         <Pressable
                           key={value}
                           onPress={() => setKidsAgeGroup(value)}

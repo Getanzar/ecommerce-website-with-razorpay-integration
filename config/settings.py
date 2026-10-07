@@ -208,7 +208,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-DELHIVERY_PICKUP_LOCATION = "ziyamart garments bazaar wilson gunj pathantola road, sahaswan, budaun, uttar-pradesh, 243638"
+DELHIVERY_PICKUP_LOCATION = os.getenv("DELHIVERY_PICKUP_LOCATION", "")
 DELHIVERY_ORIGIN_PINCODE = os.getenv("DELHIVERY_ORIGIN_PINCODE", "243638")
 DELHIVERY_RATE_URL = os.getenv(
     "DELHIVERY_RATE_URL",

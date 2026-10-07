@@ -89,7 +89,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ("id", "name", "slug", "description", "price", "image_url", "category", "rating", "review_count", "is_wishlisted", "seller_name")
+        fields = ("id", "name", "slug", "description", "price", "image_url", "category", "gender", "kids_age_group", "rating", "review_count", "is_wishlisted", "seller_name")
 
     def get_image_url(self, obj):
         return absolute_url(self.context.get("request"), obj.image)
