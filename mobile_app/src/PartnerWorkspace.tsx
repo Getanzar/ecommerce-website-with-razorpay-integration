@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Image, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Job, Kind, Listing, Page, partnerRequest, Payout, Role, Roles, SellerOrder, Workspace } from "./partnerApi";
@@ -106,7 +106,7 @@ export default function PartnerWorkspace({ token, mode, onClose, target }: { tok
   } | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<{ kind: Kind; id: number } | null>(null);
-  const [section, setSection] = useState(mode === "seller" ? "orders" : "active");
+  const [section, setSection] = useState(mode === "seller" ? (target?.order_id ? "orders" : "overview") : "active");
   const [kind, setKind] = useState<Kind>(["shop", "food", "grocery"].includes(target?.kind || "") ? target!.kind as Kind : "shop");
   const [rows, setRows] = useState<(SellerOrder | Listing | Payout | Job)[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +128,7 @@ export default function PartnerWorkspace({ token, mode, onClose, target }: { tok
         const info = await partnerRequest<Workspace>(token, "seller/");
         if (current !== generation.current) return;
         setWorkspace(info);
+        if (section === "overview") { setRows([]); setHasMore(false); return; }
         const allowed = info.allowed_kinds || [];
         if (!allowed.length) { setRows([]); setHasMore(false); return; }
         if (!allowed.includes(kind)) { setRows([]); setHasMore(false); setKind(allowed[0]); return; }
@@ -176,6 +177,15 @@ return (
         <Text style={s.body}>
           {role?.name || "Your partner account"}
         </Text>
+
+        {approved && mode === "seller" && workspace && <View style={[s.card, { padding: 0, overflow: "hidden" }]}>
+          {workspace.cover_url && <Image source={{ uri: workspace.cover_url }} style={{ width: "100%", height: 130 }} />}
+          <View style={{ padding: 20, gap: 12 }}>
+            <View style={s.row}>{workspace.logo_url ? <Image source={{ uri: workspace.logo_url }} style={{ width: 62, height: 62, borderRadius: 14 }} /> : <View style={{ width: 62, height: 62, borderRadius: 14, backgroundColor: "#FFE6D5", justifyContent: "center", alignItems: "center" }}><Text style={s.title}>{workspace.name.slice(0, 1).toUpperCase()}</Text></View>}<View style={{ flex: 1 }}><Text style={s.cardTitle}>{workspace.name}</Text><Text style={s.muted}>Approved seller · {workspace.pincode || "Add pickup pincode"}</Text></View></View>
+            {!!workspace.description && <Text style={s.muted}>{workspace.description}</Text>}
+            <Button secondary title="Edit seller profile" onPress={() => setForm({ path: "seller/profile/", title: "Seller profile" })} />
+          </View>
+        </View>}
 
         {role && (
           <Button
@@ -237,7 +247,7 @@ return (
           </View>
         )}
 
-        {loading && rows.length === 0 && (
+        {loading && rows.length === 0 && section !== "overview" && (
           <ActivityIndicator color="#EF6C35" size="large" />
         )}
 
@@ -351,7 +361,7 @@ return (
 
             <View style={s.wrap}>
               {(mode === "seller"
-                ? ["orders", "catalog", "payouts"]
+                ? ["overview", "catalog", "orders", "payouts"]
                 : [
                     "active",
                     "available",
@@ -367,6 +377,11 @@ return (
                 />
               ))}
             </View>
+
+            {mode === "seller" && section === "overview" && workspace && <>
+              <View style={s.row}><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Catalog items</Text><Text style={s.amount}>{workspace.metrics?.catalog_count ?? 0}</Text></View><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Open orders</Text><Text style={s.amount}>{workspace.metrics?.open_orders ?? 0}</Text></View></View>
+              <View style={s.card}><Text style={s.cardTitle}>Ready for your next order</Text><Text style={s.muted}>Manage listings and photos from Catalog, prepare purchases from Orders, and track settlements from Payouts.</Text><Button title={kind === "food" ? "Manage your menu" : "Manage products"} onPress={() => setSection("catalog")} /><Button secondary title="View orders" onPress={() => setSection("orders")} /></View>
+            </>}
 
             {!loading &&
               !error &&

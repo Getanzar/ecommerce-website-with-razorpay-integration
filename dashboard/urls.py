@@ -7,6 +7,7 @@ urlpatterns = [
 
     # Seller workspace
     path("seller/", views.seller_dashboard, name="seller_dashboard"),
+    path("seller/profile/", views.seller_profile_settings, name="seller_profile_settings"),
     path("seller/products/", views.seller_products, name="seller_products"),
     path("seller/products/<int:product_id>/edit/", views.seller_edit_product, name="seller_edit_product"),
     path("seller/products/<int:product_id>/inventory/", views.seller_inventory, name="seller_inventory"),

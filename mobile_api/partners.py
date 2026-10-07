@@ -88,6 +88,7 @@ class RolesView(PartnerView):
 
 class SellerWorkspaceView(PartnerView):
     def get(self, request):
+        from .serializers import absolute_url
         seller = seller_for(request.user)
         stores = []
         for kind, model in (("food", Restaurant), ("grocery", GroceryStore)):
@@ -95,8 +96,22 @@ class SellerWorkspaceView(PartnerView):
                 continue
             store = model.objects.filter(seller=seller).first()
             if store:
-                stores.append({"kind": kind, "name": store.name, "accepts_orders": store.accepts_orders})
+                stores.append({"kind": kind, "name": store.name, "accepts_orders": store.accepts_orders,
+                               "image_url": absolute_url(request, store.image), "pincode": store.pincode})
+        metrics = {"catalog_count": 0, "open_orders": 0}
+        if seller_kinds(seller):
+            kind = seller.business_segment
+            model, lookup = {"shop": (Product, "seller"), "food": (MenuItem, "restaurant__seller"), "grocery": (GroceryProduct, "store__seller")}[kind]
+            metrics["catalog_count"] = model.objects.filter(**{lookup: seller}).count()
+            orders = seller_orders(seller, kind)
+            if kind == "shop":
+                metrics["open_orders"] = orders.exclude(order__status__in=["Cancelled", "Returned", "Delivered"]).exclude(fulfillment_status__in=["delivered", "cancelled"]).values("order_id").distinct().count()
+            else:
+                metrics["open_orders"] = orders.exclude(status__in=["delivered", "cancelled"]).count()
         return Response({"name": seller.store_name, "stores": stores,
+                         "description": seller.description, "pincode": seller.business_pincode,
+                         "logo_url": absolute_url(request, seller.logo), "cover_url": absolute_url(request, seller.cover_image),
+                         "metrics": metrics,
                          "allowed_kinds": seller_kinds(seller),
                          "business_category": seller.business_category,
                          "business_segment": seller.business_segment,

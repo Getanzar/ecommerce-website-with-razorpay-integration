@@ -201,18 +201,21 @@ def seller_menu(request):
 
 
 @login_required
+@transaction.atomic
 def seller_restaurant_setup(request):
     seller = _restaurant_seller(request)
     restaurant = Restaurant.objects.filter(seller=seller).first()
-    form = RestaurantForm(request.POST or None, request.FILES or None, instance=restaurant, initial={"name": seller.store_name})
+    form = RestaurantForm(request.POST or None, request.FILES or None, instance=restaurant, initial={"name": seller.store_name} if restaurant is None else None)
     if request.method == "POST" and form.is_valid():
         restaurant = form.save(commit=False)
         restaurant.seller = seller
         restaurant.save()
         form.save_m2m()
+        from accounts.seller_profile import sync_store_location
+        sync_store_location(restaurant)
         messages.success(request, "Restaurant details saved.")
         return redirect("food_seller_menu")
-    return render(request, "food/seller/restaurant_form.html", {"form": form})
+    return render(request, "dashboard/seller/settings.html", {"seller": seller, "form": form, "title": "Restaurant settings", "store": restaurant})
 
 
 @login_required

@@ -81,6 +81,9 @@ class SellerProfile(models.Model):
         help_text="Select the approved selling segment. Blank legacy records require review; category descriptions never grant access.",
     )
     business_phone = models.CharField(max_length=20, blank=True)
+    description = models.TextField(blank=True, max_length=2000)
+    logo = models.ImageField(upload_to="sellers/logos/", blank=True, null=True)
+    cover_image = models.ImageField(upload_to="sellers/covers/", blank=True, null=True)
     business_address = models.TextField(blank=True)
     business_pincode = models.CharField(max_length=6, blank=True)
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)

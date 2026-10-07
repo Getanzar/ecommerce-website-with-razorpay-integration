@@ -3,6 +3,7 @@ from . import partners as views
 from . import partner_forms as forms
 
 urlpatterns = [
+    path("seller/profile/", forms.SellerProfileFormView.as_view()),
     path("applications/<str:role>/", forms.ApplicationView.as_view()),
     path("payout-setup/<str:role>/", forms.PayoutSetupView.as_view()),
     path("seller/categories/", forms.SellerCategoryView.as_view()),

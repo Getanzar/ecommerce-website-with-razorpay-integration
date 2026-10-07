@@ -6,6 +6,16 @@ from delivery.forms import RequiredGPSMixin
 
 
 class RestaurantForm(RequiredGPSMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            if not field.widget.is_hidden and not isinstance(field.widget, (forms.CheckboxInput, forms.CheckboxSelectMultiple)):
+                field.widget.attrs["class"] = "form-control"
+
+    def clean_image(self):
+        from accounts.seller_profile import validate_store_image
+        return validate_store_image(self.cleaned_data.get("image"))
+
     class Meta:
         model = Restaurant
         fields = ("name", "description", "image", "cuisine", "pincode", "latitude", "longitude", "gps_accuracy_meters", "preparation_minutes", "minimum_order", "delivery_fee", "accepts_orders", "service_areas")

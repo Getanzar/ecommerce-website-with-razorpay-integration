@@ -167,6 +167,20 @@ def seller_products(request):
 
 
 @login_required
+@transaction.atomic
+def seller_profile_settings(request):
+    from accounts.seller_profile import SellerProfileForm
+    seller = _approved_seller_for(request)
+    seller = SellerProfile.objects.select_for_update().get(pk=seller.pk)
+    form = SellerProfileForm(request.POST or None, request.FILES or None, instance=seller)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Your seller profile and pickup details have been saved.")
+        return redirect("seller_profile_settings")
+    return render(request, "dashboard/seller/settings.html", {"seller": seller, "form": form, "title": "Seller profile", "profile_settings": True})
+
+
+@login_required
 def seller_edit_product(request, product_id):
     seller = _merchandise_seller_for(request)
     product = get_object_or_404(Product, id=product_id, seller=seller)

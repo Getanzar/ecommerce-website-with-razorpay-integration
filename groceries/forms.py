@@ -5,6 +5,16 @@ from delivery.forms import RequiredGPSMixin
 
 
 class GroceryStoreForm(RequiredGPSMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            if not field.widget.is_hidden and not isinstance(field.widget, (forms.CheckboxInput, forms.CheckboxSelectMultiple)):
+                field.widget.attrs["class"] = "form-control"
+
+    def clean_image(self):
+        from accounts.seller_profile import validate_store_image
+        return validate_store_image(self.cleaned_data.get("image"))
+
     class Meta:
         model = GroceryStore
         fields = ("name", "description", "image", "address", "pincode", "latitude", "longitude", "gps_accuracy_meters", "phone", "minimum_order", "delivery_fee", "estimated_delivery_minutes", "service_areas")

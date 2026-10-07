@@ -71,7 +71,7 @@ class MobileProductForm(SellerProductForm):
         return cleaned
 
 
-def schema(form):
+def schema(form, request=None):
     fields = []
     for name, field in form.fields.items():
         value = form.initial.get(name, field.initial)
@@ -87,6 +87,7 @@ def schema(form):
                        "required": field.required, "type": kind,
                        "value": ",".join(str(v.pk if hasattr(v, "pk") else v) for v in value) if kind == "multiple" and value is not None else "" if value is None or is_image or kind == "password" else str(value),
                        "choices": [[str(key), str(title)] for key, title in field.choices] if hasattr(field, "choices") else [],
+                       "preview_url": request.build_absolute_uri(value.url) if is_image and value and request else None,
                        "help": str(field.help_text)})
     return {"fields": fields}
 
@@ -169,7 +170,7 @@ class ProductFormView(SellerKindView):
         return cls(request.data if submitted else None, request.FILES if submitted else None, instance=instance)
 
     def get(self, request, pk=None):
-        return Response(schema(self.form(request, pk)))
+        return Response(schema(self.form(request, pk), request))
 
     @transaction.atomic
     def post(self, request, pk=None):
@@ -332,15 +333,32 @@ class StoreFormView(SellerKindView):
         return cls(request.data if submitted else None, request.FILES if submitted else None, instance=instance)
 
     def get(self, request, kind):
-        return Response(schema(self.form(request, kind)))
+        return Response(schema(self.form(request, kind), request))
 
     @transaction.atomic
     def post(self, request, kind):
         SellerProfile.objects.select_for_update().get(pk=seller_for(request.user).pk)
         form = self.form(request, kind, True)
         validate(form)
-        form.save()
+        store = form.save()
+        from accounts.seller_profile import sync_store_location
+        sync_store_location(store)
         return Response({"message": "Store details saved."})
+
+
+class SellerProfileFormView(PartnerView):
+    def get(self, request):
+        from accounts.seller_profile import SellerProfileForm
+        return Response(schema(SellerProfileForm(instance=seller_for(request.user)), request))
+
+    @transaction.atomic
+    def post(self, request):
+        from accounts.seller_profile import SellerProfileForm
+        seller = SellerProfile.objects.select_for_update().get(pk=seller_for(request.user).pk)
+        form = SellerProfileForm(request.data, request.FILES, instance=seller)
+        validate(form)
+        form.save()
+        return Response({"message": "Your seller profile and pickup details have been saved."})
 
 
 class ServiceProductFormView(SellerKindView):
@@ -360,7 +378,7 @@ class ServiceProductFormView(SellerKindView):
         raise ValidationError("Unknown catalog type.")
 
     def get(self, request, kind, pk=None):
-        return Response(schema(self.form(request, kind, pk)))
+        return Response(schema(self.form(request, kind, pk), request))
 
     @transaction.atomic
     def post(self, request, kind, pk=None):

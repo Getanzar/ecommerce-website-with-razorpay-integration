@@ -206,15 +206,18 @@ def seller_dashboard(request):
 
 
 @login_required
+@transaction.atomic
 def seller_setup(request):
     seller = _kirana_seller(request)
     store = GroceryStore.objects.filter(seller=seller).first()
-    form = GroceryStoreForm(request.POST or None, request.FILES or None, instance=store, initial={"name": seller.store_name, "phone": seller.business_phone, "address": seller.business_address})
+    form = GroceryStoreForm(request.POST or None, request.FILES or None, instance=store, initial={"name": seller.store_name, "phone": seller.business_phone, "address": seller.business_address} if store is None else None)
     if request.method == "POST" and form.is_valid():
         store = form.save(commit=False); store.seller = seller; store.save(); form.save_m2m()
+        from accounts.seller_profile import sync_store_location
+        sync_store_location(store)
         messages.success(request, "Kirana store details saved.")
         return redirect("grocery_seller_dashboard")
-    return render(request, "groceries/seller/form.html", {"seller": seller, "form": form, "title": "Store setup"})
+    return render(request, "dashboard/seller/settings.html", {"seller": seller, "form": form, "title": "Grocery store settings", "store": store})
 
 
 @login_required
