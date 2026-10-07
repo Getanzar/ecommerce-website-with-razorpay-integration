@@ -267,8 +267,8 @@
 
             <!-- Logout -->
 
-            <a href="{% url 'logout' %}"
-               class="list-group-item list-group-item-action text-danger py-4">
+            <form method="post" action="{% url 'logout' %}" class="m-0">{% csrf_token %}<button type="submit"
+               class="list-group-item list-group-item-action text-danger py-4" style="width:100%;text-align:left;background:transparent;border:0;">
 
                 <div class="d-flex justify-content-between align-items-center">
 
@@ -290,7 +290,7 @@
 
                 </div>
 
-            </a>
+            </button></form>
 
         </div>
 
