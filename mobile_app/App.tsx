@@ -24,6 +24,7 @@ import CustomerOrderTools from "./src/CustomerOrderTools";
 import AccountTools from "./src/AccountTools";
 import usePushRegistration from "./src/usePushRegistration";
 import { payOrder, recoverPayment } from "./src/nativePayments";
+import { completePlacedOrder } from "./src/checkoutCompletion";
 import NotificationInbox, { NotificationTarget } from "./src/NotificationInbox";
 import { stopTracking } from "./src/backgroundTracking";
 import { AppErrorBoundary } from "./src/telemetry";
@@ -3369,7 +3370,7 @@ function CartScreen({
         </Pressable>
       </ScrollView>
     );
-  if (!cart.items.length)
+  if (!cart.items.length && !checkoutVisible)
     return (
       <ScrollView contentContainerStyle={s.emptyPage}>
         <Text style={s.emptyIcon}>🛍️</Text>
@@ -3611,8 +3612,7 @@ function CheckoutModal({
         delivery_note: deliveryNote,
         substitution_preference: substitution,
       }, quote.quote_id, submissionKey);
-      await onSuccess();
-      const result = order.payment_method === "online" ? await payOrder(token!, order) : order;
+      const result = await completePlacedOrder(token!, order, onSuccess);
       setSuccess(result);
       setConfirming(false);
     } catch (error: any) {
