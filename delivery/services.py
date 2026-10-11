@@ -4,9 +4,9 @@ from decimal import Decimal
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.conf import settings
-from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
+from config.email import send_transactional_email
 
 from .models import DeliveryEarning, LocalDelivery
 
@@ -118,10 +118,11 @@ def issue_delivery_otp(delivery):
     delivery.save(update_fields=["delivery_otp_hash", "otp_expires_at", "updated_at"])
     email = delivery.source_order.user.email
     if email:
-        send_mail(
-            f"Delivery OTP for order #{delivery.source_order.pk}",
-            f"Your ZIYAMART delivery OTP is {otp}. Share it only after receiving your order.",
-            None, [email], fail_silently=True,
+        send_transactional_email(
+            to_email=email,
+            to_name=delivery.source_order.full_name,
+            subject=f"Delivery OTP for order #{delivery.source_order.pk}",
+            text_content=f"Your ZIYAMART delivery OTP is {otp}. Share it only after receiving your order.",
         )
     return otp
 

@@ -18,6 +18,9 @@ from .services import ensure_grocery_delivery, issue_delivery_otp
 @override_settings(ROOT_URLCONF="config.urls", SECURE_SSL_REDIRECT=False, EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class LocalDeliveryTests(TestCase):
     def setUp(self):
+        email_patch = patch("delivery.services.send_transactional_email", return_value=True)
+        self.send_otp_email = email_patch.start()
+        self.addCleanup(email_patch.stop)
         self.customer = User.objects.create_user("local-customer", email="customer@example.com", password="test-password")
         owner = User.objects.create_user("local-seller")
         seller = SellerProfile.objects.create(
@@ -42,6 +45,23 @@ class LocalDeliveryTests(TestCase):
             city="Sahaswan", state="Uttar Pradesh", pincode="243638", vehicle_type="bicycle",
             aadhaar_last4="1234", status="approved", is_online=True,
         )
+
+    def test_pickup_sends_customer_otp_through_transactional_email(self):
+        delivery = ensure_grocery_delivery(self.order)
+        delivery.agent = self.agent
+        delivery.status = "accepted"
+        delivery.save(update_fields=["agent", "status"])
+        self.client.force_login(self.agent_user)
+        self.client.post(reverse("delivery_update", args=[delivery.pk]), {"status": "picked_up"})
+        self.send_otp_email.assert_called_once()
+        payload = self.send_otp_email.call_args.kwargs
+        self.assertEqual(payload["to_email"], self.customer.email)
+        import re
+        from .services import otp_is_valid
+        otp = re.search(r"\b\d{6}\b", payload["text_content"]).group()
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, "picked_up")
+        self.assertTrue(otp_is_valid(delivery, otp))
 
     def test_only_exact_pincode_agent_sees_and_accepts_job(self):
         delivery = ensure_grocery_delivery(self.order)
