@@ -5,13 +5,14 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { API_URL, Order, request } from "./api";
+import type { Collection } from "./partnerApi";
 
 type Review = { rating: number; title: string; review: string; approved: boolean };
 type Item = { id: number; name: string; quantity: number; can_review: boolean; can_return: boolean; review: Review | null };
 type Experience = {
   items: Item[];
   returns: { id: number; order_item_id: number | null; reason: string; status: string; refund_status: string }[];
-  shipments: { id: string; seller: string; provider: string; status: string; tracking_number: string; latitude: string | null; longitude: string | null; location_updated_at: string | null; delivery_code?: string }[];
+  shipments: { id: string; seller: string; provider: string; status: string; tracking_number: string; latitude: string | null; longitude: string | null; location_updated_at: string | null; delivery_code?: string; collection?: Collection }[];
   return_reasons: string[];
   return_deadline: string | null;
   invoice_available: boolean;
@@ -125,6 +126,7 @@ export default function CustomerOrderTools({ token, order }: { token: string; or
         <View key={shipment.id} style={s.card}>
           <Text style={s.heading}>{shipment.seller}</Text>
           <Text style={s.body}>{shipment.provider} · {shipment.status.replace(/_/g, " ")}</Text>
+          {!!shipment.collection?.paid && <Text style={s.body}>Payment received {shipment.collection.method === "cash" ? "in cash" : "online"}</Text>}
           {!!shipment.delivery_code && <View>
             <Text style={s.heading}>Delivery code</Text>
             <Text selectable style={s.heading}>{shipment.delivery_code}</Text>

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Collect payment | ZIYAMART{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:640px">
+  <a href="{% url 'delivery_dashboard' %}">Back to deliveries</a>
+  <h1 class="h3 mt-3">{{ delivery.order_kind }} order #{{ delivery.source_order.pk }}</h1>
+  <p>{{ delivery.customer_name }} · {{ delivery.source_order.get_payment_method_display }}</p>
+  {% if collection.paid %}
+    <div class="alert alert-success">Paid {% if collection.method == 'cash' %}in cash{% else %}online{% endif %}{% if delivery.source_order.payment_method == 'cod' %} · ₹{{ collection.amount }}{% endif %}</div>
+    {% if collection.method == 'cash' %}<p>Cash is recorded in your remittance balance.</p>{% endif %}
+    <a class="btn btn-success" href="{% url 'delivery_complete' delivery.pk %}">Enter customer delivery code</a>
+  {% elif delivery.status == 'out_for_delivery' %}
+    <h2 class="h4">Amount due: ₹{{ collection.amount_due }}</h2>
+    <div class="d-flex gap-2 my-3"><button type="button" class="btn btn-outline-dark" onclick="document.getElementById('cash-payment').hidden=false">Cash</button>
+    <form method="post">{% csrf_token %}<button name="action" value="online" class="btn btn-primary">Pay online</button></form></div>
+    <form method="post" id="cash-payment" hidden class="border-top py-3">{% csrf_token %}
+      <p>Mark paid only after the customer has given you ₹{{ collection.amount_due }}.</p>
+      <label class="d-block mb-3"><input type="checkbox" name="confirmed" value="yes" required> I received the full amount in cash</label>
+      <button name="action" value="cash" class="btn btn-success">Mark cash received</button>
+    </form>
+    {% if collection.qr_image_url %}
+      <h3 class="h5 mt-3">Pay ZIYAMART · ₹{{ collection.amount_due }}</h3>
+      <img src="{{ collection.qr_image_url }}" alt="ZIYAMART payment QR for this delivery" style="width:100%;max-width:320px;aspect-ratio:1;object-fit:contain">
+      <p>Waiting for payment confirmation.</p>
+      <form method="post">{% csrf_token %}<button name="action" value="check" class="btn btn-primary">Check payment status</button></form>
+    {% endif %}
+  {% else %}<p>Payment collection becomes available when the order is out for delivery.</p>{% endif %}
+</div>
+{% endblock %}

@@ -32,6 +32,7 @@ urlpatterns = [
     path("rider/jobs/<int:pk>/accept/", views.RiderAcceptView.as_view()),
     path("rider/jobs/<int:pk>/status/", views.RiderStatusView.as_view()),
     path("rider/jobs/<int:pk>/complete/", views.RiderCompleteView.as_view()),
+    path("rider/jobs/<int:pk>/payment/", views.RiderPaymentView.as_view()),
     path("rider/jobs/<int:pk>/location/", views.RiderLocationView.as_view()),
     path("rider/earnings/", views.RiderEarningsView.as_view()),
 ]

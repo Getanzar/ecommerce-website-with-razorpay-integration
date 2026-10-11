@@ -465,11 +465,15 @@ def confirm_cod_remittance(request, remittance_id):
     all_cash_received = not CODRemittance.objects.filter(
         **order_link(order),
     ).exclude(status__in=("remitted", "settled")).exists()
+    from delivery.collection import customer_paid_amount
+    required = getattr(order, "total_price", getattr(order, "total", Decimal("0")))
+    all_cash_received = all_cash_received and customer_paid_amount(order) >= required
     if all_cash_received:
         order.payment_status = "Paid"
         order.save(update_fields=["payment_status", "updated_at"])
+        cash_total = CODRemittance.objects.filter(**order_link(order), status__in=["remitted", "settled"]).aggregate(total=Sum("amount"))["total"] or Decimal("0")
         PaymentTransaction.objects.filter(provider="cod", **order_link(order)).update(
-            status="captured", captured_at=timezone.now(),
+            amount=cash_total, status="captured", captured_at=timezone.now(),
         )
         if remittance.parcel_order_id:
             from orders.settlements import create_settlements_for_order

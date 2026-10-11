@@ -161,10 +161,32 @@ def complete_with_otp(request, delivery_id):
         elif not otp_is_valid(delivery, form.cleaned_data["otp"]):
             form.add_error("otp", "The OTP is incorrect or expired.")
         else:
+            from .collection import collection_data
+            if not collection_data(delivery)["paid"]:
+                form.add_error(None, "Confirm cash received or verify the online payment first.")
+                return render(request, "delivery/complete.html", {"delivery": delivery, "form": form})
             complete_delivery(delivery, agent)
             messages.success(request, "Delivery completed and earning recorded.")
             return redirect("delivery_dashboard")
     return render(request, "delivery/complete.html", {"delivery": delivery, "form": form})
+
+
+@login_required
+@never_cache
+def delivery_payment(request, delivery_id):
+    from .collection import collect_payment, collection_data, CollectionError
+    agent = _agent(request)
+    delivery = get_object_or_404(LocalDelivery, pk=delivery_id, agent=agent)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "cash" and request.POST.get("confirmed") != "yes":
+                raise CollectionError("Confirm that the customer has given you the cash.")
+            collect_payment(delivery.pk, agent, action)
+        except CollectionError as exc:
+            messages.error(request, str(exc))
+        return redirect("delivery_payment", delivery_id=delivery.pk)
+    return render(request, "delivery/payment.html", {"delivery": delivery, "collection": collection_data(delivery)})
 
 
 @login_required

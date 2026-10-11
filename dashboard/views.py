@@ -234,6 +234,8 @@ def seller_orders(request):
         .select_related("order", "product", "variant")
         .order_by("-order__created_at", "id")
     )
+    for item in order_items:
+        item.local_delivery = item.order.local_deliveries.filter(parcel_seller=seller).first()
     return render(
         request,
         "dashboard/seller/orders.html",

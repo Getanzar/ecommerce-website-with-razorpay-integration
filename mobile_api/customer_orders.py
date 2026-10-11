@@ -117,7 +117,8 @@ class OrderExperienceView(CustomerView):
         shipments = [{"id": f"local-{row.pk}", "seller": row.pickup_name, "provider": "Local delivery",
                       "status": row.status, "tracking_number": "", "location_updated_at": row.location_updated_at,
                       "latitude": row.agent_latitude, "longitude": row.agent_longitude,
-                      "delivery_code": row.customer_delivery_code} for row in deliveries]
+                      "delivery_code": row.customer_delivery_code,
+                      "collection": row.payment_collection} for row in deliveries]
         if kind == "shop":
             shipments += [{"id": f"carrier-{row.pk}", "seller": row.seller.store_name if row.seller else "ZIYAMART",
                            "provider": "Delhivery", "status": row.carrier_status, "tracking_number": row.awb_number,

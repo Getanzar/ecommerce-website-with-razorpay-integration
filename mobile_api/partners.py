@@ -167,6 +167,7 @@ def order_next(row, kind):
 
 def order_data(row, kind):
     order = row.order if kind == "shop" else row
+    local = order.local_deliveries.filter(parcel_seller=row.product.seller).first() if kind == "shop" else getattr(order, "local_delivery", None)
     items = [{"name": row.product_name, "quantity": row.quantity,
               "variant": " / ".join(filter(None, [row.product_color, row.product_size]))}] if kind == "shop" else [
         {"name": item.item_name if kind == "food" else item.product_name,
@@ -175,6 +176,7 @@ def order_data(row, kind):
     return {"id": row.pk, "order_id": order.pk, "kind": kind,
             "status": row.fulfillment_status if kind == "shop" else row.status,
             "payment_status": order.payment_status, "payment_method": order.payment_method,
+            "collection": local.payment_collection if local else None,
             "customer": order.full_name, "address": f"{order.address}, {order.city}, {order.pincode}",
             "items": items, "amount": str(row.seller_total if kind == "shop" else row.subtotal),
             "created_at": order.created_at, "next_status": order_next(row, kind),
@@ -345,6 +347,7 @@ class SellerPayoutsView(SellerKindView):
 
 
 def delivery_data(row, agent, reveal=True):
+    from delivery.collection import collection_data
     assigned = row.agent_id == agent.pk
     order = row.source_order
     return {"id": row.pk, "kind": row.order_kind, "status": row.status,
@@ -354,6 +357,8 @@ def delivery_data(row, agent, reveal=True):
             "customer_phone": row.customer_phone if assigned and reveal else "",
             "delivery_address": row.delivery_address if assigned and reveal else "",
             "payment_method": order.payment_method,
+            "payment_status": order.payment_status,
+            "collection": collection_data(row),
             "collection_amount": str(row.collection_amount) if order.payment_method == "cod" else "0.00",
             "gross": str(row.agent_earning), "fee": str(row.agent_platform_fee), "net": str(row.agent_net_earning),
             "location_updated_at": row.location_updated_at,
@@ -429,6 +434,20 @@ class RiderStatusView(PartnerView):
         return Response(delivery_data(row, agent))
 
 
+class RiderPaymentView(PartnerView):
+    def post(self, request, pk):
+        from delivery.collection import collect_payment, CollectionError
+        agent = agent_for(request.user)
+        get_object_or_404(LocalDelivery, pk=pk, agent=agent)
+        if request.data.get("action") == "cash" and request.data.get("confirmed") is not True:
+            raise ValidationError("Confirm that the customer has given you the cash.")
+        try:
+            result = collect_payment(pk, agent, request.data.get("action"))
+        except CollectionError as exc:
+            raise ValidationError(str(exc))
+        return Response(result)
+
+
 class RiderCompleteView(PartnerView):
     throttle_classes = [OTPThrottle]
 
@@ -443,8 +462,15 @@ class RiderCompleteView(PartnerView):
         otp = serializers.RegexField(r"^\d{6}$").run_validation(request.data.get("otp", ""))
         if not otp_is_valid(row, otp):
             raise ValidationError("The delivery OTP is incorrect or expired.")
-        if row.source_order.payment_method == "cod" and request.data.get("cash_collected") is not True:
-            raise ValidationError("Confirm that the cash shown on this job has been collected.")
+        from delivery.collection import collection_data, collect_payment, CollectionError
+        if not collection_data(row)["paid"]:
+            if request.data.get("cash_collected") is not True:
+                raise ValidationError("Confirm cash received or verify the online payment first.")
+            try:
+                collect_payment(row.pk, agent, "cash")
+            except CollectionError as exc:
+                raise ValidationError(str(exc))
+        row.refresh_from_db()
         complete_delivery(row, agent)
         return Response({"message": "Delivery completed. Your earning has been recorded."})
 

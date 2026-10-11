@@ -154,6 +154,13 @@ def otp_is_valid(delivery, otp):
 
 @transaction.atomic
 def complete_delivery(delivery, agent):
+    from .collection import collection_data, CollectionError
+    if delivery.status == "delivered":
+        return DeliveryEarning.objects.get(delivery=delivery)
+    if delivery.status != "out_for_delivery" or delivery.source_order.status.lower() in {"cancelled", "returned"}:
+        raise CollectionError("This order is not available for delivery completion.")
+    if not collection_data(delivery)["paid"]:
+        raise CollectionError("Confirm cash received or verify the online payment before completing delivery.")
     delivery.status = "delivered"
     delivery.delivered_at = timezone.now()
     # Do not retain a rider/customer's precise location after fulfillment.
@@ -179,7 +186,9 @@ def complete_delivery(delivery, agent):
     order.save(update_fields=update_fields)
     platform_percent = Decimal(str(getattr(settings, "DELIVERY_AGENT_PLATFORM_FEE_PERCENT", "10.00")))
     platform_fee = (delivery.agent_earning * platform_percent / Decimal("100")).quantize(Decimal("0.01"))
-    earning_status = "pending" if order.payment_method == "cod" else "payable"
+    from payments.models import CODRemittance
+    cash_held = CODRemittance.objects.filter(delivery=delivery).exclude(status__in=["remitted", "settled"]).exists()
+    earning_status = "pending" if cash_held else "payable"
     earning, _ = DeliveryEarning.objects.get_or_create(
         delivery=delivery,
         defaults={
@@ -192,21 +201,6 @@ def complete_delivery(delivery, agent):
             "scheduled_for": timezone.now() + timedelta(hours=12),
         },
     )
-    if order.payment_method == "cod":
-        from payments.models import CODRemittance
-        from payments.services import order_link
-        CODRemittance.objects.get_or_create(
-            delivery=delivery,
-            defaults={
-                "agent": agent,
-                "seller": delivery.parcel_seller if delivery.parcel_order_id else None,
-                "source": "local_agent",
-                "amount": delivery.collection_amount or getattr(order, "total_price", getattr(order, "total", 0)),
-                "status": "collected",
-                "collected_at": timezone.now(),
-                **order_link(order),
-            },
-        )
     if order.payment_status == "Paid":
         if delivery.food_order_id:
             from food.settlements import create_food_settlement

@@ -133,7 +133,7 @@ class PartnerApiTests(APITestCase):
         self.login(self.agent_user)
         self.assertEqual(self.client.patch(self.url(f"rider/jobs/{self.job.pk}/status/"), {"status": "accepted"}, format="json").status_code, 403)
 
-    @patch("delivery.services.send_mail")
+    @patch("delivery.services.send_transactional_email")
     def test_rider_lifecycle_otp_cash_and_idempotent_earning(self, send):
         self.login(self.agent_user)
         base = self.url(f"rider/jobs/{self.job.pk}/")

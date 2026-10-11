@@ -1,3 +1,4 @@
+{% if delivery.payment_collection.paid %}<p class="text-success mt-2">Payment received {% if delivery.payment_collection.method == 'cash' %}in cash{% else %}online{% endif %}.</p>{% endif %}
 {% if delivery.customer_delivery_code %}
 <div class="alert alert-success mt-3">
   <strong>Delivery code</strong>

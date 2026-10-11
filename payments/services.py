@@ -244,7 +244,11 @@ def handle_razorpay_event(raw_body, signature, event_id):
             event = PaymentWebhookEvent.objects.select_for_update().get(pk=event.pk)
             event_payload = payload.get("payload", {})
             entity = event_payload.get("payment", {}).get("entity", {})
-            if event_type in {"payment.captured", "order.paid", "payment.failed"}:
+            if event_type == "qr_code.credited":
+                from delivery.collection import reconcile_qr
+                qr_entity = event_payload.get("qr_code", {}).get("entity", {})
+                reconcile_qr(qr_entity.get("id", ""))
+            elif event_type in {"payment.captured", "order.paid", "payment.failed"}:
                 order_entity = event_payload.get("order", {}).get("entity", {})
                 provider_order_id = entity.get("order_id") or order_entity.get("id")
                 payment = PaymentTransaction.objects.select_for_update().filter(provider_order_id=provider_order_id).first()

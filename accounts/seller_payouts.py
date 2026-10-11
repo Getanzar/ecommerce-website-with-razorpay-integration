@@ -16,6 +16,10 @@ def submit_seller_payout(settlement):
     each settlement exposes seller, payout_amount, and payout_reference_key.
     """
     seller = settlement.seller
+    from payments.models import CODRemittance
+    from payments.services import order_link
+    if CODRemittance.objects.filter(**order_link(settlement.order)).exclude(status__in=["remitted", "settled"]).exists():
+        raise SellerPayoutError("Collected cash must be remitted to ZIYAMART before seller payout.")
 
     if settlement.status == "paid":
         raise SellerPayoutError("This seller settlement has already been paid.")

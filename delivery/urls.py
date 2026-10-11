@@ -10,6 +10,7 @@ urlpatterns = [
     path("jobs/<int:delivery_id>/accept/", views.accept_delivery, name="delivery_accept"),
     path("jobs/<int:delivery_id>/status/", views.update_delivery, name="delivery_update"),
     path("jobs/<int:delivery_id>/complete/", views.complete_with_otp, name="delivery_complete"),
+    path("jobs/<int:delivery_id>/payment/", views.delivery_payment, name="delivery_payment"),
     path("jobs/<int:delivery_id>/location/", views.update_location, name="delivery_location_update"),
     path("track/<uuid:public_id>/", views.track_delivery, name="delivery_track"),
     path("track/<uuid:public_id>/location/", views.live_location, name="delivery_live_location"),

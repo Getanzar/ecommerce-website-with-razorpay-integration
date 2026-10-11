@@ -1,0 +1,4 @@
+<div class="small mt-2">
+  {% if delivery.payment_collection.paid %}Payment received {% if delivery.payment_collection.method == 'cash' %}in cash{% else %}online{% endif %}{% if order.payment_method == 'cod' %} · ₹{{ delivery.payment_collection.amount }}{% endif %}
+  {% else %}{{ order.get_payment_method_display }} · {{ order.payment_status }}{% endif %}
+</div>

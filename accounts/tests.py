@@ -200,6 +200,8 @@ class SellerPayoutSubmissionTests(TestCase):
             payouts_enabled=True,
             status="approved",
         )
+        from orders.models import Order
+        self.order = Order.objects.create(user=user, total_price="900.00", payment_method="online", payment_status="Paid")
 
     @override_settings(
         RAZORPAYX_KEY_ID="rzp_test_x_key",
@@ -226,6 +228,7 @@ class SellerPayoutSubmissionTests(TestCase):
 
         settlement = SimpleNamespace(
             pk=42,
+            order=self.order,
             seller=self.seller,
             status="scheduled",
             provider_payout_id="",
@@ -284,6 +287,7 @@ class SellerPayoutSubmissionTests(TestCase):
 
         settlement = SimpleNamespace(
             pk=43,
+            order=self.order,
             seller=self.seller,
             status="scheduled",
             provider_payout_id="",

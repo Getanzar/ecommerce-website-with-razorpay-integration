@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import DeliveryAgentProfile, DeliveryEarning, DeliveryZone, LocalDelivery
+from .models import DeliveryAgentProfile, DeliveryCollection, DeliveryEarning, DeliveryZone, LocalDelivery
 
 
 @admin.action(description="Approve selected delivery agents")
@@ -26,3 +26,17 @@ class LocalDeliveryAdmin(admin.ModelAdmin):
 
 admin.site.register(DeliveryZone)
 admin.site.register(DeliveryEarning)
+
+
+@admin.register(DeliveryCollection)
+class DeliveryCollectionAdmin(admin.ModelAdmin):
+    list_display = ("delivery", "amount", "method", "status", "qr_id", "paid_at")
+    list_filter = ("method", "status")
+    search_fields = ("qr_id", "delivery__customer_name")
+    readonly_fields = ("delivery", "amount", "method", "status", "qr_id", "qr_image_url", "payment", "paid_at", "updated_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

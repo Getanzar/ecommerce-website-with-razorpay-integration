@@ -160,6 +160,11 @@ class LocalDelivery(models.Model):
         return customer_delivery_code(self)
 
     @property
+    def payment_collection(self):
+        from .collection import collection_data
+        return collection_data(self)
+
+    @property
     def order_kind(self):
         if self.grocery_order_id:
             return "Grocery"
@@ -176,6 +181,18 @@ class LocalDelivery(models.Model):
 
     def __str__(self):
         return f"{self.order_kind} delivery #{self.pk} - {self.pincode}"
+
+
+class DeliveryCollection(models.Model):
+    delivery = models.OneToOneField(LocalDelivery, related_name="collection", on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    method = models.CharField(max_length=10, blank=True, choices=(("cash", "Cash"), ("online", "Online")))
+    status = models.CharField(max_length=10, default="pending", choices=(("pending", "Pending"), ("issuing", "Issuing QR"), ("paid", "Paid")))
+    qr_id = models.CharField(max_length=120, blank=True, unique=True, null=True)
+    qr_image_url = models.URLField(max_length=500, blank=True)
+    payment = models.OneToOneField("payments.PaymentTransaction", null=True, blank=True, on_delete=models.PROTECT)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class DeliveryEarning(models.Model):

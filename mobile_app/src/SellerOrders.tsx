@@ -52,6 +52,7 @@ function OrderActions({ row, token, onChanged }: { row: SellerOrder; token: stri
   return <View style={s.card}>
     {row.items.map((item, index) => <View key={index} style={s.item}><Text style={s.heading}>{item.quantity} × {item.name}</Text>{!!item.variant && <Text style={s.muted}>{item.variant}</Text>}</View>)}
     <View style={s.row}><Text style={[s.status, row.status === "cancelled" && s.error]}>{label(row.status)}</Text><Text style={s.amount}>{money(row.amount)}</Text></View>
+    {!!row.collection?.paid && <Text style={s.body}>Payment received {row.collection.method === "cash" ? "in cash" : "online"}</Text>}
     {itemScope && <Text style={s.muted}>Actions below apply to this item only.</Text>}
     {!!row.courier && <Text style={s.muted}>Courier: {row.courier} · {row.tracking_number}</Text>}
     {row.next_status === "shipped" && <>
