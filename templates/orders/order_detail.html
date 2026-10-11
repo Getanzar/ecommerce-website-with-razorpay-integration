@@ -211,6 +211,7 @@
                         </div>
                     {% endfor %}
                     {% for delivery in local_deliveries %}
+                        {% include 'delivery/customer_code.html' %}
                         <div class="border rounded-3 p-3 mb-3">
                             <strong>{{ delivery.parcel_seller.store_name }}</strong>
                             <div class="small text-muted">Local delivery · {{ delivery.get_status_display }}</div>

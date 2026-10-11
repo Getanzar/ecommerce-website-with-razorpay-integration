@@ -75,6 +75,41 @@ class LocalDeliveryTests(TestCase):
         delivery.refresh_from_db()
         self.assertEqual(delivery.agent, self.agent)
 
+    def test_customer_code_is_private_and_matches_completion_otp(self):
+        from rest_framework.test import APIClient
+        from .services import otp_is_valid
+        from django.utils import timezone
+        from datetime import timedelta
+        delivery = ensure_grocery_delivery(self.order)
+        delivery.status = "out_for_delivery"
+        delivery.save(update_fields=["status"])
+        otp = issue_delivery_otp(delivery)
+        self.assertEqual(delivery.customer_delivery_code, otp)
+        self.assertTrue(otp_is_valid(delivery, otp))
+        self.assertNotEqual(delivery.delivery_otp_seed, otp)
+        url = reverse("delivery_track", args=[delivery.public_id])
+        self.client.force_login(self.customer)
+        response = self.client.get(url)
+        self.assertContains(response, otp)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertContains(self.client.get(reverse("grocery_orders")), otp)
+        self.client.force_login(self.agent_user)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        api = APIClient()
+        api.force_authenticate(self.customer)
+        endpoint = f"/api/v1/orders/grocery/{self.order.pk}/experience/"
+        self.assertEqual(api.get(endpoint).data["shipments"][0]["delivery_code"], otp)
+        api.force_authenticate(self.agent_user)
+        self.assertEqual(api.get(endpoint).status_code, 404)
+        delivery.otp_expires_at = timezone.now() - timedelta(seconds=1)
+        self.assertEqual(delivery.customer_delivery_code, "")
+        delivery.otp_expires_at = timezone.now() + timedelta(hours=1)
+        delivery.status = "delivered"
+        self.assertEqual(delivery.customer_delivery_code, "")
+        delivery.status = "out_for_delivery"
+        self.order.status = "cancelled"
+        self.assertEqual(delivery.customer_delivery_code, "")
+
     def test_agent_from_another_pincode_cannot_accept(self):
         delivery = ensure_grocery_delivery(self.order)
         self.agent.pincode = "110001"

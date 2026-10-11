@@ -120,6 +120,7 @@ class LocalDelivery(models.Model):
     collection_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="available")
     delivery_otp_hash = models.CharField(max_length=128, blank=True)
+    delivery_otp_seed = models.CharField(max_length=64, blank=True, editable=False)
     otp_expires_at = models.DateTimeField(blank=True, null=True)
     assigned_at = models.DateTimeField(blank=True, null=True)
     picked_up_at = models.DateTimeField(blank=True, null=True)
@@ -152,6 +153,11 @@ class LocalDelivery(models.Model):
     @property
     def source_order(self):
         return self.grocery_order or self.food_order or self.parcel_order
+
+    @property
+    def customer_delivery_code(self):
+        from .services import customer_delivery_code
+        return customer_delivery_code(self)
 
     @property
     def order_kind(self):

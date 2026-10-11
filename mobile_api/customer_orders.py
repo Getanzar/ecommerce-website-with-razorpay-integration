@@ -116,7 +116,8 @@ class OrderExperienceView(CustomerView):
         deliveries = LocalDelivery.objects.filter(**{link: order}).select_related("parcel_seller")
         shipments = [{"id": f"local-{row.pk}", "seller": row.pickup_name, "provider": "Local delivery",
                       "status": row.status, "tracking_number": "", "location_updated_at": row.location_updated_at,
-                      "latitude": row.agent_latitude, "longitude": row.agent_longitude} for row in deliveries]
+                      "latitude": row.agent_latitude, "longitude": row.agent_longitude,
+                      "delivery_code": row.customer_delivery_code} for row in deliveries]
         if kind == "shop":
             shipments += [{"id": f"carrier-{row.pk}", "seller": row.seller.store_name if row.seller else "ZIYAMART",
                            "provider": "Delhivery", "status": row.carrier_status, "tracking_number": row.awb_number,
@@ -130,11 +131,13 @@ class OrderExperienceView(CustomerView):
                               "can_review": order.status == "Delivered" or item.fulfillment_status == "delivered",
                               "can_return": order.can_request_return and item.fulfillment_status != "cancelled" and not order.return_requests.filter(Q(order_item=item) | Q(order_item__isnull=True)).exists(),
                               "review": review_data(reviews[item.product_id]) if item.product_id in reviews else None})
-        return Response({"items": items, "shipments": shipments,
+        response = Response({"items": items, "shipments": shipments,
                          "returns": [return_data(r) for r in order.return_requests.all()] if kind == "shop" else [],
                          "return_reasons": [value for value, _ in ReturnRequest.REASON_CHOICES],
                          "return_deadline": order.return_deadline if kind == "shop" else None,
                          "invoice_available": order.status.lower() != "cancelled" and (order.payment_status == "Paid" or order.status.lower() == "delivered")})
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class OrderInvoiceView(CustomerView):

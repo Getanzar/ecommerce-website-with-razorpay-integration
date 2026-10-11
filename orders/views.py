@@ -631,11 +631,13 @@ def my_orders(request):
 @login_required
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id, user=request.user)
-    return render(request, "orders/order_detail.html", {
+    response = render(request, "orders/order_detail.html", {
         "order": order,
         "carrier_shipments": order.sellerdeliverycharges.filter(provider="delhivery").select_related("seller"),
         "local_deliveries": order.local_deliveries.select_related("parcel_seller", "agent"),
     })
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 @login_required
 def cancel_order(request, order_id):

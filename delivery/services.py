@@ -6,6 +6,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 from config.email import send_transactional_email
 
 from .models import DeliveryEarning, LocalDelivery
@@ -111,11 +112,26 @@ def ensure_parcel_deliveries(order, delivery_charges):
     return deliveries
 
 
+def _code_from_seed(delivery):
+    digest = salted_hmac("delivery.customer_otp", f"{delivery.pk}:{delivery.delivery_otp_seed}", algorithm="sha256").hexdigest()
+    return str(100000 + int(digest, 16) % 900000)
+
+
+def customer_delivery_code(delivery):
+    if delivery.status not in {"picked_up", "out_for_delivery"} or delivery.source_order.status.lower() in {"cancelled", "returned", "delivered"}:
+        return ""
+    if not delivery.delivery_otp_seed or not delivery.otp_expires_at or delivery.otp_expires_at < timezone.now():
+        return ""
+    code = _code_from_seed(delivery)
+    return code if check_password(code, delivery.delivery_otp_hash) else ""
+
+
 def issue_delivery_otp(delivery):
-    otp = f"{secrets.randbelow(900000) + 100000}"
+    delivery.delivery_otp_seed = secrets.token_hex(32)
+    otp = _code_from_seed(delivery)
     delivery.delivery_otp_hash = make_password(otp)
     delivery.otp_expires_at = timezone.now() + timedelta(hours=6)
-    delivery.save(update_fields=["delivery_otp_hash", "otp_expires_at", "updated_at"])
+    delivery.save(update_fields=["delivery_otp_hash", "delivery_otp_seed", "otp_expires_at", "updated_at"])
     email = delivery.source_order.user.email
     if email:
         send_transactional_email(

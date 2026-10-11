@@ -11,7 +11,7 @@ type Item = { id: number; name: string; quantity: number; can_review: boolean; c
 type Experience = {
   items: Item[];
   returns: { id: number; order_item_id: number | null; reason: string; status: string; refund_status: string }[];
-  shipments: { id: string; seller: string; provider: string; status: string; tracking_number: string; latitude: string | null; longitude: string | null; location_updated_at: string | null }[];
+  shipments: { id: string; seller: string; provider: string; status: string; tracking_number: string; latitude: string | null; longitude: string | null; location_updated_at: string | null; delivery_code?: string }[];
   return_reasons: string[];
   return_deadline: string | null;
   invoice_available: boolean;
@@ -125,6 +125,11 @@ export default function CustomerOrderTools({ token, order }: { token: string; or
         <View key={shipment.id} style={s.card}>
           <Text style={s.heading}>{shipment.seller}</Text>
           <Text style={s.body}>{shipment.provider} · {shipment.status.replace(/_/g, " ")}</Text>
+          {!!shipment.delivery_code && <View>
+            <Text style={s.heading}>Delivery code</Text>
+            <Text selectable style={s.heading}>{shipment.delivery_code}</Text>
+            <Text style={s.note}>Share this code with your delivery partner only after receiving your order.</Text>
+          </View>}
           {!!shipment.tracking_number && <Text selectable style={s.body}>Tracking: {shipment.tracking_number}</Text>}
           {shipment.latitude !== null && shipment.longitude !== null && (
             <Pressable accessibilityRole="button" onPress={() => {

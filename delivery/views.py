@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 from .forms import DeliveryAgentPayoutSetupForm, DeliveryAgentRegistrationForm, DeliveryOTPForm
 from .models import DeliveryAgentProfile, LocalDelivery
 from .services import complete_delivery, issue_delivery_otp, otp_is_valid
+from django.views.decorators.cache import never_cache
 
 
 def register(request):
@@ -167,6 +168,7 @@ def complete_with_otp(request, delivery_id):
 
 
 @login_required
+@never_cache
 def track_delivery(request, public_id):
     delivery = get_object_or_404(LocalDelivery, public_id=public_id)
     if delivery.source_order.user_id != request.user.id and not request.user.is_staff:

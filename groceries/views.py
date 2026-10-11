@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponseBadRequest
 from django.conf import settings
 from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
 
 from .cart import GroceryCart
 from .forms import GroceryCheckoutForm, GroceryProductForm, GroceryStoreForm
@@ -194,6 +195,7 @@ def order_success(request, order_id):
 
 
 @login_required
+@never_cache
 def my_orders(request):
     return render(request, "groceries/my_orders.html", {"orders": request.user.grocery_orders.select_related("store").prefetch_related("items")})
 

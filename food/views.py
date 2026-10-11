@@ -10,6 +10,7 @@ from django.conf import settings
 import razorpay
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
 
 from .cart import FoodCart
 from .forms import FoodCheckoutForm, MenuItemForm, MenuOptionFormSet, MenuSectionForm, RestaurantForm
@@ -189,6 +190,7 @@ def payment_retry(request, order_id):
 
 
 @login_required
+@never_cache
 def my_orders(request):
     return render(request, "food/my_orders.html", {"orders": request.user.food_orders.select_related("restaurant").prefetch_related("items")})
 

@@ -4,6 +4,7 @@
 <div class="row justify-content-center"><div class="col-md-7"><div class="card p-5">
   <span class="text-success fw-bold">LOCAL DELIVERY</span><h1 id="delivery-status">{{ delivery.get_status_display }}</h1>
   <p>{{ delivery.order_kind }} order #{{ delivery.source_order.pk }} · {{ delivery.pincode }}</p>
+  {% if request.user.id == delivery.source_order.user_id %}{% include 'delivery/customer_code.html' %}{% endif %}
   {% if delivery.agent %}<p><strong>Delivery partner:</strong> {{ delivery.agent.full_name }}</p>{% endif %}
   <div class="progress" style="height:12px"><div class="progress-bar bg-success" style="width:{% if delivery.status == 'delivered' %}100{% elif delivery.status == 'out_for_delivery' %}80{% elif delivery.status == 'picked_up' %}60{% elif delivery.status == 'accepted' %}40{% else %}20{% endif %}"></div></div>
   <div id="location-message" class="alert alert-info mt-4">Waiting for the delivery partner's live location…</div>
