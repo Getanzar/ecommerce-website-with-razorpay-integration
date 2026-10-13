@@ -120,7 +120,7 @@ def checkout(request):
             order.user = request.user
             order.restaurant = restaurant
             order.subtotal = pricing["merchant_subtotal"] + pricing["platform_fee"]
-            order.delivery_fee = restaurant.delivery_fee
+            order.delivery_fee = pricing["delivery_fee"]
             order.total = pricing["grand_total"]
             if order.payment_method == "online":
                 from payments.services import create_razorpay_order
@@ -136,7 +136,7 @@ def checkout(request):
             from payments.services import create_breakdown, create_local_seller_delivery_charge, create_payment_transaction
             create_breakdown(order, pricing)
             create_local_seller_delivery_charge(
-                order, restaurant.seller, restaurant.pincode, order.pincode, restaurant.delivery_fee,
+                order, restaurant.seller, restaurant.pincode, order.pincode, order.delivery_fee,
             )
             create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()

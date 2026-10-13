@@ -26,7 +26,7 @@
   {% for store in stores %}
   <div class="col-md-6 col-lg-4"><a class="card store-card h-100 text-decoration-none text-dark border-0 shadow-sm" href="{% url 'grocery_store' store.slug %}?pincode={{ pincode }}">
     {% if store.image %}<img class="card-img-top store-img" src="{{ store.image.url }}" alt="{{ store.name }}">{% else %}<div class="store-img d-flex align-items-center justify-content-center display-3">🛒</div>{% endif %}
-    <div class="card-body"><div class="d-flex"><h2 class="h5 me-auto">{{ store.name }}</h2><span class="badge text-bg-success">Open</span></div><p class="text-muted mb-2">{{ store.description|truncatechars:90 }}</p><strong>{{ store.estimated_delivery_minutes }}–{{ store.estimated_delivery_minutes|add:30 }} min</strong> · Delivery ₹{{ store.delivery_fee }}</div>
+    <div class="card-body"><div class="d-flex"><h2 class="h5 me-auto">{{ store.name }}</h2><span class="badge text-bg-success">Open</span></div><p class="text-muted mb-2">{{ store.description|truncatechars:90 }}</p><strong>{{ store.estimated_delivery_minutes }}–{{ store.estimated_delivery_minutes|add:30 }} min</strong> · Free delivery on orders of ₹200 or more</div>
   </a></div>
   {% empty %}{% if area %}<p class="text-muted">No kirana stores are open in this area right now.</p>{% endif %}{% endfor %}
 </div>

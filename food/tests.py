@@ -218,6 +218,7 @@ class FoodOrderingTests(TestCase):
         self.assertEqual(breakdown.delivery_gst, Decimal("0.00"))
         self.assertEqual(breakdown.customer_delivery_charge, Decimal("0.00"))
         self.assertTrue(FoodSellerSettlement.objects.filter(order=order).exists())
+        self.assertEqual(FoodSellerSettlement.objects.get(order=order).delivery_charge, Decimal("20.00"))
 
     def test_checkout_rejects_unserviceable_pincode(self):
         self.client.login(username="customer", password="test-password")

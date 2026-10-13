@@ -21,6 +21,9 @@ def create_grocery_settlement(order):
     merchandise_gst = breakdown.merchandise_gst if breakdown else Decimal("0.00")
     commission = breakdown.platform_fee if breakdown else Decimal("0.00")
     delivery = SellerDeliveryCharge.objects.filter(grocery_order=order, seller=seller).first()
+    delivery_cost = delivery.amount_due if delivery else order.delivery_fee
+    customer_delivery = breakdown.customer_delivery_charge if breakdown else Decimal("0.00")
+    seller_delivery = max(Decimal("0.00"), delivery_cost - customer_delivery)
     settlement, created = GrocerySellerSettlement.objects.get_or_create(
         order=order,
         defaults={
@@ -28,13 +31,13 @@ def create_grocery_settlement(order):
             "gross_amount": merchant + merchandise_gst,
             "commission_amount": commission,
             "net_amount": merchant + merchandise_gst,
-            "delivery_charge": delivery.amount_due if delivery else order.delivery_fee,
+            "delivery_charge": seller_delivery,
             "tcs_amount": percentage(merchant, getattr(settings, "ECOMMERCE_TCS_PERCENT", "0.50")),
             "payment_method": order.payment_method,
             "scheduled_for": next_morning(timezone.now()),
         },
     )
     if not created and settlement.status in {"scheduled", "failed"}:
-        settlement.delivery_charge = delivery.amount_due if delivery else order.delivery_fee
+        settlement.delivery_charge = seller_delivery
         settlement.save(update_fields=["delivery_charge", "updated_at"])
     return settlement

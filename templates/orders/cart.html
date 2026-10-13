@@ -1,92 +1,51 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Your Cart{% endblock %}
+{% block title %}Your Cart · ZIYAMART{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/merchandise-cart.css' %}">{% endblock %}
 {% block content %}
-<h2>Your Shopping Cart </h2>
-
-{% if cart_items %}
-  <div class="table-responsive">
-  <table class="table table-bordered align-middle">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Size</th>
-        <th>Qty</th>
-        <th>Price</th>
-        <th>Subtotal</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
+<section class="merchandise-cart" aria-labelledby="cart-heading">
+  <a class="cart-back" href="{% url 'product_list_page' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Continue shopping</a>
+  <header class="cart-heading"><div><span class="cart-eyebrow">A little something for you</span><h1 id="cart-heading">Your shopping bag<span class="cart-heading-dot">.</span></h1><p>Great finds, ready when you are.</p></div>{% if cart_items %}<span class="cart-count">{{ cart_items|length }} item{{ cart_items|length|pluralize }}</span>{% endif %}</header>
+  {% if cart_items %}
+  <div class="cart-layout">
+    <div class="cart-products">
+      <div class="cart-panel-heading"><h2>Your items</h2><span>Prices include GST</span></div>
+      <ul class="cart-item-list">
       {% for item in cart_items %}
-        <tr>
-          <td class="d-flex align-items-center">
-            {% if item.product.image %}
-              <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}"
-                   class="img-thumbnail me-2" style="width:60px; height:60px; object-fit:cover;">
-            {% else %}
-              <img src="{% static 'images/product-placeholder.svg' %}" alt="Image coming soon for {{ item.product.name }}"
-                   class="img-thumbnail me-2" style="width:60px; height:60px; object-fit:cover;">
-            {% endif %}
-            <span>{{ item.product.name }}</span>
-          </td>
-
-          <td>
-            <div>
-              <span class="badge bg-dark">
-                {{ item.color }}
-              </span>
-              <br>
-              <small class="text-muted">
-                Size: {{ item.size }}
-              </small>
+        <li class="cart-item">
+          <a class="cart-item-image" href="{% url 'product_detail_page' item.product.slug %}" aria-label="View {{ item.product.name }}">
+            {% if item.product.image %}<img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" loading="lazy">{% else %}<img src="{% static 'images/product-placeholder.svg' %}" alt="Image coming soon" loading="lazy">{% endif %}
+          </a>
+          <div class="cart-item-info">
+            <a class="cart-product-name" href="{% url 'product_detail_page' item.product.slug %}">{{ item.product.name }}</a>
+            <div class="cart-variants">{% if item.color %}<span>{{ item.color }}</span>{% endif %}{% if item.size %}<span>Size: {{ item.size }}</span>{% endif %}</div>
+            <p class="cart-unit-price">₹{{ item.unit_payable_price|floatformat:2 }} <span>each</span></p>
+          </div>
+          <div class="cart-item-controls">
+            <div class="cart-quantity" role="group" aria-label="Quantity for {{ item.product.name }}">
+              <form action="{% url 'decrease' item.variant.id %}" method="post">{% csrf_token %}<input type="hidden" name="action" value="decrease"><input type="hidden" name="size" value="{{ item.size }}"><button type="submit" aria-label="Decrease quantity of {{ item.product.name }}">−</button></form>
+              <span aria-label="Quantity {{ item.quantity }}">{{ item.quantity }}</span>
+              <form action="{% url 'cart_update' item.variant.id %}" method="post">{% csrf_token %}<input type="hidden" name="action" value="increase"><input type="hidden" name="size" value="{{ item.size }}"><button type="submit" aria-label="Increase quantity of {{ item.product.name }}">+</button></form>
             </div>
-          </td>
-
-          <td>
-            <div class="d-flex align-items-center">
-              <!-- Decrease -->
-              <form action="{% url 'decrease' item.variant.id %}" method="post" class="me-2">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="decrease">
-                <input type="hidden" name="size" value="{{ item.size }}">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">-</button>
-              </form>
-
-              <span class="mx-2 fw-bold">{{ item.quantity }}</span>
-
-              <!-- Increase -->
-              <form action="{% url 'cart_update' item.variant.id %}" method="post" class="ms-2">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="increase">
-                <input type="hidden" name="size" value="{{ item.size }}">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">+</button>
-              </form>
-            </div>
-          </td>
-
-          <td>₹{{ item.unit_payable_price }}<small class="d-block text-muted">GST included</small></td>
-          <td>₹{{ item.payable_subtotal }}</td>
-          <td>
-            <form action="{% url 'cart_remove' item.variant.id %}" method="post">
-              {% csrf_token %}
-              <input type="hidden" name="size" value="{{ item.size }}">
-              <button class="btn btn-sm btn-danger">Remove</button>
-            </form>
-          </td>
-        </tr>
+            <form action="{% url 'cart_remove' item.variant.id %}" method="post">{% csrf_token %}<input type="hidden" name="size" value="{{ item.size }}"><button type="submit" class="cart-remove" aria-label="Remove {{ item.product.name }}"><i class="bi bi-trash3" aria-hidden="true"></i> Remove</button></form>
+          </div>
+          <div class="cart-line-total"><span>Item total</span><strong>₹{{ item.payable_subtotal|floatformat:2 }}</strong></div>
+        </li>
       {% endfor %}
-    </tbody>
-  </table>
+      </ul>
+      <div class="cart-delivery-note"><i class="bi bi-truck" aria-hidden="true"></i><div><strong>Delivery is on us</strong><p>No delivery charge on your merchandise order.</p></div></div>
+    </div>
+    <aside class="cart-summary" aria-labelledby="summary-heading">
+      <span class="cart-eyebrow">One step closer</span><h2 id="summary-heading">Order summary</h2>
+      <dl class="cart-summary-lines"><div><dt>Items subtotal</dt><dd>₹{{ total_price|floatformat:2 }}</dd></div><div><dt>Delivery</dt><dd class="cart-free">FREE</dd></div></dl>
+      <div class="cart-total"><span>Total payable</span><strong>₹{{ total_price|floatformat:2 }}</strong></div><p class="cart-tax-note">Includes ₹{{ total_tax|floatformat:2 }} GST</p>
+      <a href="{% url 'checkout' %}" class="cart-checkout">Proceed to checkout <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      <p class="cart-secure"><i class="bi bi-shield-check" aria-hidden="true"></i> Secure checkout</p>
+      <div class="cart-next-step"><i class="bi bi-geo-alt" aria-hidden="true"></i><p>Add your delivery address and choose how to pay at checkout.</p></div>
+    </aside>
   </div>
-
-  <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
-    <div><strong>Total: ₹{{ total_price }}</strong><small class="d-block text-muted">Includes ₹{{ total_tax }} GST · customer delivery charge ₹0</small></div>
-    <a href="{% url 'checkout' %}" class="btn btn-success">Proceed to Checkout</a>
-  </div>
-
-{% else %}
-  <p>Your cart is empty.</p>
-  <a href="{% url 'product_list_page' %}" class="btn btn-primary">Continue Shopping</a>
-{% endif %}
+  {% else %}
+  <div class="cart-empty"><div class="cart-empty-icon"><i class="bi bi-bag-heart" aria-hidden="true"></i></div><span class="cart-eyebrow">Room for something good</span><h2>Your cart is empty</h2><p>Explore our collection and add your favourite finds.</p><a href="{% url 'product_list_page' %}" class="cart-checkout">Discover products <i class="bi bi-arrow-right" aria-hidden="true"></i></a><span class="cart-empty-note">Free delivery on merchandise orders</span></div>
+  {% endif %}
+</section>
 {% endblock %}

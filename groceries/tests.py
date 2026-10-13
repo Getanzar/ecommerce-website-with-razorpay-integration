@@ -86,6 +86,7 @@ class GroceryMarketplaceTests(TestCase):
         self.assertEqual(breakdown.customer_delivery_charge, Decimal("0.00"))
         self.assertEqual(self.product.stock, 8)
         self.assertTrue(GrocerySellerSettlement.objects.filter(order=order).exists())
+        self.assertEqual(GrocerySellerSettlement.objects.get(order=order).delivery_charge, Decimal("20.00"))
 
     def test_checkout_requires_fresh_authenticated_gps(self):
         self.client.login(username="grocery-customer", password="test-password")

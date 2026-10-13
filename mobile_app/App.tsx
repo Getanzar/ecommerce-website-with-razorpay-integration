@@ -765,7 +765,7 @@ function LocalServiceScreen({
       <Text style={s.serviceTitle}>{store?.name || title}</Text>
       <Text style={s.serviceSubtitle}>
         {store
-          ? `${store.estimated_delivery_minutes} min · Delivery ${money(store.delivery_fee)}`
+          ? `${store.estimated_delivery_minutes} min · Free delivery on orders of ₹200 or more`
           : subtitle}
       </Text>
       {!!error && <Text style={s.errorText}>{error}</Text>}
@@ -796,7 +796,7 @@ function LocalServiceScreen({
                 min
               </Text>
               <Text style={s.storeMeta}>
-                Delivery {money(row.delivery_fee)}
+                Free delivery on orders of ₹200 or more
               </Text>
               <Text style={s.openText}>View menu →</Text>
             </View>
@@ -826,8 +826,7 @@ function LocalServiceScreen({
             <View style={s.storeCopy}>
               <Text style={s.storeName}>{row.name}</Text>
               <Text style={s.storeMeta}>
-                {row.estimated_delivery_minutes} min · Delivery{" "}
-                {money(row.delivery_fee)}
+                {row.estimated_delivery_minutes} min · Free delivery on orders of ₹200 or more
               </Text>
               <Text style={s.storeMeta}>
                 Minimum order {money(row.minimum_order)}
@@ -3847,6 +3846,7 @@ function CheckoutModal({
               <View style={s.totalRow}><Text style={s.totalLabel}>Delivery</Text><Text style={s.listPrice}>{Number(quote.price.delivery_charge) ? money(quote.price.delivery_charge) : "FREE"}</Text></View>
               {Number(quote.price.discount) > 0 && <View style={s.totalRow}><Text style={s.totalLabel}>Discount</Text><Text style={s.discountText}>− {money(quote.price.discount)}</Text></View>}
               <View style={s.totalRow}><Text style={s.totalLabel}>Total</Text><Text style={s.totalValue}>{money(quote.price.total)}</Text></View>
+              {(quote.price.kind === "food" || quote.price.kind === "grocery") && <Text style={s.secureNote}>Free delivery on orders of ₹200 or more.</Text>}
               <Text style={s.secureNote}>Prices include applicable taxes · {quote.price.eta} · Fulfilled by {quote.price.source}</Text>
             </View>
           ) : null}

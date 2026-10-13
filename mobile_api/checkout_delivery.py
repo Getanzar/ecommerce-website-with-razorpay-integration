@@ -30,7 +30,7 @@ def save_delivery_records(order, quote):
         from orders.commerce import _quotes_from_snapshot
         create_seller_delivery_charges(order, _quotes_from_snapshot({"quotes": quote.get("delivery_quotes", [])}))
         return
-    create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, store.delivery_fee)
+    create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, order.delivery_fee)
 
 
 def dispatch_local_parcel(order):

@@ -9,7 +9,6 @@ def create_food_settlement(order):
     if order.payment_method == "cod" and order.status != "delivered":
         return None
     from payments.models import SellerDeliveryCharge
-    from payments.pricing import money
 
     seller = order.restaurant.seller
     breakdown = order.chargebreakdowns.first()
@@ -18,14 +17,17 @@ def create_food_settlement(order):
     ).quantize(Decimal("0.01"))
     commission = breakdown.platform_fee if breakdown else order.subtotal - merchant
     delivery = SellerDeliveryCharge.objects.filter(food_order=order, seller=seller).first()
+    delivery_cost = delivery.amount_due if delivery else order.delivery_fee
+    customer_delivery = breakdown.customer_delivery_charge if breakdown else Decimal("0.00")
+    seller_delivery = max(Decimal("0.00"), delivery_cost - customer_delivery)
     settlement, created = FoodSellerSettlement.objects.get_or_create(
         order=order,
         defaults={"seller": seller, "gross_amount": merchant, "commission_amount": commission,
-                  "net_amount": merchant, "delivery_charge": delivery.amount_due if delivery else order.delivery_fee,
+                  "net_amount": merchant, "delivery_charge": seller_delivery,
                   "tcs_amount": Decimal("0.00"), "payment_method": order.payment_method,
                   "scheduled_for": next_morning(timezone.now())},
     )
     if not created and settlement.status in {"scheduled", "failed"}:
-        settlement.delivery_charge = delivery.amount_due if delivery else money(order.delivery_fee)
+        settlement.delivery_charge = seller_delivery
         settlement.save(update_fields=["delivery_charge", "updated_at"])
     return settlement

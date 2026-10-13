@@ -127,7 +127,7 @@ def checkout(request):
             order = form.save(commit=False)
             order.user, order.store = request.user, store
             order.subtotal = pricing["merchant_subtotal"] + pricing["platform_fee"]
-            order.delivery_fee = store.delivery_fee
+            order.delivery_fee = pricing["delivery_fee"]
             order.total, order.delivery_mode = pricing["grand_total"], "local"
             if order.payment_method == "online":
                 from payments.services import create_razorpay_order
@@ -144,7 +144,7 @@ def checkout(request):
                 product.save(update_fields=["stock"])
             from payments.services import create_breakdown, create_local_seller_delivery_charge, create_payment_transaction
             create_breakdown(order, pricing)
-            create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, store.delivery_fee)
+            create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, order.delivery_fee)
             create_payment_transaction(order, order.razorpay_order_id)
             cart.clear()
             from mobile_api.notifications import notify_sellers_of_order

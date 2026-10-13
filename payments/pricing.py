@@ -8,6 +8,8 @@ from django.conf import settings
 
 CENT = Decimal("0.01")
 HUNDRED = Decimal("100")
+LOCAL_CUSTOMER_DELIVERY_FEE = Decimal("20.00")
+LOCAL_FREE_DELIVERY_MINIMUM = Decimal("200.00")
 
 
 class DeliveryQuoteError(RuntimeError):
@@ -173,17 +175,19 @@ def build_food_pricing(rows, restaurant):
         for row in rows
     ]
     totals = _sum_charges(lines)
-    delivery = money(restaurant.delivery_fee)
+    delivery = LOCAL_CUSTOMER_DELIVERY_FEE
+    item_total = money(sum(totals.values()))
+    customer_delivery = Decimal("0.00") if item_total >= LOCAL_FREE_DELIVERY_MINIMUM else delivery
     totals.update({
         "delivery_fee": delivery,
         "delivery_gst": Decimal("0.00"),
-        "seller_sponsored_delivery": delivery,
-        "customer_delivery_charge": Decimal("0.00"),
+        "seller_sponsored_delivery": delivery - customer_delivery,
+        "customer_delivery_charge": customer_delivery,
         "delivery_mode": "local",
     })
     totals["grand_total"] = money(
         totals["merchant_subtotal"] + totals["platform_fee"]
-        + totals["merchandise_gst"] + totals["platform_fee_gst"]
+        + totals["merchandise_gst"] + totals["platform_fee_gst"] + customer_delivery
     )
     return totals
 
@@ -199,17 +203,19 @@ def build_grocery_pricing(rows, store):
         for row in rows
     ]
     totals = _sum_charges(lines)
-    delivery = money(store.delivery_fee)
+    delivery = LOCAL_CUSTOMER_DELIVERY_FEE
+    item_total = money(sum(totals.values()))
+    customer_delivery = Decimal("0.00") if item_total >= LOCAL_FREE_DELIVERY_MINIMUM else delivery
     totals.update({
         "delivery_fee": delivery,
         "delivery_gst": Decimal("0.00"),
-        "seller_sponsored_delivery": delivery,
-        "customer_delivery_charge": Decimal("0.00"),
+        "seller_sponsored_delivery": delivery - customer_delivery,
+        "customer_delivery_charge": customer_delivery,
         "delivery_mode": "local",
     })
     totals["grand_total"] = money(
         totals["merchant_subtotal"] + totals["platform_fee"]
-        + totals["merchandise_gst"] + totals["platform_fee_gst"]
+        + totals["merchandise_gst"] + totals["platform_fee_gst"] + customer_delivery
     )
     return totals
 

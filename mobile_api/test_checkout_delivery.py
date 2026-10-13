@@ -81,7 +81,28 @@ class CheckoutDeliveryTests(APITestCase):
         order = model.objects.get(pk=response.data["id"])
         self.assertEqual(order.latitude, Decimal(self.location["latitude"]))
         self.assertEqual(order.sellerdeliverycharges.count(), 1)
+        if kind in {"food", "grocery"}:
+            self.assertEqual(Decimal(quote.data["price"]["delivery_charge"]), Decimal("20.00"))
+            self.assertEqual(order.delivery_fee, Decimal("20.00"))
+            self.assertEqual(order.total, Decimal(quote.data["price"]["total"]))
+            self.assertEqual(Decimal(quote.data["price"]["item_subtotal"]) + Decimal("20.00"), order.total)
         return order
+
+    def test_free_local_delivery_is_paid_by_seller(self):
+        for kind, cart_model in (("food", FoodCartItem), ("grocery", GroceryCartItem)):
+            with self.subTest(kind=kind):
+                self.seed(kind)
+                cart_model.objects.filter(user=self.buyer).update(quantity=2)
+                quote = self.quote(kind)
+                self.assertEqual(quote.status_code, 201, quote.data)
+                self.assertEqual(Decimal(quote.data["price"]["delivery_charge"]), Decimal("0.00"))
+                response = self.client.post(f"/api/v1/checkout/{kind}/", {"address_id": self.address.pk, "quote_id": quote.data["quote_id"], "idempotency_key": f"free-{kind}", "payment_method": "cod"}, format="json")
+                self.assertEqual(response.status_code, 201, response.data)
+                model = FoodOrder if kind == "food" else GroceryOrder
+                order = model.objects.get(pk=response.data["id"])
+                self.assertEqual(order.total, Decimal(quote.data["price"]["total"]))
+                self.assertEqual(order.chargebreakdowns.get().seller_sponsored_delivery, Decimal("20.00"))
+                self.assertEqual(order.sellerdeliverycharges.get().quoted_total, Decimal("20.00"))
 
     def assert_rider_can_claim(self):
         job = LocalDelivery.objects.get()

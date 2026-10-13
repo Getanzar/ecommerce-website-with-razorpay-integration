@@ -633,11 +633,11 @@ def _quote_data(request, kind, address, location=None):
         snapshot=[{"id":row.pk,"product_id":row.product_id,"quantity":row.quantity,"price":str(row.product.customer_price)} for row in cart_rows]
         eta=f"About {store.estimated_delivery_minutes} minutes"; source=store.name
     else:return None,"Unknown checkout type."
-    total=pricing["grand_total"]+pricing["customer_delivery_charge"]
+    total=pricing["grand_total"]
     try: cod_limit=Decimal(str(getattr(settings,"MOBILE_COD_MAX_TOTAL","50000.00")))
     except InvalidOperation: cod_limit=Decimal("50000.00")
     cod_eligible=cod_limit<=0 or total<=cod_limit
-    public={"kind":kind,"item_subtotal":str(pricing["grand_total"]),"delivery_charge":str(pricing["customer_delivery_charge"]),"discount":"0.00","total":str(total),"tax_inclusive":True,"delivery_mode":pricing["delivery_mode"],"eta":eta,"source":source,"cod_eligible":cod_eligible,"cod_unavailable_reason":"" if cod_eligible else f"Cash on delivery is available up to â‚¹{cod_limit}.","address":{"id":address.pk,"label":f"{address.address_line_1}, {address.city} {address.pincode}"}}
+    public={"kind":kind,"item_subtotal":str(pricing["grand_total"]-pricing["customer_delivery_charge"]),"delivery_charge":str(pricing["customer_delivery_charge"]),"discount":"0.00","total":str(total),"tax_inclusive":True,"delivery_mode":pricing["delivery_mode"],"eta":eta,"source":source,"cod_eligible":cod_eligible,"cod_unavailable_reason":"" if cod_eligible else f"Cash on delivery is available up to â‚¹{cod_limit}.","address":{"id":address.pk,"label":f"{address.address_line_1}, {address.city} {address.pincode}"}}
     address_snapshot = {key: getattr(address, key) for key in ("full_name", "phone", "address_line_1", "address_line_2", "city", "state", "pincode")}
     quotes = [_json_value({**{key:value for key,value in row.items() if key != "seller"}, "seller_id": row["seller"].pk if row["seller"] else None}) for row in delivery_quotes]
     fingerprint=hashlib.sha256(json.dumps({"items":snapshot,"address":address_snapshot,"location":location,"pricing":_json_value(pricing)},sort_keys=True).encode()).hexdigest()
@@ -810,7 +810,7 @@ class FoodCheckoutView(APIView):
         from payments.pricing import build_food_pricing
         pricing=build_food_pricing(rows,restaurant)
         if sum(row["option"].customer_price*row["quantity"] for row in rows) < restaurant.minimum_order: return Response({"message": f"Minimum order is â‚¹{restaurant.minimum_order}."}, status=400)
-        order=FoodOrder.objects.create(user=request.user,restaurant=restaurant,full_name=address.full_name,phone=address.phone,address=address.address_line_1,city=address.city,state=address.state,pincode=address.pincode,subtotal=pricing["merchant_subtotal"]+pricing["platform_fee"],delivery_fee=restaurant.delivery_fee,total=pricing["grand_total"],**order_location(checkout.quote),payment_method=payment_method,include_cutlery=bool(request.data.get("include_cutlery")),delivery_note=str(request.data.get("delivery_note", ""))[:300])
+        order=FoodOrder.objects.create(user=request.user,restaurant=restaurant,full_name=address.full_name,phone=address.phone,address=address.address_line_1,city=address.city,state=address.state,pincode=address.pincode,subtotal=pricing["merchant_subtotal"]+pricing["platform_fee"],delivery_fee=pricing["delivery_fee"],total=pricing["grand_total"],**order_location(checkout.quote),payment_method=payment_method,include_cutlery=bool(request.data.get("include_cutlery")),delivery_note=str(request.data.get("delivery_note", ""))[:300])
         for row, submitted_row in zip(rows,submitted):
             option=row["option"]; FoodOrderItem.objects.create(order=order,menu_item=option.item,option=option,item_name=option.item.name,option_name=option.name,unit_price=option.customer_price,quantity=row["quantity"],customer_note=str(submitted_row.get("note", ""))[:300])
         FoodCartItem.objects.filter(user=request.user).delete()
@@ -850,7 +850,7 @@ class GroceryCheckoutView(APIView):
         if sum(row["product"].customer_price*row["quantity"] for row in rows)<store.minimum_order:return Response({"message":f"Minimum order is â‚¹{store.minimum_order}."},status=400)
         substitution=str(request.data.get("substitution_preference", "contact"))
         if substitution not in ("contact", "refund"): return Response({"message":"Choose a valid substitution preference."},status=400)
-        order=GroceryOrder.objects.create(user=request.user,store=store,full_name=address.full_name,phone=address.phone,address=address.address_line_1,city=address.city,state=address.state,pincode=address.pincode,subtotal=pricing["merchant_subtotal"]+pricing["platform_fee"],delivery_fee=store.delivery_fee,total=pricing["grand_total"],**order_location(checkout.quote),payment_method=payment_method,delivery_mode="local",substitution_preference=substitution)
+        order=GroceryOrder.objects.create(user=request.user,store=store,full_name=address.full_name,phone=address.phone,address=address.address_line_1,city=address.city,state=address.state,pincode=address.pincode,subtotal=pricing["merchant_subtotal"]+pricing["platform_fee"],delivery_fee=pricing["delivery_fee"],total=pricing["grand_total"],**order_location(checkout.quote),payment_method=payment_method,delivery_mode="local",substitution_preference=substitution)
         for row in rows:
             product=row["product"]; GroceryOrderItem.objects.create(order=order,product=product,product_name=product.name,unit=product.unit,unit_price=product.customer_price,quantity=row["quantity"]); product.stock-=row["quantity"]; product.save(update_fields=["stock"])
         GroceryCartItem.objects.filter(user=request.user).delete()
