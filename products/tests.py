@@ -113,13 +113,24 @@ class ProductStorefrontReadinessTests(TestCase):
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Your city.")
+        self.assertContains(response, "Everything you love,")
         self.assertContains(response, "Choose how you shop")
-        self.assertContains(response, "hero-ziyamart-v2.webp")
+        self.assertContains(response, "home-app.css")
         self.assertContains(response, "storefront.css")
         self.assertContains(response, self.product.name)
         self.assertNotContains(response, pending.name)
         self.assertNotContains(response, out_of_stock.name)
+
+    def test_home_delivery_area_is_remembered_and_passed_to_services(self):
+        response = self.client.get(reverse("home"), {"pincode": "243638"})
+        self.assertEqual(self.client.session["home_pincode"], "243638")
+        self.assertEqual(self.client.session["food_pincode"], "243638")
+        self.assertEqual(self.client.session["grocery_pincode"], "243638")
+        self.assertContains(response, reverse("food_home") + "?pincode=243638")
+        self.assertContains(response, reverse("grocery_home") + "?pincode=243638")
+        invalid = self.client.get(reverse("home"), {"pincode": "invalid"})
+        self.assertContains(invalid, "Enter a valid 6-digit PIN code.")
+        self.assertEqual(self.client.session["home_pincode"], "243638")
 
     def test_detail_opens_with_available_variant_selected_and_all_sizes_visible(self):
         self.variant.stock = 0

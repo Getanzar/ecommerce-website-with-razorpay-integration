@@ -448,7 +448,7 @@ opacity:.9;
 </style>
   <link rel="stylesheet" href="{% static 'css/storefront.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 <div class="site-announcement" role="note">
   <div class="container-xl d-flex justify-content-center justify-content-md-between align-items-center">
     <span><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> Local sellers. Secure payments. Trackable delivery.</span>

@@ -1,0 +1,167 @@
+/* The app's compact shopping layout, scoped to the website homepage. */
+body.home-app { background: #fbfdfb; }
+.home-app .site-announcement { display: none; }
+.home-app .storefront-search { display: none; }
+.home-app .storefront-navbar { min-height: 70px; }
+.home-app .storefront-actions { margin-left: auto; }
+.home-app .app-home { padding: 0; }
+.app-home-shell { max-width: 1180px; margin: auto; padding: 20px 28px 40px; }
+.app-home a { text-decoration: none; }
+.app-home-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.app-location { position: relative; }
+.app-location summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; min-height: 44px; }
+.app-location summary::-webkit-details-marker { display: none; }
+.app-location summary > i { color: #21724b; font-size: 22px; }
+.app-location summary small { display: block; color: #758078; font-size: 9px; font-weight: 750; letter-spacing: 1.5px; }
+.app-location summary strong { color: #172b22; font-size: 14px; }
+.app-location summary strong i { font-size: 11px; margin-left: 4px; }
+.app-location form { background: #fff; border: 1px solid #e3ebe5; border-radius: 16px; padding: 18px; position: absolute; top: 52px; left: 0; z-index: 20; width: min(320px, calc(100vw - 40px)); box-shadow: 0 12px 35px #203d221c; }
+.app-location form label { font-size: 13px; font-weight: 700; margin-bottom: 9px; }
+.app-location form > div { display: flex; gap: 8px; }
+.app-location input { border: 1px solid #d6e1d9; border-radius: 9px; padding: 10px; min-width: 0; width: 100%; }
+.app-location button { border: 0; border-radius: 9px; background: #256c48; color: white; padding: 10px 14px; font-weight: 650; }
+.app-location form small { display: block; color: #718077; margin-top: 10px; font-size: 11px; }
+.app-account-link { display: flex; align-items: center; gap: 7px; color: #376247; font-size: 13px; font-weight: 700; min-height: 44px; white-space: nowrap; }
+.app-services { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 6px; border: 1px solid #e4ece6; border-radius: 20px; background: white; }
+.app-service { display: flex; align-items: center; justify-content: center; flex-direction: column; border-radius: 15px; padding: 12px; color: #58675e; transition: background .18s; }
+.app-service > span { font-size: 27px; line-height: 1.3; }
+.app-service strong { font-size: 14px; margin-top: 4px; }
+.app-service small { font-size: 11px; margin-top: 2px; }
+.app-service.is-selected, .app-service:hover { background: #e8f7f0; color: #20704b; }
+.app-home-search { display: flex; align-items: center; gap: 12px; background: #f1f5f2; border: 1px solid #e9eeea; border-radius: 16px; padding: 5px 8px 5px 17px; margin: 18px 0; }
+.app-home-search > i { color: #809087; }
+.app-home-search input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 12px 0; color: #172b22; font-size: 14px; }
+.app-home-search input:focus-visible { outline: 2px solid #67a980; border-radius: 4px; }
+.app-home-search button { background: white; border: 0; border-radius: 11px; width: 44px; height: 44px; flex-shrink: 0; color: #2c6246; }
+.app-hero { position: relative; display: flex; align-items: center; justify-content: space-between; overflow: hidden; border-radius: 26px; padding: 36px 40px; min-height: 260px; background: linear-gradient(110deg, #ecfaf4, #d7f4e6); }
+.app-hero-copy { position: relative; z-index: 1; }
+.app-eyebrow { color: #2f7952; font-size: 10px; font-weight: 800; letter-spacing: 1.6px; }
+.app-hero h1 { color: #18392b; font-size: clamp(28px, 3.5vw, 46px); font-weight: 850; letter-spacing: -1.4px; line-height: 1.13; margin: 12px 0; }
+.app-hero p { color: #59816a; font-size: 14px; margin-bottom: 20px; }
+.app-shop-button { display: inline-flex; align-items: center; gap: 20px; padding: 13px 20px; border-radius: 12px; color: white; background: #19392b; font-size: 13px; font-weight: 700; }
+.app-shop-button:hover { background: #2b5740; color: white; }
+.app-hero-art { position: relative; width: 230px; height: 210px; flex: 0 0 230px; display: grid; place-items: center; }
+.app-hero-art img { width: 145px; height: 145px; object-fit: contain; z-index: 1; border-radius: 28px; transform: rotate(-8deg); filter: drop-shadow(0 14px 15px #23634220); }
+.app-hero-orbit { width: 215px; height: 215px; border: 1px solid #ffffffb0; background: #ffffff54; border-radius: 50%; position: absolute; }
+.app-hero-orbit::before { content: ''; position: absolute; inset: -18px; border: 1px solid #ffffff70; border-radius: 50%; }
+.app-art-star { position: absolute; top: 8px; right: 8px; font-size: 35px; color: #4a9370; }
+.app-delivery-note { display: flex; align-items: center; gap: 13px; padding: 16px 4px; border-bottom: 1px solid #e7ece8; }
+.app-delivery-note > i { font-size: 23px; color: #438460; }
+.app-delivery-note strong { display: block; font-size: 12px; color: #356249; }
+.app-delivery-note small { font-size: 11px; color: #7a877f; }
+.app-delivery-note > a { margin-left: auto; display: grid; place-items: center; min-width: 44px; min-height: 44px; color: #36704e; }
+.app-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 30px; }
+.app-shortcuts a { display: flex; gap: 9px; align-items: center; justify-content: center; padding: 15px 10px; background: white; border: 1px solid #e5ece7; border-radius: 14px; color: #455c4e; font-size: 12px; font-weight: 650; }
+.app-shortcuts i { color: #35805a; font-size: 20px; }
+.app-shortcuts a:hover { background: #edf7f1; }
+.app-home-section { margin: 28px 0 36px; }
+.app-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.app-section-heading h2 { color: #20362b; font-size: 21px; letter-spacing: -.5px; font-weight: 800; margin: 0; }
+.app-section-heading p { color: #839087; font-size: 12px; margin: 5px 0 0; }
+.app-section-heading > a { color: #36724f; font-size: 12px; font-weight: 700; white-space: nowrap; min-height: 44px; display: flex; align-items: center; gap: 7px; }
+.app-category-row { display: flex; gap: 22px; overflow-x: auto; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: #d9e7dd transparent; }
+.app-category { flex: 0 0 90px; display: flex; flex-direction: column; align-items: center; gap: 10px; color: #405a4b; font-size: 11px; font-weight: 650; text-align: center; }
+.app-category-image { width: 78px; height: 78px; display: grid; place-items: center; background: #f0f5ef; border-radius: 22px; overflow: hidden; font-size: 29px; color: #5d8a6a; border: 1px solid #e4ece4; }
+.app-category-image img { height: 100%; width: 100%; object-fit: cover; }
+.app-category-all { background: #e8f7ed; border: 1px solid #b7ddc4; }
+.app-category:hover .app-category-image { border-color: #71b28c; }
+.app-product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.app-home .home-product-card { border: 1px solid #e7ece8; border-radius: 18px; box-shadow: none; min-width: 0; }
+.app-home .home-product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px #34523f0d; }
+.app-home .home-product-media { aspect-ratio: 1 / 1.1; background: #f1f4f0; }
+.app-home .home-product-media img { object-fit: contain; }
+.app-home .home-product-badge { letter-spacing: 0; font-size: 10px; background: #e8f7ed; }
+.app-home .home-wishlist-button { width: 44px; height: 44px; }
+.app-home .home-product-body { padding: 14px; }
+.app-home .home-product-meta { display: none; }
+.app-home .home-product-price strong { color: #26734a; }
+.app-home .home-product-price span { font-size: 9px; }
+.app-home .home-product-footer { flex-wrap: wrap; gap: 8px; }
+.app-home .home-product-arrow { height: 44px; flex-basis: 44px; }
+.app-home-empty { grid-column: 1 / -1; text-align: center; padding: 40px 20px; border: 1px dashed #d5e3d9; border-radius: 18px; background: #f4f8f4; }
+.app-home-empty > i { font-size: 34px; color: #508564; }
+.app-home-empty h3 { font-size: 18px; margin-top: 15px; }
+.app-home-empty p { color: #708176; font-size: 13px; }
+.app-home-empty a { color: #31724c; font-weight: 700; }
+.app-partners { background: #f0f5ee; border: 1px solid #e4ece1; border-radius: 22px; padding: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: center; }
+.app-partners h2 { font-size: 22px; font-weight: 800; color: #244331; margin-top: 9px; }
+.app-partners p { font-size: 13px; color: #718274; margin-bottom: 0; }
+.app-partner-links { display: grid; gap: 10px; }
+.app-partner-links a { display: flex; align-items: center; gap: 14px; padding: 16px; background: white; border-radius: 14px; color: #2d6042; }
+.app-partner-links > a > i:first-child { font-size: 23px; }
+.app-partner-links > a > i:last-child { margin-left: auto; }
+.app-partner-links strong { display: block; font-size: 13px; }
+.app-partner-links small { display: block; font-size: 11px; color: #819087; margin-top: 2px; }
+.app-bottom-nav { display: none; }
+.home-app .storefront-footer { margin-top: 15px; }
+@media (max-width: 991px) {
+  .app-home-shell { padding: 16px 20px 30px; }
+  .app-hero { padding: 28px; }
+  .app-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+}
+@media (max-width: 600px) {
+  .home-app { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  .app-home-shell { padding: 12px 16px 24px; }
+  .app-home-topline { margin-bottom: 10px; }
+  .app-account-link { font-size: 11px; }
+  .app-services { gap: 4px; padding: 4px; border-radius: 16px; }
+  .app-service { padding: 9px 3px; border-radius: 12px; }
+  .app-service > span { font-size: 23px; }
+  .app-service strong { font-size: 12px; }
+  .app-service small { font-size: 9px; }
+  .app-home-search { margin: 14px 0; padding-left: 12px; gap: 9px; }
+  .app-home-search input { font-size: 12px; }
+  .app-hero { padding: 24px 20px; border-radius: 22px; min-height: 215px; }
+  .app-hero h1 { font-size: 27px; letter-spacing: -.9px; }
+  .app-hero p { font-size: 11px; max-width: 175px; margin-bottom: 14px; }
+  .app-hero .app-eyebrow { font-size: 8px; letter-spacing: 1.2px; }
+  .app-hero-copy { max-width: 240px; }
+  .app-hero-art { position: absolute; right: -30px; width: 135px; height: 160px; opacity: .8; }
+  .app-hero-art img { width: 78px; height: 78px; border-radius: 16px; }
+  .app-hero-orbit { width: 130px; height: 130px; }
+  .app-art-star { font-size: 24px; top: 0; right: 30px; }
+  .app-shop-button { font-size: 11px; padding: 12px 16px; gap: 12px; }
+  .app-delivery-note { padding: 12px 0; gap: 10px; }
+  .app-delivery-note strong { font-size: 11px; }
+  .app-delivery-note small { font-size: 9px; }
+  .app-shortcuts { gap: 6px; margin: 16px 0 24px; }
+  .app-shortcuts a { flex-direction: column; gap: 6px; font-size: 10px; padding: 12px 2px; border-radius: 12px; text-align: center; }
+  .app-shortcuts i { font-size: 21px; }
+  .app-section-heading { margin-bottom: 13px; }
+  .app-section-heading h2 { font-size: 18px; }
+  .app-section-heading > a { font-size: 11px; }
+  .app-home-section { margin: 22px 0 28px; }
+  .app-category-row { gap: 13px; }
+  .app-category { flex-basis: 72px; font-size: 10px; gap: 8px; }
+  .app-category-image { width: 64px; height: 64px; border-radius: 18px; }
+  .app-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .app-home .home-product-body { padding: 11px; }
+  .app-home .home-product-name { font-size: 12px; }
+  .app-home .home-product-seller { font-size: 10px; margin-bottom: 10px; }
+  .app-home .home-product-price strong { font-size: 14px; }
+  .app-home .home-product-price span { font-size: 8px; }
+  .app-home .home-product-arrow { display: none; }
+  .app-home .home-product-media { aspect-ratio: 1 / 1.15; }
+  .app-partners { grid-template-columns: 1fr; padding: 20px; gap: 18px; }
+  .app-partners h2 { font-size: 20px; }
+  .app-bottom-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: #ffffffed; backdrop-filter: blur(16px); border-top: 1px solid #e0e9e2; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1020; padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); }
+  .app-bottom-nav a { display: flex; align-items: center; flex-direction: column; justify-content: center; min-height: 44px; gap: 4px; color: #809085; font-size: 9px; font-weight: 650; text-decoration: none; }
+  .app-bottom-nav a i { font-size: 20px; }
+  .app-bottom-nav a[aria-current] { color: #24724a; }
+}
+@media (max-width: 360px) {
+  .app-home-shell { padding-left: 12px; padding-right: 12px; }
+  .app-hero { padding: 23px 16px; }
+  .app-hero h1 { font-size: 25px; }
+  .app-hero-art { right: -52px; opacity: .5; }
+  .app-shortcuts a { font-size: 9px; }
+}
+.home-app.dark { background: #15221b; }
+.home-app.dark .app-service, .home-app.dark .app-home-search input, .home-app.dark .app-account-link, .home-app.dark .app-section-heading h2, .home-app.dark .app-location summary strong, .home-app.dark .home-product-name { color: #e1f0e6; }
+.home-app.dark .app-services, .home-app.dark .app-shortcuts a, .home-app.dark .app-location form, .home-app.dark .app-partner-links a, .home-app.dark .app-bottom-nav, .home-app.dark .home-product-card { background: #203329; border-color: #3b5043; }
+.home-app.dark .app-service.is-selected, .home-app.dark .app-service:hover, .home-app.dark .app-home-search, .home-app.dark .app-category-image, .home-app.dark .app-partners { background: #2a4434; border-color: #3b5043; }
+.home-app.dark .home-product-seller, .home-app.dark .app-category, .home-app.dark .app-shortcuts a, .home-app.dark .app-partner-links a, .home-app.dark .home-product-price strong, .home-app.dark .app-delivery-note strong { color: #b6d8c2; }
+@media (prefers-reduced-motion: reduce) { .app-home * { scroll-behavior: auto; transition: none !important; } }
+
+.home-app.dark .app-partners h2, .home-app.dark .app-section-heading > a, .home-app.dark .app-home-empty a, .home-app.dark .app-bottom-nav a[aria-current] { color: #b6d8c2; }
+.home-app.dark .app-shortcuts i, .home-app.dark .app-location summary > i, .home-app.dark .app-delivery-note > i { color: #86bd9b; } .home-app.dark .theme-button { background: #284334; color: #d1ecda; } .home-app.dark .brand-mark { background: #edf7ef; color: #19392b; }

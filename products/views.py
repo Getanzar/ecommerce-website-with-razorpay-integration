@@ -186,6 +186,17 @@ def search_view(request):
 
 
 def home(request):
+    pincode = request.session.get("home_pincode", request.session.get("grocery_pincode", request.session.get("food_pincode", "")))
+    pincode_error = ""
+    if "pincode" in request.GET:
+        candidate = request.GET.get("pincode", "").strip()
+        if len(candidate) == 6 and candidate.isascii() and candidate.isdigit():
+            pincode = candidate
+            for key in ("home_pincode", "food_pincode", "grocery_pincode"):
+                request.session[key] = pincode
+        else:
+            pincode_error = "Enter a valid 6-digit PIN code."
+
     storefront_products = in_stock_products().select_related("category", "seller").annotate(
         approved_review_count=Count(
             "reviews",
@@ -216,6 +227,8 @@ def home(request):
         "home.html",
         {
             "categories": categories,
+            "home_pincode": pincode,
+            "pincode_error": pincode_error,
             "new_arrivals": new_arrivals,
             "trending_products": trending_products,
         },
