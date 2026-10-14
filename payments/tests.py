@@ -71,6 +71,7 @@ class PricingPolicyTests(TestCase):
     )
     def test_direct_inventory_still_receives_a_carrier_quote(self):
         product = SimpleNamespace(
+            effective_gst_rate=Decimal("5.00"),
             seller=None,
             seller_id=None,
             gst_rate=Decimal("5.00"),

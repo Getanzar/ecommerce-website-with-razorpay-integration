@@ -106,7 +106,7 @@ type FoodCartRow = {
   quantity: number;
   note: string;
 };
-type GroceryCartRow = { id: number; product: GroceryProduct; quantity: number };
+type GroceryCartRow = { option_id: number; id: number; product: GroceryProduct; quantity: number };
 const C = {
   ink: "#17243A",
   muted: "#718096",
@@ -144,9 +144,11 @@ const foodRows = (cart: ServiceCart<FoodCartItem>): FoodCartRow[] =>
 const groceryRows = (cart: ServiceCart<GroceryCartItem>): GroceryCartRow[] =>
   cart.items.map((row) => ({
     id: row.id,
+    option_id: row.option_id,
     quantity: row.quantity,
     product: {
       id: row.product_id,
+      selected_option_id: row.option_id,
       name: row.name,
       brand: "",
       image_url: row.image_url,
@@ -651,11 +653,11 @@ function LocalServiceScreen({
       else Alert.alert("Could not add item", error.message);
     }
   };
-  const addGrocery = async (product: GroceryProduct, replace = false) => {
+  const addGrocery = async (product: GroceryProduct, replace = false, quantity = 1) => {
     if (!token) return onLogin();
     try {
       setGroceryCart(
-        groceryRows(await addGroceryCartItem(token, product.id, replace)),
+        groceryRows(await addGroceryCartItem(token, product.id, replace, product.selected_option_id, quantity)),
       );
     } catch (error: any) {
       if (error.details?.replace_required)
@@ -664,7 +666,7 @@ function LocalServiceScreen({
           {
             text: "Replace",
             style: "destructive",
-            onPress: () => addGrocery(product, true),
+            onPress: () => addGrocery(product, true, quantity),
           },
         ]);
       else Alert.alert("Could not add item", error.message);
@@ -1068,9 +1070,14 @@ function GroceryDetailModal({
 }: {
   product: GroceryProduct | null;
   onClose: () => void;
-  onAdd: (product: GroceryProduct) => void;
+  onAdd: (product: GroceryProduct, replace?: boolean, quantity?: number) => void;
 }) {
+  const [packId, setPackId] = useState<number | undefined>();
+  const [quantity, setQuantity] = useState(1);
+  useEffect(() => { setPackId(product?.selected_option_id); setQuantity(1); }, [product?.id]);
   if (!product) return null;
+  const pack = product.options?.find(option => option.id === packId) || product.options?.find(option => option.stock > 0);
+  product = pack ? { ...product, unit: pack.unit, price: pack.price_with_tax, mrp: pack.mrp, stock: pack.stock, selected_option_id: pack.id } : product;
   const saving = Number(product.mrp) - Number(product.price);
   return (
     <Modal
@@ -1124,6 +1131,9 @@ function GroceryDetailModal({
               <Text style={s.infoValue}>{product.stock} in stock</Text>
             </View>
           </View>
+          <Text style={s.sectionTitle}>Choose pack size</Text>
+          <View style={s.variants}>{product.options?.map(option => <Pressable key={option.id} disabled={option.stock < 1} style={[s.variant, option.id === pack?.id && s.optionSelected, option.stock < 1 && s.disabled]} onPress={() => { setPackId(option.id); setQuantity(1); }}><Text style={s.variantText}>{option.unit}{option.stock < 1 ? " · Out of stock" : ""}</Text><Text style={s.variantPrice}>{money(option.price_with_tax)}</Text></Pressable>)}</View>
+          <Text style={s.sectionTitle}>Number of packs</Text><View style={s.qty}><Pressable onPress={() => setQuantity(Math.max(1, quantity - 1))}><Text style={s.qtyBtn}>−</Text></Pressable><Text style={s.qtyValue}>{quantity}</Text><Pressable onPress={() => setQuantity(Math.min(20, product!.stock, quantity + 1))}><Text style={s.qtyBtn}>+</Text></Pressable></View>
           <Text style={s.sectionTitle}>Product information</Text>
           <View style={s.descriptionBox}>
             <Text style={s.description}>
@@ -1150,7 +1160,7 @@ function GroceryDetailModal({
             disabled={product.stock < 1}
             style={[s.primary, product.stock < 1 && s.disabled]}
             onPress={() => {
-              onAdd(product);
+              onAdd(product, false, quantity);
               onClose();
             }}
           >
@@ -2915,6 +2925,7 @@ function CartHub({
             address,
             groceryCart.map((row) => ({
               product_id: row.product.id,
+              option_id: row.option_id,
               quantity: row.quantity,
             })),
             preferences?.substitution_preference,
@@ -2994,7 +3005,7 @@ function CartHub({
                 onPress: async () =>
                   setGroceryCart(
                     groceryRows(
-                      await addGroceryCartItem(token, row.product.id, false),
+                      await addGroceryCartItem(token, row.product.id, false, row.option_id),
                     ),
                   ),
               },

@@ -16,6 +16,7 @@
 </div>
 
 <div class="card">
+    <div class="card-body border-bottom d-flex flex-wrap gap-2"><a class="btn btn-sm btn-outline-secondary" href="{% url 'sellers_management' %}">All sellers</a><a class="btn btn-sm {% if selected_registration_type == 'small' %}btn-success{% else %}btn-outline-success{% endif %}" href="{% url 'sellers_management' %}?registration_type=small">Small sellers without GSTIN</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'sellers_management' %}?registration_type=registered">Registered businesses</a></div>
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead>
@@ -24,13 +25,13 @@
             <tbody>
                 {% for seller in sellers %}
                     <tr>
-                        <td><a class="fw-bold text-decoration-none" href="{% url 'ops_seller_detail' seller.pk %}">{{ seller.store_name }}</a><br><small class="text-muted">Applied {{ seller.created_at|date:"d M Y" }}</small></td>
+                        <td><a class="fw-bold text-decoration-none" href="{% url 'ops_seller_detail' seller.pk %}">{{ seller.store_name }}</a><br><small class="text-muted">{{ seller.get_registration_type_display }} · Applied {{ seller.created_at|date:"d M Y" }}</small></td>
                         <td>{{ seller.user.get_full_name|default:seller.user.username }}<br><small class="text-muted">{{ seller.user.email }}</small></td>
                         <td>{{ seller.business_phone|default:"—" }}</td>
                         <td>{{ seller.products.count }}</td>
                         <td>{{ seller.commission_percent }}%</td>
                         <td>
-                            {% if seller.kyc_complete %}<span class="badge text-bg-success">KYC complete</span>{% else %}<span class="badge text-bg-warning">KYC incomplete</span>{% endif %}
+                            {% if seller.is_small_seller %}<a class="d-block small mb-1" href="{% url 'ops_seller_detail' seller.pk %}">{{ seller.get_identity_status_display }}</a>{% endif %}{% if seller.kyc_complete %}<span class="badge text-bg-success">KYC complete</span>{% else %}<span class="badge text-bg-warning">KYC incomplete</span>{% endif %}
                             {% if seller.razorpay_fund_account_id %}<br><span class="badge text-bg-info mt-1">Bank tokenized •••• {{ seller.bank_account_last4 }}</span>{% else %}<br><span class="badge text-bg-secondary mt-1">Bank resubmission needed</span>{% endif %}
                             {% if seller.payouts_enabled %}<br><span class="badge text-bg-success mt-1">Auto payouts on</span>{% endif %}
                         </td>

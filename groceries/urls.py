@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("category/<slug:slug>/", views.category_detail, name="grocery_category"),
     path("", views.grocery_home, name="grocery_home"), path("store/<slug:slug>/", views.store_detail, name="grocery_store"),
     path("cart/", views.cart_detail, name="grocery_cart"), path("cart/add/<int:product_id>/", views.cart_add, name="grocery_cart_add"), path("cart/update/<int:product_id>/", views.cart_update, name="grocery_cart_update"), path("cart/remove/<int:product_id>/", views.cart_remove, name="grocery_cart_remove"),
     path("checkout/", views.checkout, name="grocery_checkout"), path("orders/", views.my_orders, name="grocery_orders"), path("orders/<int:order_id>/success/", views.order_success, name="grocery_order_success"), path("orders/<int:order_id>/payment/", views.payment_retry, name="grocery_payment_retry"), path("orders/<int:order_id>/payment/confirm/", views.payment_confirm, name="grocery_payment_confirm"),

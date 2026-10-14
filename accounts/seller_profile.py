@@ -26,6 +26,9 @@ class SellerProfileForm(RequiredGPSMixin, forms.ModelForm):
         self.gps_field_names = ("business_latitude", "business_longitude", "business_gps_accuracy_meters")
         super().__init__(*args, **kwargs)
         self.fields["business_address"].required = True
+        if self.instance.is_small_seller:
+            self.fields["business_pincode"].disabled = True
+            self.fields["business_pincode"].help_text = "Your approved local selling area. Contact support for a location change and eligibility review."
         for field in self.fields.values():
             if not field.widget.is_hidden:
                 field.widget.attrs["class"] = "form-control"

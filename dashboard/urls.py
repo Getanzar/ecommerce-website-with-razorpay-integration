@@ -3,6 +3,7 @@ from . import views
 from . import operations
 
 urlpatterns = [
+    path("sellers/<int:seller_id>/small-review/", views.review_small_seller, name="review_small_seller"),
     path("operations/delivery-proof/<int:evidence_id>/", operations.delivery_proof, name="ops_delivery_proof"),
 
     # Seller workspace

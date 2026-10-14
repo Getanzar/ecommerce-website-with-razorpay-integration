@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework import serializers
 from rest_framework.response import Response
 
-from accounts.forms import SellerApplicationForm, SellerPayoutSetupForm
+from accounts.forms import SellerApplicationForm, SellerPayoutSetupForm, SmallSellerApplicationForm
 from accounts.models import SellerProfile
 from dashboard.forms import SellerProductEditForm, SellerProductForm
 from delivery.forms import DeliveryAgentRegistrationForm
@@ -107,6 +107,12 @@ class ApplicationView(PartnerView):
             raise ValidationError("Unknown partner role.")
         if model.objects.filter(user=request.user).exists():
             raise PermissionDenied("An application already exists. Contact support for changes.")
+        if role == "seller":
+            registration_type = request.query_params.get("registration_type", "registered")
+            if registration_type not in {"registered", "small"}:
+                raise ValidationError("Unknown seller registration type.")
+            if registration_type == "small":
+                form_class = SmallSellerApplicationForm
         return form_class(request.data if submitted else None, request.FILES if submitted else None)
 
     def get(self, request, role):
@@ -124,6 +130,9 @@ class ApplicationView(PartnerView):
         if role == "seller":
             profile.business_gps_verified_at = timezone.now()
         profile.save()
+        if role == "seller" and profile.is_small_seller:
+            from dashboard.security import audit
+            audit(request, "seller.aadhaar_consent", profile, "Seller consented to offline Aadhaar verification for seller onboarding.", consent_version="small-seller-identity-v1", eligibility_declaration=True)
         # Do not initiate provider calls during application submission. Bank setup
         # is a separate explicit action and approval never enables payouts itself.
         return Response({"message": "Application submitted for marketplace review. Complete payout setup separately.", "status": profile.status}, status=201)
@@ -167,7 +176,7 @@ class ProductFormView(SellerKindView):
         seller = seller_for(request.user)
         instance = get_object_or_404(Product, pk=pk, seller=seller) if pk else None
         cls = SellerProductEditForm if instance else MobileProductForm
-        return cls(request.data if submitted else None, request.FILES if submitted else None, instance=instance)
+        return cls(request.data if submitted else None, request.FILES if submitted else None, instance=instance, seller=seller)
 
     def get(self, request, pk=None):
         return Response(schema(self.form(request, pk), request))

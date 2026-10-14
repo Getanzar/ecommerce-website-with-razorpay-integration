@@ -2,7 +2,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
+from django.core.paginator import Paginator
+from django.urls import reverse
+from urllib.parse import urlencode
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponseBadRequest
@@ -11,8 +14,9 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.cache import never_cache
 
 from .cart import GroceryCart
-from .forms import GroceryCheckoutForm, GroceryProductForm, GroceryStoreForm
-from .models import GroceryCategory, GroceryOrder, GroceryOrderItem, GroceryProduct, GroceryServiceArea, GroceryStore
+from .forms import GroceryCheckoutForm, GroceryProductForm, GroceryStoreForm, GroceryOptionFormSet
+from .models import GroceryCategory, GroceryOrder, GroceryOrderItem, GroceryProduct, GroceryProductOption, GroceryServiceArea, GroceryStore
+from .options import available_products, with_pack_options, prepare_product, resolve_option, GroceryInventoryError, lock_grocery_rows, reserve_order_items, restore_order_stock
 
 
 def _kirana_seller(request):
@@ -25,11 +29,46 @@ def _kirana_seller(request):
 def grocery_home(request):
     pincode = request.GET.get("pincode", request.session.get("grocery_pincode", "")).strip()
     area = GroceryServiceArea.objects.filter(pincode=pincode, is_active=True).first()
-    stores = GroceryStore.objects.none()
     if area:
         request.session["grocery_pincode"] = pincode
-        stores = area.stores.filter(pincode=pincode, accepts_orders=True, seller__status="approved")
-    return render(request, "groceries/home.html", {"stores": stores, "pincode": pincode, "area": area})
+    available = _available_grocery_products(pincode)
+    categories = GroceryCategory.objects.filter(products__in=available).annotate(
+        available_count=Count("products", distinct=True),
+    ).prefetch_related(Prefetch(
+        "products", queryset=available.exclude(image="").order_by("pk")[:4],
+        to_attr="collage_products",
+    )) if area else GroceryCategory.objects.none()
+    return render(request, "groceries/home.html", {"grocery_categories": categories, "pincode": pincode, "area": area})
+
+
+def _available_grocery_products(pincode):
+    return available_products().filter(
+        store__pincode=pincode,
+        store__accepts_orders=True, store__seller__status="approved",
+        store__service_areas__pincode=pincode, store__service_areas__is_active=True,
+    ).select_related("store__seller", "category")
+
+
+def category_detail(request, slug):
+    category = get_object_or_404(GroceryCategory, slug=slug)
+    pincode = request.GET.get("pincode", request.session.get("grocery_pincode", "")).strip()
+    area = GroceryServiceArea.objects.filter(pincode=pincode, is_active=True).first()
+    if not area:
+        messages.info(request, "Choose an available delivery pincode to browse groceries.")
+        return redirect("grocery_home")
+    request.session["grocery_pincode"] = pincode
+    products = with_pack_options(_available_grocery_products(pincode).filter(category=category))
+    query = request.GET.get("q", "").strip()[:100]
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(brand__icontains=query))
+    page = Paginator(products.order_by("name", "pk"), 24).get_page(request.GET.get("page"))
+    for product in page:
+        prepare_product(product)
+    cart = GroceryCart(request)
+    return render(request, "groceries/category.html", {
+        "category": category, "page": page, "pincode": pincode, "query": query,
+        "cart_store_id": cart.data.get("store_id"),
+    })
 
 
 def store_detail(request, slug):
@@ -38,15 +77,18 @@ def store_detail(request, slug):
     if store.pincode != pincode or not store.service_areas.filter(pincode=pincode, is_active=True).exists():
         messages.error(request, "This store does not deliver to that pincode.")
         return redirect("grocery_home")
-    products = store.products.filter(is_active=True, stock__gt=0).select_related("category", "store__seller")
+    products = with_pack_options(available_products(store.products.all()).select_related("category", "store__seller"))
     query = request.GET.get("q", "").strip()
     category = request.GET.get("category", "").strip()
     if query:
         products = products.filter(Q(name__icontains=query) | Q(brand__icontains=query))
     if category:
         products = products.filter(category__slug=category)
+    products = list(products)
+    for product in products:
+        prepare_product(product)
     categories = GroceryCategory.objects.filter(products__store=store, products__is_active=True).distinct()
-    return render(request, "groceries/store.html", {"store": store, "products": products, "categories": categories, "pincode": pincode, "selected_category": category})
+    return render(request, "groceries/store.html", {"store": store, "products": products, "grocery_categories": categories, "pincode": pincode, "selected_category": category})
 
 
 def cart_detail(request):
@@ -60,7 +102,7 @@ def cart_detail(request):
 
 @require_POST
 def cart_add(request, product_id):
-    product = get_object_or_404(GroceryProduct.objects.select_related("store"), pk=product_id, is_active=True, stock__gt=0)
+    product = get_object_or_404(GroceryProduct.objects.select_related("store", "category"), pk=product_id, is_active=True, store__seller__status="approved")
     if not product.store.accepts_orders:
         messages.error(request, "This store is currently closed.")
         return redirect("grocery_home")
@@ -69,16 +111,23 @@ def cart_add(request, product_id):
         messages.error(request, "Select a serviceable delivery pincode before adding products.")
         return redirect("grocery_home")
     try:
-        GroceryCart(request).add(product, max(1, int(request.POST.get("quantity", 1))))
-        messages.success(request, f"{product.name} added to cart.")
+        option = resolve_option(product, request.POST.get("option_id"))
+        GroceryCart(request).add(product, int(request.POST.get("quantity", 1)), option=option)
+        messages.success(request, f"{product.name} ({option.unit}) added to cart.")
     except ValueError as exc:
         messages.error(request, str(exc))
+    if request.POST.get("category_slug") == product.category.slug:
+        return redirect(reverse("grocery_category", args=[product.category.slug]) + "?" + urlencode({"pincode": pincode}))
     return redirect("grocery_store", slug=product.store.slug)
 
 
 @require_POST
 def cart_remove(request, product_id):
-    GroceryCart(request).remove(product_id)
+    try:
+        option_id = int(request.POST["option_id"]) if request.POST.get("option_id") else None
+        GroceryCart(request).remove(product_id, option_id)
+    except (TypeError, ValueError):
+        messages.error(request, "Choose a valid pack size.")
     return redirect("grocery_cart")
 
 
@@ -89,10 +138,11 @@ def cart_update(request, product_id):
         quantity = int(request.POST.get("quantity", ""))
         if quantity < 0:
             raise ValueError
-        GroceryCart(request).set_quantity(product, quantity)
-        if quantity > product.stock:
-            messages.info(request, f"Quantity adjusted to the {product.stock} currently in stock.")
-    except (TypeError, ValueError):
+        option = product.options.get(pk=int(request.POST["option_id"])) if request.POST.get("option_id") else product.default_option
+        GroceryCart(request).set_quantity(product, quantity, option=option)
+        if quantity > option.stock:
+            messages.info(request, f"Quantity adjusted to the {option.stock} currently in stock.")
+    except (TypeError, ValueError, GroceryProductOption.DoesNotExist):
         messages.error(request, "Enter a valid grocery quantity between 0 and 20.")
     return redirect("grocery_cart")
 
@@ -120,10 +170,12 @@ def checkout(request):
         elif cart.subtotal < store.minimum_order:
             messages.error(request, f"Minimum order is ₹{store.minimum_order}.")
         else:
-            locked = {p.pk: p for p in GroceryProduct.objects.select_for_update().filter(pk__in=[r["product"].pk for r in rows])}
-            if any(locked[r["product"].pk].stock < r["quantity"] for r in rows):
-                messages.error(request, "Some products no longer have enough stock. Review your cart.")
+            try:
+                rows = lock_grocery_rows(rows)
+            except GroceryInventoryError as exc:
+                messages.error(request, str(exc))
                 return redirect("grocery_cart")
+            pricing = build_grocery_pricing(rows, store)
             order = form.save(commit=False)
             order.user, order.store = request.user, store
             order.subtotal = pricing["merchant_subtotal"] + pricing["platform_fee"]
@@ -137,11 +189,7 @@ def checkout(request):
                 )
                 order.razorpay_order_id = provider_order["id"]
             order.save()
-            for row in rows:
-                product = locked[row["product"].pk]
-                GroceryOrderItem.objects.create(order=order, product=product, product_name=product.name, unit=product.unit, unit_price=product.customer_price, quantity=row["quantity"])
-                product.stock -= row["quantity"]
-                product.save(update_fields=["stock"])
+            reserve_order_items(order, rows)
             from payments.services import create_breakdown, create_local_seller_delivery_charge, create_payment_transaction
             create_breakdown(order, pricing)
             create_local_seller_delivery_charge(order, store.seller, store.pincode, order.pincode, order.delivery_fee)
@@ -204,7 +252,7 @@ def my_orders(request):
 def seller_dashboard(request):
     seller = _kirana_seller(request)
     store = GroceryStore.objects.filter(seller=seller).first()
-    return render(request, "groceries/seller/dashboard.html", {"seller": seller, "store": store, "products": store.products.all() if store else [], "orders": store.orders.all()[:10] if store else []})
+    return render(request, "groceries/seller/dashboard.html", {"seller": seller, "store": store, "products": with_pack_options(store.products.all()) if store else [], "orders": store.orders.all()[:10] if store else []})
 
 
 @login_required
@@ -232,18 +280,26 @@ def seller_toggle_store(request):
 
 
 @login_required
+@transaction.atomic
 def seller_product(request, product_id=None):
     seller = _kirana_seller(request); store = get_object_or_404(GroceryStore, seller=seller)
     if product_id is None and (store.latitude is None or store.longitude is None):
         messages.error(request, "Set and verify your store location in Store settings before adding products. This saved location is used as the pickup point for every grocery delivery.")
         return redirect("grocery_seller_setup")
-    product = get_object_or_404(GroceryProduct, pk=product_id, store=store) if product_id else None
+    product = get_object_or_404(GroceryProduct.objects.select_for_update(), pk=product_id, store=store) if product_id else GroceryProduct(store=store)
     form = GroceryProductForm(request.POST or None, request.FILES or None, instance=product)
-    if request.method == "POST" and form.is_valid():
+    sizes_submitted = "sizes-TOTAL_FORMS" in request.POST
+    sizes = GroceryOptionFormSet(request.POST if sizes_submitted else None, instance=product, prefix="sizes", queryset=product.options.filter(is_default=False, is_active=True) if product.pk else GroceryProductOption.objects.none())
+    valid = form.is_valid() if request.method == "POST" else False
+    sizes_valid = sizes.is_valid() if sizes_submitted else True
+    if request.method == "POST" and valid and sizes_valid:
         product = form.save(commit=False); product.store = store; product.save()
-        messages.success(request, "Grocery product saved.")
+        if sizes_submitted:
+            sizes.instance = product
+            sizes.save()
+        messages.success(request, "Grocery product and pack sizes saved.")
         return redirect("grocery_seller_dashboard")
-    return render(request, "groceries/seller/form.html", {"seller": seller, "form": form, "title": "Edit product" if product else "Add product"})
+    return render(request, "groceries/seller/product_form.html", {"seller": seller, "form": form, "sizes": sizes, "title": "Edit product" if product.pk else "Add product"})
 
 
 @login_required
@@ -254,8 +310,9 @@ def seller_orders(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def seller_update_order(request, order_id):
-    store = get_object_or_404(GroceryStore, seller=_kirana_seller(request)); order = get_object_or_404(GroceryOrder, pk=order_id, store=store)
+    store = get_object_or_404(GroceryStore, seller=_kirana_seller(request)); order = get_object_or_404(GroceryOrder.objects.select_for_update(), pk=order_id, store=store)
     if order.payment_method == "online" and order.payment_status != "Paid":
         messages.error(request, "This online order cannot be prepared until payment is confirmed.")
         return redirect("grocery_seller_orders")
@@ -265,9 +322,7 @@ def seller_update_order(request, order_id):
         messages.error(request, "That status change is not allowed.")
     else:
         if status == "cancelled":
-            for item in order.items.select_related("product"):
-                item.product.stock += item.quantity
-                item.product.save(update_fields=["stock"])
+            restore_order_stock(order)
         order.status = status
         if status == "ready":
             from delivery.services import ensure_grocery_delivery

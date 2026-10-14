@@ -92,6 +92,18 @@ class SellerProfile(models.Model):
     business_gps_verified_at = models.DateTimeField(blank=True, null=True)
     delhivery_pickup_name = models.CharField(max_length=150, blank=True)
     gstin = models.CharField(max_length=15, blank=True)
+    REGISTRATION_TYPES = [("registered", "Registered business"), ("small", "Small seller without GSTIN")]
+    registration_type = models.CharField(max_length=12, choices=REGISTRATION_TYPES, default="registered")
+    gst_enrolment_number = models.CharField(max_length=20, blank=True)
+    pan_last4 = models.CharField(max_length=4, blank=True)
+    small_seller_declaration = models.BooleanField(default=False)
+    aadhaar_consent_at = models.DateTimeField(blank=True, null=True)
+    IDENTITY_STATUSES = [("pending", "Awaiting identity review"), ("verified", "Verified"), ("needs_changes", "Changes required")]
+    identity_status = models.CharField(max_length=20, choices=IDENTITY_STATUSES, default="pending")
+    identity_review_reference = models.CharField(max_length=100, blank=True)
+    identity_review_note = models.TextField(blank=True, max_length=1000)
+    identity_verified_at = models.DateTimeField(blank=True, null=True)
+    identity_verified_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="verified_small_sellers")
     aadhaar_last4 = models.CharField(max_length=4, blank=True)
     bank_account_holder = models.CharField(max_length=150, blank=True)
     bank_account_last4 = models.CharField(max_length=4, blank=True)
@@ -133,10 +145,31 @@ class SellerProfile(models.Model):
         super().clean()
         if self.status == "approved" and self.business_segment not in dict(self.BUSINESS_SEGMENTS):
             raise ValidationError({"business_segment": "Select a selling segment before approving this seller."})
+        if self.is_small_seller and (self.business_segment != "shop" or self.gstin):
+            raise ValidationError("Small sellers without GSTIN can register only for merchandise, without a GSTIN.")
+        if self.is_small_seller and self.status == "approved" and not self.kyc_complete:
+            raise ValidationError("Complete Aadhaar identity review, enrolment eligibility and bank details before approving this small seller.")
+        if self.is_small_seller and self.payouts_enabled and not (
+            self.status == "approved" and self.kyc_complete and self.razorpay_contact_id and self.razorpay_fund_account_id
+        ):
+            raise ValidationError({"payouts_enabled": "Complete seller approval and RazorpayX bank setup before enabling payouts."})
+
+    @property
+    def is_small_seller(self):
+        return self.registration_type == "small"
+
+    @property
+    def small_seller_verified(self):
+        return all([
+            self.business_segment == "shop", not self.gstin,
+            self.gst_enrolment_number, self.pan_last4, self.small_seller_declaration,
+            self.aadhaar_consent_at, self.identity_status == "verified",
+            self.identity_review_reference, self.identity_verified_at, self.identity_verified_by_id,
+        ])
 
     @property
     def is_approved(self):
-        return self.status == "approved"
+        return self.status == "approved" and (not self.is_small_seller or self.kyc_complete)
 
     @property
     def kyc_complete(self):
@@ -149,7 +182,7 @@ class SellerProfile(models.Model):
                 self.business_latitude is not None,
                 self.business_longitude is not None,
                 self.business_gps_verified_at,
-                self.gstin,
+                self.small_seller_verified if self.is_small_seller else self.gstin,
                 self.aadhaar_last4,
                 self.bank_account_holder,
                 self.bank_account_last4,

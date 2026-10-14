@@ -3,18 +3,19 @@
 {% block title %}Sell with us | ZIYAMART{% endblock %}
 
 {% block content %}
-<div class="container py-5">
+<div class="py-3 py-md-5">
     <div class="row justify-content-center">
         <div class="col-lg-7">
             <div class="card shadow-sm">
                 <div class="card-body p-4 p-md-5">
-                    <h1 class="h3">Sell on ZIYAMART</h1>
+                    <a href="{% url 'seller_application' %}" class="small text-muted">Seller registration</a><h1 class="h3 mt-2">{% if small_seller %}Small seller without GSTIN{% else %}Sell on ZIYAMART{% endif %}</h1>
                     {% if seller and seller.status == "pending" %}<div class="alert alert-info">Your seller profile is saved and awaiting marketplace approval. You can review your details below. Your workspace opens after approval.</div>{% endif %}
-                    <p class="text-muted">Provide your registered business and payout details. Your account number is never stored; only its last four digits are retained for review.</p>
+                    {% if small_seller %}<div class="alert alert-success"><strong>Local merchandise selling</strong><p class="mb-0 small mt-1">No GSTIN field. Eligible sellers register with PAN, GST-portal enrolment and Aadhaar identity review. Deliveries stay within your approved business pincode.</p></div><p class="small text-muted">Our team will contact you to arrange Aadhaar Secure QR verification using official offline tools. We retain only Aadhaar’s last four digits and your consent, never a full Aadhaar number or document.</p>{% if seller %}<div class="alert alert-light border"><strong>Identity: {{ seller.get_identity_status_display }}</strong>{% if seller.identity_review_note %}<p class="mt-2 mb-0">{{ seller.identity_review_note }}</p>{% endif %}<p class="small mt-2 mb-0">Next: identity and eligibility review → marketplace approval → merchandise workspace. <a href="{% url 'seller_payout_setup' %}">Set up bank payouts</a></p></div>{% endif %}{% endif %}<p class="text-muted">Provide your {% if small_seller %}identity, business{% else %}registered business{% endif %} and payout details. Your account number is never stored; only its last four digits are retained for review.</p>
                     <p class="small text-muted"><span class="text-danger" aria-hidden="true">*</span> All details are compulsory.</p>
                     {% if seller and seller.status == "suspended" %}<div class="alert alert-danger">Your seller account is suspended. Update your details and contact support.</div>{% endif %}
                     <form method="post" id="seller-application-form">
                         {% csrf_token %}
+                        {% if small_seller %}{{ form.business_segment }}{% endif %}
                         {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
                         {% for field in form.visible_fields %}
                             <div class="mb-3">
@@ -29,6 +30,7 @@
                         {% include "delivery/gps_capture.html" with form=form %}
                         <button class="btn btn-dark" type="submit">{% if seller %}Update application{% else %}Submit application{% endif %}</button>
                     </form>
+                    {% if small_seller and seller %}<hr><form method="post" action="{% url 'withdraw_small_seller_consent' %}">{% csrf_token %}<p class="small text-muted">You can withdraw Aadhaar consent. Selling will pause until a new identity review is completed.</p><button class="btn btn-outline-secondary btn-sm" type="submit">Withdraw Aadhaar consent</button></form>{% endif %}
                 </div>
             </div>
         </div>

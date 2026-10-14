@@ -116,7 +116,7 @@ class ProductDetailSerializer(ProductSerializer):
         return [absolute_url(self.context.get("request"), row.image) for row in obj.images.all()]
 
     def get_specifications(self, obj):
-        return {"category": obj.category.name, "subcategory": obj.subcategory.name if obj.subcategory else "", "product_type": obj.get_product_type_display(), "weight": f"{obj.package_weight_grams} g", "dimensions": f"{obj.package_length_cm} × {obj.package_width_cm} × {obj.package_height_cm} cm", "gst_rate": f"{obj.gst_rate}%"}
+        return {"category": obj.category.name, "subcategory": obj.subcategory.name if obj.subcategory else "", "product_type": obj.get_product_type_display(), "weight": f"{obj.package_weight_grams} g", "dimensions": f"{obj.package_length_cm} × {obj.package_width_cm} × {obj.package_height_cm} cm", "gst_rate": f"{obj.effective_gst_rate}%"}
 
     def get_reviews(self, obj):
         return [{"id": row.id, "username": row.user.first_name or row.user.username, "rating": row.rating, "title": row.title, "review": row.review, "verified": row.is_verified_purchase, "created_at": row.created_at} for row in obj.reviews.filter(is_approved=True).select_related("user")[:20]]
@@ -196,13 +196,45 @@ class GroceryCategorySerializer(serializers.ModelSerializer):
 
 class GroceryProductSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
-    price = serializers.DecimalField(source="customer_price", max_digits=9, decimal_places=2, read_only=True)
+    price = serializers.SerializerMethodField()
+    price_with_tax = serializers.SerializerMethodField()
+    unit = serializers.SerializerMethodField()
+    mrp = serializers.SerializerMethodField()
+    stock = serializers.SerializerMethodField()
+    options = serializers.SerializerMethodField()
+    selected_option_id = serializers.SerializerMethodField()
     category = GroceryCategorySerializer(read_only=True)
     store_name = serializers.CharField(source="store.name", read_only=True)
     class Meta:
         model = GroceryProduct
-        fields = ("id", "name", "brand", "image_url", "unit", "mrp", "price", "stock", "is_perishable", "category", "store_name")
+        fields = ("id", "name", "brand", "image_url", "unit", "mrp", "price", "price_with_tax", "stock", "options", "selected_option_id", "is_perishable", "category", "store_name")
     def get_image_url(self, obj): return absolute_url(self.context.get("request"), obj.image)
+
+    def selected(self, obj):
+        from groceries.options import resolve_option, GroceryInventoryError
+        if not hasattr(obj, "_api_selected_pack"):
+            try:
+                obj._api_selected_pack = resolve_option(obj)
+            except GroceryInventoryError:
+                obj._api_selected_pack = obj.default_option
+            obj._api_selected_pack.product = obj
+        return obj._api_selected_pack
+
+    def get_price(self, obj): return f"{self.selected(obj).customer_price:.2f}"
+    def get_price_with_tax(self, obj): return f"{self.selected(obj).customer_price_with_tax:.2f}"
+    def get_unit(self, obj): return self.selected(obj).unit
+    def get_mrp(self, obj): return f"{self.selected(obj).mrp:.2f}"
+    def get_stock(self, obj): return self.selected(obj).stock
+    def get_selected_option_id(self, obj): return self.selected(obj).pk
+    def get_options(self, obj):
+        options = getattr(obj, "pack_options", None)
+        if options is None:
+            options = list(obj.options.filter(is_active=True))
+        rows = []
+        for option in options:
+            option.product = obj
+            rows.append({"id": option.pk, "unit": option.unit, "mrp": f"{option.mrp:.2f}", "price": f"{option.customer_price:.2f}", "price_with_tax": f"{option.customer_price_with_tax:.2f}", "stock": option.stock, "is_default": option.is_default})
+        return rows
 
 
 class GroceryStoreSerializer(serializers.ModelSerializer):
@@ -221,7 +253,8 @@ class GroceryStoreDetailSerializer(GroceryStoreSerializer):
         request = self.context.get("request")
         if request and request.query_params.get("include_products") == "false":
             return []  # Updated apps load the paginated product endpoint.
-        rows = obj.products.filter(is_active=True, stock__gt=0).select_related("category", "store")
+        from groceries.options import available_products, with_pack_options
+        rows = with_pack_options(available_products(obj.products.all()).select_related("category", "store__seller"))
         return GroceryProductSerializer(rows, many=True, context=self.context).data
 
 

@@ -27,11 +27,12 @@ class GroceryMarketplaceTests(TestCase):
         category = GroceryCategory.objects.create(name="Staples", slug="staples")
         self.product = GroceryProduct.objects.create(store=self.store, category=category, name="Premium Atta", unit="5 kg", mrp=300, price=250, stock=10)
 
-    def test_pincode_lists_only_serviceable_open_stores(self):
+    def test_pincode_lists_only_categories_with_available_products(self):
         response = self.client.get(reverse("grocery_home"), {"pincode": "243638"})
-        self.assertContains(response, "Local Kirana")
-        response = self.client.get(reverse("grocery_home"), {"pincode": "110001"})
+        self.assertContains(response, "Staples")
         self.assertNotContains(response, "Local Kirana")
+        response = self.client.get(reverse("grocery_home"), {"pincode": "110001"})
+        self.assertNotContains(response, "Staples")
 
     def test_checkout_creates_order_and_reduces_stock(self):
         self.client.login(username="grocery-customer", password="test-password")

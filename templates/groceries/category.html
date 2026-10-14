@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ category.name }} | Groceries | ZIYAMART{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/grocery-browse.css' %}">{% endblock %}
+{% block content %}
+<section class="grocery-browse">
+  <a class="grocery-back" href="{% url 'grocery_home' %}?pincode={{ pincode|urlencode }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> All categories</a>
+  <header class="grocery-section-heading"><div><span class="grocery-eyebrow">Everyday essentials · {{ pincode }}</span><h1>{{ category.name }}</h1><p>Compare products from trusted local sellers.</p></div><a class="grocery-cart-link" href="{% url 'grocery_cart' %}"><i class="bi bi-basket2" aria-hidden="true"></i> Grocery cart{% if grocery_cart_count %}<span>{{ grocery_cart_count }}</span>{% endif %}</a></header>
+  <div class="grocery-browse-toolbar"><form method="get" class="grocery-search"><input type="hidden" name="pincode" value="{{ pincode }}"><label class="visually-hidden" for="grocery-search">Search {{ category.name }}</label><input id="grocery-search" name="q" value="{{ query }}" placeholder="Search products or brands" maxlength="100"><button type="submit" aria-label="Search products"><i class="bi bi-search" aria-hidden="true"></i></button></form><p><i class="bi bi-truck" aria-hidden="true"></i> Free delivery on orders of ₹200 or more</p></div>
+  {% if cart_store_id %}<div class="grocery-cart-notice"><i class="bi bi-basket2" aria-hidden="true"></i> Your cart contains items from one seller. Complete or clear your cart to shop from another. <a href="{% url 'grocery_cart' %}">View cart</a></div>{% endif %}
+  <div class="grocery-product-grid">
+    {% for product in page %}{% include "groceries/product_card.html" %}{% empty %}<div class="grocery-empty"><h2>No matching items</h2><p>{% if query %}Try a different product or brand.{% else %}This category has no available products in your area right now.{% endif %}</p><a href="{% url 'grocery_home' %}?pincode={{ pincode|urlencode }}">Explore other categories</a></div>{% endfor %}
+  </div>
+  {% if page.has_other_pages %}<nav class="grocery-pagination" aria-label="Product pages">{% if page.has_previous %}<a href="?pincode={{ pincode|urlencode }}&q={{ query|urlencode }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?pincode={{ pincode|urlencode }}&q={{ query|urlencode }}&page={{ page.next_page_number }}">Next →</a>{% endif %}</nav>{% endif %}
+</section>
+<script src="{% static 'js/grocery-packs.js' %}" defer></script>
+{% endblock %}

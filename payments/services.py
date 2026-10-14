@@ -197,9 +197,8 @@ def _sync_order_payment(payment, paid):
         fields.append("razorpay_payment_id")
     order.save(update_fields=fields)
     if not paid and payment.channel_name == "grocery" and order.status not in {"cancelled", "delivered"}:
-        for item in order.items.select_related("product"):
-            item.product.stock += item.quantity
-            item.product.save(update_fields=["stock"])
+        from groceries.options import restore_order_stock
+        restore_order_stock(order)
         order.status = "cancelled"
         order.save(update_fields=["status", "updated_at"])
     elif not paid and payment.channel_name == "food" and order.status not in {"cancelled", "delivered"}:

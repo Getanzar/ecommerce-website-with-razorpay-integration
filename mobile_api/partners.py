@@ -293,7 +293,7 @@ def catalog_data(row, kind):
         result["variants"] = [{"id": v.pk, "name": f"{v.color.name if v.color_id else ''} / {v.size}",
                               "stock": v.stock, "price": str(v.seller_price)} for v in row.variants.all()]
     elif kind == "grocery":
-        result["variants"] = [{"id": row.pk, "name": row.unit, "stock": row.stock, "price": str(row.price)}]
+        result["variants"] = [{"id": option.pk, "name": option.unit, "stock": option.stock, "price": str(option.price)} for option in row.options.filter(is_active=True)]
     else:
         result["variants"] = [{"id": v.pk, "name": v.name, "stock": None, "price": str(v.price)} for v in row.options.all()]
     return result
@@ -325,7 +325,10 @@ class SellerCatalogUpdateView(SellerKindView):
                 variant.save(update_fields=["stock"])
                 row.stock = row.variants.aggregate(total=Sum("stock"))["total"] or 0
             elif kind == "grocery":
-                row.stock = stock
+                option = get_object_or_404(row.options.select_for_update(), pk=request.data.get("variant_id")) if request.data.get("variant_id") else row.default_option
+                option.stock = stock
+                option.save(update_fields=["stock"])
+                row.refresh_from_db()
             else:
                 raise ValidationError("Use menu availability for food items.")
             row.save(update_fields=["stock"])

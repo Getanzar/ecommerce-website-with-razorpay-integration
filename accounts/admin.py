@@ -12,6 +12,8 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "user",
         "business_category",
         "business_segment",
+        "registration_type",
+        "identity_status",
         "status",
         "delhivery_pickup_name",
         "commission_percent",
@@ -20,7 +22,8 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "ai_images_used",
         "created_at",
     )
-    list_filter = ("status", "business_segment")
+    list_filter = ("status", "business_segment", "registration_type", "identity_status")
+    readonly_fields = ("aadhaar_consent_at", "identity_verified_at", "identity_verified_by", "identity_status", "identity_review_reference")
     search_fields = (
         "store_name",
         "legal_business_name",

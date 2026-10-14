@@ -16,7 +16,7 @@ def decimal(value, name, *, maximum=None):
         raise serializers.ValidationError({name: exc.detail})
 
 
-def checkout_items(value, key):
+def checkout_items(value, key, *, option_key=None):
     class Item(serializers.Serializer):
         quantity = serializers.IntegerField(min_value=1, max_value=20, default=1)
         note = serializers.CharField(max_length=300, required=False, allow_blank=True)
@@ -30,5 +30,8 @@ def checkout_items(value, key):
     for raw in container.validated_data["items"]:
         item = Item(data=raw)
         item.is_valid(raise_exception=True)
-        rows.append({**item.validated_data, key: integer(raw.get(key), key)})
+        row = {**item.validated_data, key: integer(raw.get(key), key)}
+        if option_key and raw.get(option_key) is not None:
+            row[option_key] = integer(raw.get(option_key), option_key)
+        rows.append(row)
     return rows

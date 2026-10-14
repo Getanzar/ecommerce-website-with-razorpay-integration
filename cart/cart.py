@@ -142,7 +142,7 @@ class Cart:
                         variant.seller_price,
                         variant.final_price,
                         quantity,
-                        variant.product.gst_rate,
+                        variant.product.effective_gst_rate,
                     )
                     payable_subtotal = money(sum(charges.values(), Decimal("0.00")))
                     tax_amount = charges["merchandise_gst"] + charges["platform_fee_gst"]

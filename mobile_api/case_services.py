@@ -78,8 +78,8 @@ def prepare_case(case_id):
                 order.status = "cancelled"
                 order.save(update_fields=["status", "updated_at"])
                 if case.order_kind == "grocery":
-                    for item in order.items.select_related("product"):
-                        type(item.product).objects.filter(pk=item.product_id).update(stock=F("stock") + item.quantity)
+                    from groceries.options import restore_order_stock
+                    restore_order_stock(order)
             if case.order_kind == "shop" and order.items.filter(product__seller=case.seller).exclude(fulfillment_status="cancelled").exists():
                 deliveries = deliveries.none()
             for delivery in deliveries:

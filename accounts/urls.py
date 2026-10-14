@@ -53,6 +53,9 @@ urlpatterns = [
         name="seller_application",
     ),
     path("seller/payout-setup/", views.seller_payout_setup, name="seller_payout_setup"),
+    path("sell-with-us/registered/", views.registered_seller_application, name="registered_seller_application"),
+    path("sell-with-us/small/", views.small_seller_application, name="small_seller_application"),
+    path("sell-with-us/small/withdraw-consent/", views.withdraw_small_seller_consent, name="withdraw_small_seller_consent"),
 
     # Password Change
     path(

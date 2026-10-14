@@ -27,7 +27,7 @@
       <div class="card border-0 shadow-sm rounded-4 sticky-top" style="top: 1rem">
         <div class="card-body p-4">
           <h2 class="h5 fw-bold mb-3">{{ store.name }}</h2>
-          {% for row in rows %}<div class="d-flex small mb-2"><span>{{ row.quantity }} × {{ row.product.name }}</span><span class="ms-auto">₹{{ row.total }}</span></div>{% endfor %}
+          {% for row in rows %}<div class="d-flex small mb-2"><span>{{ row.quantity }} × {{ row.product.name }} ({{ row.option.unit }})</span><span class="ms-auto">₹{{ row.payable_total }}</span></div>{% endfor %}
           <hr>
           <div class="d-flex mb-2"><span>Store merchandise</span><span class="ms-auto">₹{{ pricing.merchant_subtotal }}</span></div>
           <div class="d-flex mb-2"><span>Platform fee</span><span class="ms-auto">₹{{ pricing.platform_fee }}</span></div>

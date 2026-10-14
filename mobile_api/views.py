@@ -27,6 +27,7 @@ from products.models import Category, Product, ProductVariant, Wishlist
 from products.kids_ages import matching_age_groups
 from food.models import FoodCartItem, FoodOrder, FoodOrderItem, MenuItem, MenuItemOption, Restaurant
 from groceries.models import GroceryCartItem, GroceryCategory, GroceryOrder, GroceryOrderItem, GroceryProduct, GroceryStore
+from groceries.options import available_products as available_grocery_products, with_pack_options, resolve_option as resolve_grocery_option, GroceryInventoryError, lock_grocery_rows, reserve_order_items, restore_order_stock
 from orders.models import Order, OrderItem, OrderTimeline
 from .checkout_delivery import order_location
 from .throttles import PublicAuthView, EmailAuthView
@@ -486,7 +487,7 @@ class GroceryProductListView(generics.ListAPIView):
     serializer_class = GroceryProductSerializer
     pagination_class = CatalogPagination
     def get_queryset(self):
-        rows = GroceryProduct.objects.filter(is_active=True, stock__gt=0, store__seller__status="approved").select_related("store", "category")
+        rows = with_pack_options(available_grocery_products().filter(store__seller__status="approved").select_related("store__seller", "category"))
         store = self.request.query_params.get("store")
         category = self.request.query_params.get("category")
         query = self.request.query_params.get("q")
@@ -540,11 +541,14 @@ class FoodCartItemView(APIView):
 
 
 def _grocery_cart_payload(request):
-    rows = GroceryCartItem.objects.filter(user=request.user).select_related("product__store")
-    items = [{"id": row.pk, "product_id": row.product_id, "name": row.product.name, "unit": row.product.unit,
+    rows = GroceryCartItem.objects.filter(user=request.user).select_related("product__store__seller", "option")
+    for row in rows:
+        if row.option_id:
+            row.option.product = row.product
+    items = [{"id": row.pk, "product_id": row.product_id, "option_id": row.option_id, "name": row.product.name, "unit": row.option.unit if row.option_id else row.product.unit,
               "image_url": request.build_absolute_uri(row.product.image.url) if row.product.image else None,
-              "store_id": row.product.store_id, "store_name": row.product.store.name, "stock": row.product.stock,
-              "quantity": row.quantity, "unit_price": str(row.product.customer_price), "total": str(row.total)} for row in rows]
+              "store_id": row.product.store_id, "store_name": row.product.store.name, "stock": row.option.stock if row.option_id else row.product.stock,
+              "quantity": row.quantity, "unit_price": str(row.option.customer_price if row.option_id else row.product.customer_price), "unit_price_with_tax": str(row.option.customer_price_with_tax) if row.option_id else None, "total": str(row.total)} for row in rows]
     return {"items": items, "item_count": sum(row.quantity for row in rows), "subtotal": str(sum(row.total for row in rows))}
 
 
@@ -560,25 +564,29 @@ class GroceryCartItemCreateView(APIView):
     def post(self, request):
         product_id = integer(request.data.get("product_id"), "product_id")
         quantity = integer(request.data.get("quantity", 1), "quantity", maximum=20)
-        product = generics.get_object_or_404(GroceryProduct.objects.select_for_update().select_related("store"), pk=product_id, is_active=True, stock__gt=0)
+        product = generics.get_object_or_404(GroceryProduct.objects.select_for_update().select_related("store__seller"), pk=product_id, is_active=True, store__seller__status="approved")
         if not product.store.accepts_orders: return Response({"message": "This grocery store is currently closed."}, status=409)
+        try:
+            option = resolve_grocery_option(product, request.data.get("option_id"))
+        except GroceryInventoryError as exc:
+            return Response({"message": str(exc)}, status=409)
+        if quantity > option.stock: return Response({"quantity": [f"Only {option.stock} available."]}, status=409)
         different = GroceryCartItem.objects.filter(user=request.user).exclude(product__store_id=product.store_id)
         if different.exists():
             if not request.data.get("replace_cart"): return Response({"message": "Your grocery cart contains items from another store.", "replace_required": True}, status=409)
             different.delete()
-        if quantity > product.stock: return Response({"quantity": [f"Only {product.stock} available."]}, status=409)
-        row, created = GroceryCartItem.objects.get_or_create(user=request.user, product=product, defaults={"quantity": quantity})
-        if not created: row.quantity = min(row.quantity + quantity, product.stock, 20); row.save(update_fields=("quantity", "updated_at"))
+        row, created = GroceryCartItem.objects.get_or_create(user=request.user, product=product, option=option, defaults={"quantity": quantity})
+        if not created: row.quantity = min(row.quantity + quantity, option.stock, 20); row.save(update_fields=("quantity", "updated_at"))
         return Response(_grocery_cart_payload(request), status=201 if created else 200)
 
 
 class GroceryCartItemView(APIView):
     permission_classes = [IsAuthenticated]
     def patch(self, request, item_id):
-        row = generics.get_object_or_404(GroceryCartItem.objects.select_related("product"), pk=item_id, user=request.user)
+        row = generics.get_object_or_404(GroceryCartItem.objects.select_related("product", "option"), pk=item_id, user=request.user)
         quantity = integer(request.data.get("quantity", row.quantity), "quantity", minimum=0, maximum=20)
         if quantity < 1: row.delete()
-        elif quantity > row.product.stock: return Response({"message": f"Only {row.product.stock} available."}, status=409)
+        elif not row.option or not row.option.is_active or quantity > row.option.stock: return Response({"message": "This pack size no longer has enough stock."}, status=409)
         else: row.quantity = min(quantity, 20); row.save(update_fields=("quantity", "updated_at"))
         return Response(_grocery_cart_payload(request))
     def delete(self, request, item_id): generics.get_object_or_404(GroceryCartItem, pk=item_id, user=request.user).delete(); return Response(_grocery_cart_payload(request))
@@ -620,17 +628,19 @@ def _quote_data(request, kind, address, location=None):
         snapshot=[{"id":row.pk,"option_id":row.option_id,"quantity":row.quantity,"price":str(row.option.customer_price)} for row in cart_rows]
         eta=f"About {restaurant.preparation_minutes + 20} minutes"; source=restaurant.name
     elif kind == "grocery":
-        cart_rows=list(GroceryCartItem.objects.filter(user=request.user).select_related("product__store"))
+        cart_rows=list(GroceryCartItem.objects.filter(user=request.user).select_related("product__store__seller", "option"))
         if not cart_rows:return None,"Your Grocery cart is empty."
         store=cart_rows[0].product.store
         if not location:return None,"Confirm the delivery address GPS location before continuing."
         if store.latitude is None or store.longitude is None:return None,"The store must verify its pickup location before accepting orders."
         if store.pincode != address.pincode or not store.service_areas.filter(pincode=address.pincode,is_active=True,delivery_mode="local").exists():return None,"Local grocery delivery is unavailable for this pincode."
-        if not store.accepts_orders or any(row.product.store_id!=store.pk or not row.product.is_active or row.product.stock<row.quantity for row in cart_rows):return None,"The store, stock, or an item changed."
+        if not store.accepts_orders or not store.seller.is_approved or any(row.product.store_id!=store.pk or not row.product.is_active or not row.option or not row.option.is_active or row.option.product_id!=row.product_id or row.option.stock<row.quantity for row in cart_rows):return None,"The store, stock, or a pack size changed."
         if not store.service_areas.filter(pincode=address.pincode,is_active=True).exists():return None,"This store does not deliver to the selected pincode."
-        rows=[{"product":row.product,"quantity":row.quantity} for row in cart_rows]; pricing=build_grocery_pricing(rows,store)
-        if sum(row["product"].customer_price*row["quantity"] for row in rows)<store.minimum_order:return None,f"Minimum order is â‚¹{store.minimum_order}."
-        snapshot=[{"id":row.pk,"product_id":row.product_id,"quantity":row.quantity,"price":str(row.product.customer_price)} for row in cart_rows]
+        for row in cart_rows:
+            row.option.product = row.product
+        rows=[{"product":row.product,"option":row.option,"quantity":row.quantity} for row in cart_rows]; pricing=build_grocery_pricing(rows,store)
+        if sum(row["option"].customer_price*row["quantity"] for row in rows)<store.minimum_order:return None,f"Minimum order is â‚¹{store.minimum_order}."
+        snapshot=[{"id":row.pk,"product_id":row.product_id,"option_id":row.option_id,"unit":row.option.unit,"quantity":row.quantity,"price":str(row.option.customer_price)} for row in cart_rows]
         eta=f"About {store.estimated_delivery_minutes} minutes"; source=store.name
     else:return None,"Unknown checkout type."
     total=pricing["grand_total"]
@@ -684,8 +694,21 @@ def _checkout_guard(request, kind, payment_method="cod"):
     if kind in {"food", "grocery"} and request.data.get("items"):
         item_key = "option_id" if kind == "food" else "product_id"
         try:
-            submitted = sorted((row[item_key], row["quantity"]) for row in checkout_items(request.data["items"], item_key))
-            quoted = sorted((int(row[item_key]), int(row["quantity"])) for row in session.quote["snapshot"])
+            if kind == "grocery":
+                quoted = sorted((int(row["product_id"]), int(row["option_id"]), int(row["quantity"])) for row in session.quote["snapshot"])
+                submitted = []
+                for row in checkout_items(request.data["items"], "product_id", option_key="option_id"):
+                    option_id = row.get("option_id")
+                    if option_id is None:
+                        choices = [option for product, option, quantity in quoted if product == row["product_id"]]
+                        if len(choices) != 1:
+                            raise ValueError("Choose a pack size for every grocery line.")
+                        option_id = choices[0]
+                    submitted.append((row["product_id"], option_id, row["quantity"]))
+                submitted.sort()
+            else:
+                submitted = sorted((row[item_key], row["quantity"]) for row in checkout_items(request.data["items"], item_key))
+                quoted = sorted((int(row[item_key]), int(row["quantity"])) for row in session.quote["snapshot"])
         except (KeyError, TypeError, ValueError):
             return None, Response({"message": "Invalid checkout items."}, status=400)
         if submitted != quoted:
@@ -833,7 +856,7 @@ class GroceryCheckoutView(APIView):
         if error:return error
         address = _address_for(request)
         if not address: return Response({"message": "Select a valid delivery address."}, status=400)
-        submitted = checkout_items(request.data["items"], "product_id") if request.data.get("items") else [{"product_id": row.product_id, "quantity": row.quantity} for row in GroceryCartItem.objects.filter(user=request.user)]
+        submitted = [{"product_id": int(row["product_id"]), "option_id": int(row["option_id"]), "quantity": int(row["quantity"]), "unit": row["unit"]} for row in checkout.quote["snapshot"]]
         ids=[row.get("product_id") for row in submitted]
         products={p.pk:p for p in GroceryProduct.objects.select_for_update().select_related("store__seller").filter(pk__in=ids,is_active=True)}
         if not submitted or len(products)!=len(set(ids)): return Response({"message":"Some grocery items are unavailable."},status=409)
@@ -843,16 +866,28 @@ class GroceryCheckoutView(APIView):
         rows=[]
         for submitted_row in submitted:
             product=products[submitted_row["product_id"]]; quantity=max(1,min(int(submitted_row.get("quantity",1)),20))
-            if product.stock<quantity:return Response({"message":f"Only {product.stock} of {product.name} available."},status=409)
-            rows.append({"product":product,"quantity":quantity})
+            try:
+                option = resolve_grocery_option(product, submitted_row["option_id"])
+            except GroceryInventoryError as exc:
+                return Response({"message": str(exc), "requote_required": True}, status=409)
+            if option.unit != submitted_row["unit"]:
+                return Response({"message": "A pack size changed. Refresh the quote.", "requote_required": True}, status=409)
+            rows.append({"product":product,"option":option,"quantity":quantity})
+        try:
+            rows = lock_grocery_rows(rows)
+        except GroceryInventoryError as exc:
+            return Response({"message": str(exc), "requote_required": True}, status=409)
+        if any(row["option"].unit != saved["unit"] for row, saved in zip(rows, submitted)):
+            return Response({"message": "A pack size changed. Refresh the quote.", "requote_required": True}, status=409)
         from payments.pricing import build_grocery_pricing
         pricing=build_grocery_pricing(rows,store)
-        if sum(row["product"].customer_price*row["quantity"] for row in rows)<store.minimum_order:return Response({"message":f"Minimum order is â‚¹{store.minimum_order}."},status=400)
+        if pricing["grand_total"] != Decimal(checkout.quote["internal"]["grand_total"]):
+            return Response({"message": "Pack prices changed. Refresh the quote.", "requote_required": True}, status=409)
+        if sum(row["option"].customer_price*row["quantity"] for row in rows)<store.minimum_order:return Response({"message":f"Minimum order is â‚¹{store.minimum_order}."},status=400)
         substitution=str(request.data.get("substitution_preference", "contact"))
         if substitution not in ("contact", "refund"): return Response({"message":"Choose a valid substitution preference."},status=400)
         order=GroceryOrder.objects.create(user=request.user,store=store,full_name=address.full_name,phone=address.phone,address=address.address_line_1,city=address.city,state=address.state,pincode=address.pincode,subtotal=pricing["merchant_subtotal"]+pricing["platform_fee"],delivery_fee=pricing["delivery_fee"],total=pricing["grand_total"],**order_location(checkout.quote),payment_method=payment_method,delivery_mode="local",substitution_preference=substitution)
-        for row in rows:
-            product=row["product"]; GroceryOrderItem.objects.create(order=order,product=product,product_name=product.name,unit=product.unit,unit_price=product.customer_price,quantity=row["quantity"]); product.stock-=row["quantity"]; product.save(update_fields=["stock"])
+        reserve_order_items(order, rows)
         GroceryCartItem.objects.filter(user=request.user).delete()
         from payments.services import create_breakdown, create_payment_transaction
         create_breakdown(order,pricing)
@@ -919,7 +954,7 @@ class OrderCancelView(APIView):
             order.cancel_reason=reason; order.cancelled_at=timezone.now()
         elif kind=="food": order.status="cancelled"
         else:
-            for row in order.items.select_related("product"): row.product.stock += row.quantity; row.product.save(update_fields=["stock"])
+            restore_order_stock(order)
             order.status="cancelled"
         fields=["status","updated_at"]
         if kind=="shop":

@@ -147,7 +147,7 @@ class="fw-bold mb-4">
 
 </h2>
 
-<p class="small text-success mb-4">Inclusive of merchandise GST and platform-fee GST. Customer delivery charge: ₹0.</p>
+<p class="small text-success mb-4">{% if product.seller.is_small_seller %}No merchandise GST. Includes applicable platform-fee GST. Free local delivery in {{ product.seller.business_pincode }}.{% else %}Inclusive of merchandise GST and platform-fee GST. Customer delivery charge: ₹0.{% endif %}</p>
 
 <p class="text-muted">
 

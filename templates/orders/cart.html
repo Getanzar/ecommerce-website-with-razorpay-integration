@@ -19,6 +19,7 @@
           <div class="cart-item-info">
             <a class="cart-product-name" href="{% url 'product_detail_page' item.product.slug %}">{{ item.product.name }}</a>
             <div class="cart-variants">{% if item.color %}<span>{{ item.color }}</span>{% endif %}{% if item.size %}<span>Size: {{ item.size }}</span>{% endif %}</div>
+            {% if item.product.seller.is_small_seller %}<small class="d-block text-muted mt-2">Local delivery in {{ item.product.seller.business_pincode }} only</small>{% endif %}
             <p class="cart-unit-price">₹{{ item.unit_payable_price|floatformat:2 }} <span>each</span></p>
           </div>
           <div class="cart-item-controls">

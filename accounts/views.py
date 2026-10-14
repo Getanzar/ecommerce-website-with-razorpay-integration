@@ -9,12 +9,14 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_POST
 
 from orders.models import Order
 
 from .forms import (
     PasswordResetRequestForm,
     SellerApplicationForm,
+    SmallSellerApplicationForm,
     SellerPayoutSetupForm,
     SetPasswordWithOTPForm,
     SignUpForm,
@@ -24,6 +26,9 @@ from .utils import send_email_otp, send_password_reset_otp
 
 
 def signup_view(request):
+    seller_route = {"small": "small_seller_application", "registered": "registered_seller_application"}.get(request.GET.get("seller"))
+    if seller_route:
+        request.session["seller_signup_next"] = seller_route
 
     if request.method == "POST":
 
@@ -220,11 +225,58 @@ def profile_detail(request):
     )
 
 
-@login_required
 @never_cache
 @ensure_csrf_cookie
 def seller_application(request):
+    if request.user.is_authenticated:
+        seller = SellerProfile.objects.filter(user=request.user).first()
+        if seller:
+            if request.method == "POST":
+                return small_seller_application(request) if seller.is_small_seller else registered_seller_application(request)
+            return redirect("small_seller_application" if seller.is_small_seller else "registered_seller_application")
+    if request.method == "POST":
+        return registered_seller_application(request)
+    return render(request, "accounts/seller_choice.html")
+
+
+@login_required
+@never_cache
+@ensure_csrf_cookie
+def registered_seller_application(request):
+    return _seller_application_form(request)
+
+
+@login_required
+@never_cache
+@ensure_csrf_cookie
+def small_seller_application(request):
+    return _seller_application_form(request, small=True)
+
+
+@login_required
+@require_POST
+def withdraw_small_seller_consent(request):
+    from django.shortcuts import get_object_or_404
+    seller = get_object_or_404(SellerProfile, user=request.user, registration_type="small")
+    seller.aadhaar_consent_at = None
+    seller.aadhaar_last4 = ""
+    seller.identity_status = "pending"
+    seller.identity_verified_at = None
+    seller.identity_verified_by = None
+    seller.identity_review_reference = ""
+    seller.status = "suspended"
+    seller.payouts_enabled = False
+    seller.save()
+    from dashboard.security import audit
+    audit(request, "seller.aadhaar_consent_withdrawn", seller, "Seller withdrew Aadhaar identity-verification consent.")
+    messages.info(request, "Aadhaar consent withdrawn. Selling is paused until you reapply and complete identity review.")
+    return redirect("small_seller_application")
+
+
+def _seller_application_form(request, small=False):
     existing_application = SellerProfile.objects.filter(user=request.user).first()
+    if existing_application and existing_application.is_small_seller != small:
+        return redirect("small_seller_application" if existing_application.is_small_seller else "registered_seller_application")
 
     if existing_application and existing_application.is_approved:
         if existing_application.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
@@ -232,14 +284,18 @@ def seller_application(request):
         return redirect("seller_dashboard")
 
     if request.method == "POST":
-        form = SellerApplicationForm(request.POST, instance=existing_application)
+        form_class = SmallSellerApplicationForm if small else SellerApplicationForm
+        form = form_class(request.POST, instance=existing_application)
         if form.is_valid():
             seller = form.save(commit=False)
             seller.user = request.user
             seller.status = "pending"
             seller.business_gps_verified_at = timezone.now()
             seller.save()
-            if not seller.razorpay_fund_account_id:
+            if small:
+                from dashboard.security import audit
+                audit(request, "seller.aadhaar_consent", seller, "Seller consented to offline Aadhaar verification for seller onboarding.", consent_version="small-seller-identity-v1", eligibility_declaration=True)
+            if not small and not seller.razorpay_fund_account_id:
                 try:
                     from .payouts import PayoutOnboardingError, provision_seller_payout_account
                     provision_seller_payout_account(seller, form.cleaned_data["bank_account_number"])
@@ -251,12 +307,13 @@ def seller_application(request):
             )
             return redirect("seller_application")
     else:
-        form = SellerApplicationForm(instance=existing_application)
+        form_class = SmallSellerApplicationForm if small else SellerApplicationForm
+        form = form_class(instance=existing_application)
 
     return render(
         request,
         "accounts/seller_application.html",
-        {"form": form, "seller": existing_application},
+        {"form": form, "seller": existing_application, "small_seller": small},
     )
 
 
@@ -464,7 +521,7 @@ def verify_otp(request):
             "Your account has been verified successfully."
         )
 
-        return redirect("home")
+        return redirect(request.session.pop("seller_signup_next", "home"))
 
     return render(
         request,

@@ -40,7 +40,7 @@ def _snapshot(cart_items, checkout_data, pricing, quotes):
             row["variant"].seller_price,
             row["variant"].final_price,
             row["quantity"],
-            row["product"].gst_rate,
+            row["product"].effective_gst_rate,
         )
         items.append({
             "product_id": row["product"].pk,
@@ -130,6 +130,9 @@ def finalize_parcel_transaction(payment, provider_payment_id=""):
             pk=saved["variant_id"], product_id=saved["product_id"],
         )
         quantity = int(saved["quantity"])
+        seller = variant.product.seller
+        if seller and seller.is_small_seller and checkout_data["pincode"] != seller.business_pincode:
+            raise ValueError("The small seller's local delivery area changed. Contact support about this payment.")
         if variant.stock < quantity:
             raise ValueError(f"{variant.product.name} no longer has enough stock.")
         platform_fee = money(saved["platform_fee"])

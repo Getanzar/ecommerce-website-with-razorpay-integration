@@ -133,7 +133,11 @@ export type GroceryStore = {
   estimated_delivery_minutes: number;
   accepts_orders: boolean;
 };
+export type GroceryPack = { id: number; unit: string; mrp: string; price: string; price_with_tax: string; stock: number; is_default: boolean };
 export type GroceryProduct = {
+  options?: GroceryPack[];
+  selected_option_id?: number;
+  price_with_tax?: string;
   id: number;
   name: string;
   brand: string;
@@ -165,6 +169,8 @@ export type FoodCartItem = {
   total: string;
 };
 export type GroceryCartItem = {
+  option_id: number;
+  unit_price_with_tax?: string;
   id: number;
   product_id: number;
   name: string;
@@ -485,10 +491,12 @@ export const addGroceryCartItem = (
   token: string,
   product_id: number,
   replace_cart = false,
+  option_id?: number,
+  quantity = 1,
 ) =>
   request<ServiceCart<GroceryCartItem>>(
     "/groceries/cart/items/",
-    { method: "POST", body: JSON.stringify({ product_id, replace_cart }) },
+    { method: "POST", body: JSON.stringify({ product_id, replace_cart, option_id, quantity }) },
     token,
   );
 export const updateGroceryCartItem = (

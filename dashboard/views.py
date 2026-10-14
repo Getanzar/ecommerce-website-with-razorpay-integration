@@ -325,7 +325,7 @@ def seller_add_product(request):
         return redirect("food_seller_add_item")
 
     if request.method == "POST":
-        form = SellerProductForm(request.POST, request.FILES)
+        form = SellerProductForm(request.POST, request.FILES, seller=seller)
         variants_data = None
         try:
             variants_data = _parse_seller_variants(request)
@@ -378,7 +378,7 @@ def seller_add_product(request):
             )
             return redirect("seller_products")
     else:
-        form = SellerProductForm()
+        form = SellerProductForm(seller=seller)
 
     return render(
         request,
@@ -767,10 +767,14 @@ def sellers_management(request):
 
     if status in {"pending", "approved", "suspended"}:
         sellers = sellers.filter(status=status)
+    registration_type = request.GET.get("registration_type", "")
+    if registration_type in {"small", "registered"}:
+        sellers = sellers.filter(registration_type=registration_type)
 
     context = {
         "sellers": sellers,
         "selected_status": status,
+        "selected_registration_type": registration_type,
         "pending_count": SellerProfile.objects.filter(status="pending").count(),
         "approved_count": SellerProfile.objects.filter(status="approved").count(),
         "suspended_count": SellerProfile.objects.filter(status="suspended").count(),
@@ -790,6 +794,9 @@ def update_seller_status(request, seller_id):
         return redirect("sellers_management")
 
     old_status = seller.status
+    if new_status == "approved" and seller.is_small_seller and not seller.kyc_complete:
+        messages.error(request, "Review Aadhaar identity, GST-portal enrolment eligibility and bank details before approving this small seller.")
+        return redirect("sellers_management")
     if new_status == "approved" and seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
         messages.error(request, "Select a valid selling segment in Django admin before approving this seller.")
         return redirect("sellers_management")
@@ -807,10 +814,50 @@ def update_seller_status(request, seller_id):
 
 @require_POST
 @operations_admin_required
+@transaction.atomic
+def review_small_seller(request, seller_id):
+    from accounts.forms import SmallSellerReviewForm
+    seller = get_object_or_404(SellerProfile.objects.select_for_update(), pk=seller_id, registration_type="small")
+    if request.POST.get("decision") not in {"verified", "needs_changes"}:
+        messages.error(request, "Choose a valid review decision.")
+        return redirect("ops_seller_detail", seller_id=seller.pk)
+    if request.POST.get("decision") == "needs_changes":
+        note = request.POST.get("note", "").strip()[:1000]
+        if not note:
+            messages.error(request, "Explain what the seller needs to correct.")
+            return redirect("ops_seller_detail", seller_id=seller.pk)
+        seller.identity_status = "needs_changes"
+        seller.identity_review_note = note
+        seller.identity_verified_at = None
+        seller.identity_verified_by = None
+        seller.identity_review_reference = ""
+        seller.status = "suspended" if seller.status == "approved" else "pending"
+        seller.payouts_enabled = False
+    else:
+        form = SmallSellerReviewForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Confirm both identity and enrolment checks and enter a valid review reference.")
+            return redirect("ops_seller_detail", seller_id=seller.pk)
+        seller.identity_status = "verified"
+        seller.identity_verified_at = timezone.now()
+        seller.identity_verified_by = request.user
+        seller.identity_review_reference = form.cleaned_data["reference"]
+        seller.identity_review_note = ""
+        if not seller.kyc_complete:
+            messages.error(request, "Application details or Aadhaar consent are incomplete. Ask the seller to resubmit.")
+            return redirect("ops_seller_detail", seller_id=seller.pk)
+    seller.save()
+    audit(request, "seller.small_identity_review", seller, f"Small seller identity review: {seller.identity_status}", reference=seller.identity_review_reference)
+    messages.success(request, "Review saved. Seller approval and payout activation remain separate steps.")
+    return redirect("ops_seller_detail", seller_id=seller.pk)
+
+
+@require_POST
+@operations_admin_required
 def verify_seller_payouts(request, seller_id):
     seller = get_object_or_404(SellerProfile, id=seller_id)
     if not seller.kyc_complete:
-        messages.error(request, "KYC is incomplete. Review the legal, GSTIN, Aadhaar and bank fields first.")
+        messages.error(request, "KYC is incomplete. Review legal identity, GSTIN or small-seller enrolment eligibility, Aadhaar and bank details first.")
     elif not seller.razorpay_contact_id or not seller.razorpay_fund_account_id:
         messages.error(request, "RazorpayX payout account is missing. Ask the seller to resubmit bank details once.")
     else:

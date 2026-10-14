@@ -195,8 +195,8 @@ def build_food_pricing(rows, restaurant):
 def build_grocery_pricing(rows, store):
     lines = [
         line_charges(
-            row["product"].price,
-            row["product"].customer_price,
+            row.get("option", row["product"]).price,
+            row.get("option", row["product"]).customer_price,
             row["quantity"],
             row["product"].gst_rate,
         )
@@ -229,7 +229,7 @@ def build_parcel_pricing(items, destination, payment_method):
     for row in items:
         variant = row["variant"]
         line_rows.append(line_charges(
-            variant.seller_price, variant.final_price, row["quantity"], row["product"].gst_rate,
+            variant.seller_price, variant.final_price, row["quantity"], row["product"].effective_gst_rate,
         ))
         grouped[row["product"].seller].append(row)
     totals = _sum_charges(line_rows)
@@ -241,6 +241,13 @@ def build_parcel_pricing(items, destination, payment_method):
             else settings.DELHIVERY_ORIGIN_PINCODE
         )
         weight = chargeable_weight_grams(seller_items)
+        if seller and seller.is_small_seller:
+            if not seller.is_approved:
+                raise DeliveryQuoteError("This small seller is awaiting verification. Remove their items to continue.")
+            if origin_pincode != destination["pincode"]:
+                raise DeliveryQuoteError(f"{seller.store_name} delivers only within pincode {origin_pincode}. Remove their items or choose a local address.")
+            if not has_local_coverage(origin_pincode):
+                raise DeliveryQuoteError("Local delivery is currently unavailable for this small seller. Please try again later.")
         if seller and origin_pincode == destination["pincode"] and has_local_coverage(origin_pincode):
             quote = quote_local_delivery(
                 seller.business_latitude, seller.business_longitude,
@@ -259,7 +266,7 @@ def build_parcel_pricing(items, destination, payment_method):
                     row["variant"].seller_price,
                     row["variant"].final_price,
                     row["quantity"],
-                    row["product"].gst_rate,
+                    row["product"].effective_gst_rate,
                 ).values())
                 for row in seller_items
             ), Decimal("0"))),

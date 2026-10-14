@@ -245,10 +245,14 @@ class Product(models.Model):
         return (self.price * multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @property
+    def effective_gst_rate(self):
+        return Decimal("0") if self.seller_id and self.seller.is_small_seller else self.gst_rate
+
+    @property
     def customer_price_with_tax(self):
         """Customer-facing unit total, inclusive of merchandise and platform GST."""
         platform_fee = self.customer_price - self.price
-        merchandise_gst = self.price * self.gst_rate / Decimal("100")
+        merchandise_gst = self.price * self.effective_gst_rate / Decimal("100")
         platform_gst_rate = Decimal(str(getattr(settings, "PLATFORM_FEE_GST_PERCENT", "18.00")))
         platform_fee_gst = platform_fee * platform_gst_rate / Decimal("100")
         return (self.customer_price + merchandise_gst + platform_fee_gst).quantize(
@@ -466,7 +470,7 @@ class ProductVariant(models.Model):
     @property
     def customer_price_with_tax(self):
         platform_fee = self.final_price - self.seller_price
-        merchandise_gst = self.seller_price * self.product.gst_rate / Decimal("100")
+        merchandise_gst = self.seller_price * self.product.effective_gst_rate / Decimal("100")
         platform_gst_rate = Decimal(str(getattr(settings, "PLATFORM_FEE_GST_PERCENT", "18.00")))
         platform_fee_gst = platform_fee * platform_gst_rate / Decimal("100")
         return (self.final_price + merchandise_gst + platform_fee_gst).quantize(

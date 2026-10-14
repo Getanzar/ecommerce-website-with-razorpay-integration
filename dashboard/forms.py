@@ -5,6 +5,13 @@ from products.models import ProductVariant
 
 
 class ProductAudienceMixin:
+    def __init__(self, *args, seller=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        seller = seller or (self.instance.seller if self.instance.seller_id else None)
+        if seller and seller.is_small_seller and "gst_rate" in self.fields:
+            self.fields.pop("gst_rate")
+            self.instance.gst_rate = 0
+
     def clean(self):
         cleaned = super().clean()
         category = cleaned.get("category") or (self.instance.category if self.instance.category_id else None)

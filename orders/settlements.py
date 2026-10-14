@@ -55,7 +55,7 @@ def create_settlements_for_order(order):
         seller_net = money(merchant + merchandise_gst)
         delivery = SellerDeliveryCharge.objects.filter(parcel_order=order, seller=seller).first()
         delivery_charge = delivery.amount_due if delivery else Decimal("0.00")
-        tcs = percentage(merchant, getattr(settings, "ECOMMERCE_TCS_PERCENT", "0.50"))
+        tcs = Decimal("0.00") if seller.is_small_seller else percentage(merchant, getattr(settings, "ECOMMERCE_TCS_PERCENT", "0.50"))
         settlement_status = (
             "on_hold"
             if delivery and delivery.provider == "delhivery" and delivery.status != "reconciled"

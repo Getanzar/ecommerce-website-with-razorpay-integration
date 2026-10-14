@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.core.validators import RegexValidator
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -82,6 +83,22 @@ class GroceryProduct(models.Model):
     class Meta:
         ordering = ("category__display_order", "name")
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        values = {name: getattr(self, name) for name in ("unit", "price", "mrp", "stock")}
+        fields = kwargs.get("update_fields")
+        default = self.options.filter(is_default=True).first()
+        if default is None:
+            self.options.create(is_default=True, **values)
+        else:
+            updates = values if fields is None else {name: value for name, value in values.items() if name in fields}
+            if updates:
+                self.options.filter(pk=default.pk).update(**updates)
+
+    @property
+    def default_option(self):
+        return self.options.get(is_default=True)
+
     @property
     def customer_price(self):
         fee = self.store.seller.commission_percent
@@ -89,24 +106,74 @@ class GroceryProduct(models.Model):
 
     @property
     def in_stock(self):
-        return self.is_active and self.stock > 0
+        return self.is_active and self.options.filter(is_active=True, stock__gt=0).exists()
 
     def __str__(self):
         return f"{self.store}: {self.name}"
 
 
+class GroceryProductOption(models.Model):
+    product = models.ForeignKey(GroceryProduct, related_name="options", on_delete=models.CASCADE)
+    unit = models.CharField(max_length=40, verbose_name="Pack size")
+    mrp = models.DecimalField(max_digits=9, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    price = models.DecimalField(max_digits=9, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    stock = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, editable=False)
+
+    class Meta:
+        ordering = ("-is_default", "pk")
+        constraints = [
+            models.UniqueConstraint(fields=("product",), condition=models.Q(is_default=True), name="one_default_grocery_pack"),
+            models.UniqueConstraint(fields=("product", "unit"), condition=models.Q(is_active=True), name="unique_active_grocery_pack_unit"),
+        ]
+
+    @property
+    def customer_price(self):
+        fee = self.product.store.seller.commission_percent
+        return (self.price * (Decimal("1") + fee / Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def customer_price_with_tax(self):
+        from payments.pricing import line_charges, money
+        return money(sum(line_charges(self.price, self.customer_price, 1, self.product.gst_rate).values()))
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_default:
+            values = {name: getattr(self, name) for name in ("unit", "price", "mrp", "stock")}
+            fields = kwargs.get("update_fields")
+            updates = values if fields is None else {name: value for name, value in values.items() if name in fields}
+            if updates:
+                GroceryProduct.objects.filter(pk=self.product_id).update(**updates)
+
+    def __str__(self):
+        return f"{self.product.name} · {self.unit}"
+
+
 class GroceryCartItem(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="grocery_cart_items", on_delete=models.CASCADE)
     product = models.ForeignKey(GroceryProduct, related_name="cart_items", on_delete=models.CASCADE)
+    option = models.ForeignKey(GroceryProductOption, related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveSmallIntegerField(default=1)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=("user", "product"), name="unique_mobile_grocery_cart_product")]
+        constraints = [
+            models.UniqueConstraint(fields=("user", "option"), condition=models.Q(option__isnull=False), name="unique_mobile_grocery_cart_pack"),
+            models.UniqueConstraint(fields=("user", "product"), condition=models.Q(option__isnull=True), name="unique_legacy_grocery_cart_product"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.option_id:
+            self.option = self.product.default_option
+            if kwargs.get("update_fields"):
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"option"}
+        super().save(*args, **kwargs)
 
     @property
     def total(self):
-        return self.product.customer_price * self.quantity
+        return (self.option.customer_price if self.option_id else self.product.customer_price) * self.quantity
 
 
 class GroceryOrder(models.Model):
@@ -145,6 +212,7 @@ class GroceryOrder(models.Model):
 class GroceryOrderItem(models.Model):
     order = models.ForeignKey(GroceryOrder, related_name="items", on_delete=models.CASCADE)
     product = models.ForeignKey(GroceryProduct, on_delete=models.PROTECT)
+    option = models.ForeignKey(GroceryProductOption, on_delete=models.PROTECT, null=True, blank=True)
     product_name = models.CharField(max_length=180)
     unit = models.CharField(max_length=40)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
