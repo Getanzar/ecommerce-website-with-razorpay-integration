@@ -19,7 +19,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import EmailOTP, UserProfile
-from accounts.utils import send_email_otp, send_password_reset_otp
+from accounts.utils import send_email_otp, send_password_reset_otp, request_username_reminder
+from accounts.identity import normalize_phone, duplicate_identifiers, DUPLICATE_MESSAGE
 from addresses.models import Address
 from cart.models import Cart, CartItem
 from products.catalog import in_stock_products, sellable_variants, with_storefront_variants
@@ -53,7 +54,7 @@ class SignupView(EmailAuthView):
     def post(self, request):
         username = str(request.data.get("username", "")).strip()
         email = str(request.data.get("email", "")).strip().lower()
-        phone = str(request.data.get("phone", "")).replace(" ", "").replace("+91", "")
+        phone = normalize_phone(request.data.get("phone", ""))
         password = str(request.data.get("password", ""))
         errors = {}
         if len(username) < 3: errors["username"] = ["Use at least 3 characters."]
@@ -65,15 +66,15 @@ class SignupView(EmailAuthView):
             drf_serializers.EmailField(max_length=254).run_validation(email)
         except drf_serializers.ValidationError:
             errors["email"] = ["Enter a valid email address."]
-        if not phone.isdigit() or len(phone) != 10: errors["phone"] = ["Enter a valid 10-digit mobile number."]
+        if not phone.isdigit() or len(phone) != 10 or phone[0] not in "6789": errors["phone"] = ["Enter a valid 10-digit mobile number."]
         try:
             validate_password(password, User(username=username, email=email))
         except ValidationError as exc:
             errors["password"] = exc.messages
-        if User.objects.filter(username__iexact=username).exists(): errors["username"] = ["This username is already taken."]
-        if User.objects.filter(email__iexact=email).exists(): errors["email"] = ["An account with this email already exists. Sign in or choose Finish email verification."]
-        if UserProfile.objects.filter(phone=phone).exists(): errors["phone"] = ["This phone number is already registered."]
-        if errors: return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+        duplicates = duplicate_identifiers(username, email, phone)
+        errors.update({field: [message] for field, message in duplicates.items()})
+        if errors:
+            return Response({"errors": errors, "account_exists": bool(duplicates), "message": DUPLICATE_MESSAGE if duplicates else "Check your signup details.", "recovery": {"login": "/accounts/login/", "username": "/accounts/username/recover/", "password": "/accounts/password/reset/"} if duplicates else {}}, status=400)
         try:
             with transaction.atomic():
                 user = User.objects.create_user(username=username, email=email, password=password, is_active=False)
@@ -82,10 +83,13 @@ class SignupView(EmailAuthView):
                 profile.save(update_fields=["phone"])
                 if not send_email_otp(user):
                     raise RuntimeError("Verification email could not be sent")
-        except (IntegrityError, RuntimeError):
-            # The atomic block rolls back only this attempt. Never delete an
-            # existing inactive account after an integrity error.
-            return Response({"message": "We could not create the account or send its verification email. Please try again."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except IntegrityError:
+            duplicates = duplicate_identifiers(username, email, phone)
+            if duplicates:
+                return Response({"message": DUPLICATE_MESSAGE, "account_exists": True, "errors": {field: [message] for field, message in duplicates.items()}}, status=409)
+            return Response({"message": "We could not create the account. Please try again."}, status=503)
+        except RuntimeError:
+            return Response({"message": "We could not send the verification email. No account was created; please try again."}, status=503)
         payload = {"message": "Verification code sent.", "email": email}
         if getattr(settings, "MOBILE_API_DEBUG_OTP", False):
             payload["debug_otp"] = EmailOTP.objects.get(user=user).otp
@@ -1041,3 +1045,12 @@ class OrderDetailView(generics.RetrieveAPIView):
     serializer_class = OrderSerializer
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user).prefetch_related("items")
+
+
+class UsernameRecoveryView(EmailAuthView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = drf_serializers.EmailField(max_length=254).run_validation(request.data.get("email", "")).strip().lower()
+        request_username_reminder(email, request.META.get("REMOTE_ADDR", ""))
+        return Response({"message": "If an active account uses that email, a username reminder has been sent. Check your inbox and spam folder."})

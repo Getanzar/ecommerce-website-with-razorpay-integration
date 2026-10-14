@@ -67,3 +67,33 @@ def send_password_reset_otp(user):
         "emails/password_reset_otp.html",
         {"user": user, "otp": otp},
     )
+
+
+def request_username_reminder(email, ip=""):
+    """Send only to the stored email; never disclose usernames in a response."""
+    import hashlib
+    from django.core.cache import cache
+    from django.contrib.auth.models import User
+    email = email.strip().lower()
+    digest = hashlib.sha256(email.encode()).hexdigest()
+    if not cache.add(f"username-reminder:{digest}", True, 60):
+        return
+    # Shared website/API hourly limits; identifiers are hashed in cache keys.
+    for kind, value, limit in (("email", email, 5), ("ip", ip, 20)):
+        key = "username-reminder-hour:" + kind + hashlib.sha256(value.encode()).hexdigest()
+        if cache.add(key, 1, 3600):
+            count = 1
+        else:
+            try:
+                count = cache.incr(key)
+            except ValueError:
+                return
+        if count > limit:
+            return
+    from django.db.models.functions import Lower, Trim
+    user = User.objects.annotate(identity=Lower(Trim("email"))).filter(identity=email, is_active=True).first()
+    if user:
+        try:
+            send_transactional_email(to_email=user.email.strip(), to_name=user.get_full_name(), subject="Your ZIYAMART username", html_content=render_to_string("emails/username_reminder.html", {"user": user}))
+        except Exception:
+            logger.exception("Username reminder could not be sent")

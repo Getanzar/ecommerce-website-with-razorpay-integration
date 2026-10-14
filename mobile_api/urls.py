@@ -22,6 +22,7 @@ urlpatterns = [
     path("auth/signup/", views.SignupView.as_view(), name="mobile-signup"),
     path("auth/verify-otp/", views.VerifyOTPView.as_view(), name="mobile-verify-otp"),
     path("auth/resend-otp/", views.ResendSignupOTPView.as_view(), name="mobile-resend-otp"),
+    path("auth/username/recover/", views.UsernameRecoveryView.as_view(), name="mobile-username-recovery"),
     path("auth/login/", views.LoginView.as_view(), name="mobile-login"),
     path("auth/password/reset/request/", views.PasswordResetRequestView.as_view(), name="mobile-password-reset-request"),
     path("auth/password/reset/confirm/", views.PasswordResetConfirmView.as_view(), name="mobile-password-reset-confirm"),

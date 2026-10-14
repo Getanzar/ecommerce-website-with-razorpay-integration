@@ -81,6 +81,7 @@ import {
   login,
   logout,
   requestPasswordReset,
+  requestUsernameReminder,
   resendSignupOtp,
   confirmPasswordReset,
   removeWishlist,
@@ -240,7 +241,7 @@ function AuthModal({
   onClose: () => void;
   onAuthenticated: (token: string, user: User) => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"login" | "signup" | "resume" | "otp" | "forgot" | "reset">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "resume" | "otp" | "forgot" | "forgotUsername" | "reset">("login");
   const [identity, setIdentity] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -307,6 +308,9 @@ function AuthModal({
         const result = await verifyOtp(email, otp);
         await onAuthenticated(result.token, result.user);
         onClose();
+      } else if (mode === "forgotUsername") {
+        const result = await requestUsernameReminder(email);
+        setMessage(result.message);
       } else if (mode === "forgot") {
         const result = await requestPasswordReset(email);
         setOtp("");
@@ -323,6 +327,10 @@ function AuthModal({
       }
     } catch (error: any) {
       showAuthError(error);
+      if (mode === "signup" && error.details?.account_exists) {
+        setMessage(error.details.message);
+        setPassword("");
+      }
     } finally {
       setBusy(false);
     }
@@ -354,7 +362,9 @@ function AuthModal({
                 ? "Create your account"
                 : mode === "otp" || mode === "resume"
                   ? "Verify your email"
-                  : mode === "forgot"
+                  : mode === "forgotUsername"
+                    ? "Recover your username"
+                    : mode === "forgot"
                     ? "Reset your password"
                     : "Choose a new password"}
           </Text>
@@ -412,7 +422,7 @@ function AuthModal({
               keyboard="number-pad"
             />
           )}
-          {(mode === "forgot" || mode === "resume") && <Field label="Account email" value={email} onChange={setEmail} keyboard="email-address" />}
+          {(mode === "forgot" || mode === "forgotUsername" || mode === "resume") && <Field label="Account email" value={email} onChange={setEmail} keyboard="email-address" />}
           {mode === "reset" && (
             <>
               <Field label="Reset code" value={otp} onChange={setOtp} keyboard="number-pad" />
@@ -437,6 +447,8 @@ function AuthModal({
                       ? "Verify and continue"
                       : mode === "resume"
                         ? "Send verification code"
+                        : mode === "forgotUsername"
+                        ? "Send username reminder"
                         : mode === "forgot"
                         ? "Send reset code"
                         : "Change password"}
@@ -448,6 +460,10 @@ function AuthModal({
               <Text style={s.authSwitch}>{resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : "Resend code"}</Text>
             </Pressable>
           )}
+          {(mode === "login" || mode === "signup") && <>
+            <Pressable disabled={busy} accessibilityRole="button" onPress={() => { setMode("forgotUsername"); setMessage(""); setPassword(""); }}><Text style={s.authSwitch}>Forgot username?</Text></Pressable>
+            {mode === "signup" && <Pressable disabled={busy} accessibilityRole="button" onPress={() => { setMode("forgot"); setMessage(""); setPassword(""); }}><Text style={s.authSwitch}>Forgot password?</Text></Pressable>}
+          </>}
           {(mode === "login" || mode === "signup") && (
             <Pressable disabled={busy} accessibilityRole="button" onPress={() => { setMode("resume"); setMessage(""); setOtp(""); }}>
               <Text style={s.authSwitch}>Finish email verification</Text>
@@ -468,7 +484,7 @@ function AuthModal({
               </Text>
             </Pressable>
           )}
-          {(mode === "forgot" || mode === "reset" || mode === "resume" || mode === "otp") && (
+          {(mode === "forgotUsername" || mode === "forgot" || mode === "reset" || mode === "resume" || mode === "otp") && (
             <Pressable disabled={busy} onPress={() => { setMode("login"); setMessage(""); }}><Text style={s.authSwitch}>Back to sign in</Text></Pressable>
           )}
         </ScrollView>

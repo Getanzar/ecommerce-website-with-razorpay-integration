@@ -22,7 +22,9 @@ from .forms import (
     SignUpForm,
 )
 from .models import EmailOTP, SellerProfile, UserProfile
-from .utils import send_email_otp, send_password_reset_otp
+from .utils import send_email_otp, send_password_reset_otp, request_username_reminder
+from .identity import normalize_phone, duplicate_identifiers, DUPLICATE_MESSAGE
+from django.core.exceptions import ValidationError
 
 
 def signup_view(request):
@@ -43,22 +45,16 @@ def signup_view(request):
                     # Recheck immediately before writing. Besides protecting
                     # against stale/double form submissions, this guarantees
                     # that a duplicate response never leaves a new User behind.
-                    duplicate_fields = []
-                    if User.objects.filter(username__iexact=form.cleaned_data["username"]).exists():
-                        duplicate_fields.append(("username", "This username is already taken."))
-                    if User.objects.filter(email__iexact=form.cleaned_data["email"]).exists():
-                        duplicate_fields.append(("email", "An account with this email already exists."))
-                    if UserProfile.objects.filter(phone=form.cleaned_data["phone"]).exists():
-                        duplicate_fields.append(("phone", "This phone number is already registered."))
+                    duplicate_fields = duplicate_identifiers(form.cleaned_data["username"], form.cleaned_data["email"], form.cleaned_data["phone"])
                     if duplicate_fields:
-                        for field, error in duplicate_fields:
-                            form.add_error(field, error)
+                        for field, error in duplicate_fields.items():
+                            form.add_error(field, ValidationError(error, code="existing_account"))
                         return render(request, "accounts/signup.html", {"form": form})
                     user = form.save()
             except IntegrityError:
                 form.add_error(
                     None,
-                    "Those account details were just registered. Please change the username, email, or mobile number.",
+                    ValidationError(DUPLICATE_MESSAGE, code="existing_account"),
                 )
                 return render(request, "accounts/signup.html", {"form": form})
 
@@ -167,26 +163,10 @@ def profile_detail(request):
         username = request.POST.get("username", "").strip()
         email = request.POST.get("email", "").strip()
 
-        # Username already exists
-        if (
-            username != user.username and
-            User.objects.filter(username=username).exists()
-        ):
-            messages.error(
-                request,
-                "This username is already taken. Please choose another one."
-            )
-            return redirect("profile_detail")
-
-        # Email already exists
-        if (
-            email != user.email and
-            User.objects.filter(email=email).exists()
-        ):
-            messages.error(
-                request,
-                "An account with this email already exists."
-            )
+        phone = normalize_phone(request.POST.get("phone", ""))
+        duplicates = duplicate_identifiers(username, email, phone, exclude_user_id=user.pk)
+        if duplicates:
+            messages.error(request, "Those account details are already registered to another account.")
             return redirect("profile_detail")
 
         user.first_name = first_name
@@ -198,7 +178,7 @@ def profile_detail(request):
             user=user
         )
 
-        profile.phone = request.POST.get("phone", "").strip()
+        profile.phone = phone
         profile.gender = request.POST.get("gender", "").strip()
 
         dob = request.POST.get("date_of_birth")
@@ -209,8 +189,13 @@ def profile_detail(request):
         if request.FILES.get("profile_picture"):
             profile.profile_picture = request.FILES["profile_picture"]
 
-        user.save()
-        profile.save()
+        try:
+            with transaction.atomic():
+                user.save()
+                profile.save()
+        except IntegrityError:
+            messages.error(request, "Those account details are already registered to another account.")
+            return redirect("profile_detail")
 
         messages.success(
             request,
@@ -530,3 +515,13 @@ def verify_otp(request):
             "email": email,
         },
     )
+
+
+@never_cache
+def forgot_username(request):
+    form = PasswordResetRequestForm(request.POST or None)
+    sent = False
+    if request.method == "POST" and form.is_valid():
+        request_username_reminder(form.cleaned_data["email"], request.META.get("REMOTE_ADDR", ""))
+        sent = True
+    return render(request, "accounts/forgot_username.html", {"form": form, "sent": sent})

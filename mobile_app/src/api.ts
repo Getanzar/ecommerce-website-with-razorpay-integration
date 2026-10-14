@@ -626,3 +626,6 @@ export const updateProfile = (
     { method: "PATCH", body: JSON.stringify(data) },
     token,
   );
+
+export const requestUsernameReminder = (email: string) =>
+  request<{ message: string }>("/auth/username/recover/", { method: "POST", body: JSON.stringify({ email }) });

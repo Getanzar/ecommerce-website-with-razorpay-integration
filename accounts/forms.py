@@ -6,6 +6,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from .models import SellerProfile, UserProfile
+from .identity import normalize_phone, duplicate_identifiers
 
 
 class SignUpForm(forms.Form):
@@ -55,13 +56,13 @@ class SignUpForm(forms.Form):
     )
 
     phone = forms.CharField(
-        max_length=10,
+        max_length=20,
         widget=forms.TextInput(
             attrs={
                 "class": "form-control form-control-lg",
                 "placeholder": "10-digit Mobile Number",
                 "autocomplete": "tel",
-                "maxlength": "10",
+                "maxlength": "20",
                 "inputmode": "numeric",
             }
         ),
@@ -119,35 +120,32 @@ class SignUpForm(forms.Form):
                 "Username must be at least 4 characters."
             )
 
-        if User.objects.filter(username__iexact=username).exists():
-            raise ValidationError(
-                "This username is already taken."
-            )
+        error = duplicate_identifiers(username, "", "").get("username")
+        if error:
+            raise ValidationError(error, code="existing_account")
 
         return username
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
 
-        if User.objects.filter(email__iexact=email).exists():
-            raise ValidationError(
-                "An account with this email already exists."
-            )
+        error = duplicate_identifiers("", email, "").get("email")
+        if error:
+            raise ValidationError(error, code="existing_account")
 
         return email
 
     def clean_phone(self):
-        phone = self.cleaned_data["phone"].strip()
+        phone = normalize_phone(self.cleaned_data["phone"])
 
         if not re.fullmatch(r"[6-9]\d{9}", phone):
             raise ValidationError(
                 "Enter a valid 10-digit Indian mobile number."
             )
 
-        if UserProfile.objects.filter(phone=phone).exists():
-            raise ValidationError(
-                "This phone number is already registered."
-            )
+        error = duplicate_identifiers("", "", phone).get("phone")
+        if error:
+            raise ValidationError(error, code="existing_account")
 
         return phone
 
@@ -171,6 +169,10 @@ class SignUpForm(forms.Form):
             )
 
         return cleaned_data
+
+    @property
+    def has_existing_account(self):
+        return any(error.code == "existing_account" for errors in self.errors.as_data().values() for error in errors)
 
     def save(self):
         if not self.is_valid():

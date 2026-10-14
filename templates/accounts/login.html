@@ -5,7 +5,7 @@
     <div class="card shadow-sm p-4" style="width: 400px; background-color: #ffffff; border: 1px solid #dee2e6;">
         <h2 class="text-center mb-4" style="color: #000;">Welcome Back</h2>
         <form method="POST">
-            {% csrf_token %}
+            {% csrf_token %}{{ form.non_field_errors }}
             <div class="form-group mb-3">
                 {{ form.username.label_tag }}
                 {{ form.username }}
@@ -17,7 +17,7 @@
             <button type="submit" class="btn w-100" style="background-color: #000; color: #fff;">Login</button>
         </form>
         <div class="text-center mt-3">
-            <a href="{% url 'password_reset' %}" style="color: #6c757d; text-decoration: none;">Forgot Password?</a>
+            <a href="{% url 'password_reset' %}" style="color: #6c757d; text-decoration: none;">Forgot Password?</a><br><a href="{% url 'forgot_username' %}">Forgot username?</a>
         </div>
         <div class="text-center mt-2">
             <span style="color: #6c757d;">Don't have an account?</span>

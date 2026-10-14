@@ -75,6 +75,8 @@ urlpatterns = [
         name="password_change_done",
     ),
 
+    path("username/recover/", views.forgot_username, name="forgot_username"),
+
     # Password Reset
     path(
         "password/reset/",
