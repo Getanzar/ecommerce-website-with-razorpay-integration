@@ -1,5 +1,15 @@
 from django.contrib import admin
-from .models import FoodOrder, FoodOrderItem, FoodSellerSettlement, FoodServiceArea, MenuItem, MenuItemOption, MenuSection, Restaurant
+from .models import FoodDeliveryAreaRequest, FoodOrder, FoodOrderItem, FoodSellerSettlement, FoodServiceArea, MenuItem, MenuItemOption, MenuSection, Restaurant
+
+
+@admin.register(FoodDeliveryAreaRequest)
+class FoodDeliveryAreaRequestAdmin(admin.ModelAdmin):
+    list_display = ("pincode", "user", "created_at", "reviewed")
+    list_filter = ("reviewed", "created_at", "pincode")
+    search_fields = ("pincode", "comment", "user__username")
+    readonly_fields = ("pincode", "comment", "user", "created_at")
+    list_editable = ("reviewed",)
+    date_hierarchy = "created_at"
 
 admin.site.register(FoodSellerSettlement)
 

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -16,9 +16,76 @@ from rest_framework.test import APIClient
 from addresses.models import Address
 
 from .models import (
-    FoodOrder, FoodSellerSettlement, FoodServiceArea, MenuItem, MenuItemOption,
+    FoodDeliveryAreaRequest, FoodOrder, FoodSellerSettlement, FoodServiceArea, MenuItem, MenuItemOption,
     MenuSection, Restaurant,
 )
+
+
+@override_settings(ROOT_URLCONF="config.urls", SECURE_SSL_REDIRECT=False)
+class FoodDeliveryAreaRequestTests(TestCase):
+    def test_unserved_area_has_prefilled_request_form_without_login(self):
+        response = self.client.get(reverse("food_home"), {"pincode": "110001"})
+        self.assertContains(response, "We're coming to more neighbourhoods.")
+        self.assertContains(response, 'name="pincode" value="110001"')
+        self.assertContains(response, "Request delivery in my area")
+        self.assertContains(response, "optional")
+
+    def test_anonymous_request_is_saved_and_confirmed_without_resubmission(self):
+        response = self.client.post(reverse("food_home"), {"pincode": "110001", "comment": "Please bring local food delivery to our neighbourhood.", "reviewed": "on", "user": "1"}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        record = FoodDeliveryAreaRequest.objects.get()
+        self.assertEqual(record.pincode, "110001")
+        self.assertIn("local food delivery", record.comment)
+        self.assertIsNone(record.user)
+        self.assertFalse(record.reviewed)
+        self.assertContains(response, "We've heard you. Thank you!")
+        self.client.get(reverse("food_home"), {"pincode": "110001"})
+        self.assertEqual(FoodDeliveryAreaRequest.objects.count(), 1)
+
+    def test_optional_comment_and_authenticated_user(self):
+        user = User.objects.create_user("area-request-customer")
+        self.client.force_login(user)
+        response = self.client.post(reverse("food_home"), {"pincode": "110001"})
+        self.assertEqual(response.status_code, 302)
+        record = FoodDeliveryAreaRequest.objects.get()
+        self.assertEqual(record.comment, "")
+        self.assertEqual(record.user, user)
+
+    def test_invalid_pincodes_and_overlong_feedback_are_not_saved(self):
+        for payload in ({"pincode": "abc"}, {"pincode": "000000"}, {"pincode": "110001", "comment": "x" * 1001}):
+            with self.subTest(payload_length=len(payload.get("comment", ""))):
+                response = self.client.post(reverse("food_home"), payload)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context["area_request_form"].errors)
+        self.assertFalse(FoodDeliveryAreaRequest.objects.exists())
+
+    def test_repeated_submission_is_limited(self):
+        self.client.post(reverse("food_home"), {"pincode": "110001"})
+        response = self.client.post(reverse("food_home"), {"pincode": "110001"})
+        self.assertContains(response, "Please wait a minute")
+        self.assertEqual(FoodDeliveryAreaRequest.objects.count(), 1)
+
+    def test_served_pincodes_link_to_available_food_instead(self):
+        FoodServiceArea.objects.create(pincode="110001", is_active=True)
+        response = self.client.post(reverse("food_home"), {"pincode": "110001"}, follow=True)
+        self.assertContains(response, "already deliver to this pincode")
+        self.assertNotContains(response, "Request delivery in my area")
+        self.assertFalse(FoodDeliveryAreaRequest.objects.exists())
+
+    def test_public_submission_requires_csrf(self):
+        response = Client(enforce_csrf_checks=True).post(reverse("food_home"), {"pincode": "110001"})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(FoodDeliveryAreaRequest.objects.exists())
+
+    def test_requests_are_available_for_staff_review_only(self):
+        record = FoodDeliveryAreaRequest.objects.create(pincode="110001", comment="Local delivery would be welcome.")
+        url = reverse("admin:food_fooddeliveryarearequest_change", args=[record.pk])
+        self.assertEqual(self.client.get(url).status_code, 302)
+        admin = User.objects.create_superuser("area-request-admin", "admin@example.com", "test-password")
+        self.client.force_login(admin)
+        response = self.client.get(url)
+        self.assertContains(response, record.comment)
+        self.assertContains(response, "Reviewed")
 
 
 @override_settings(ROOT_URLCONF="config.urls")
@@ -42,6 +109,40 @@ class FoodOrderingTests(TestCase):
         self.assertContains(response, "Test Kitchen")
         response = self.client.get(reverse("food_home"), {"pincode": "110001"})
         self.assertNotContains(response, "Test Kitchen")
+
+    def test_food_discovery_searches_available_dishes_and_preserves_delivery_area(self):
+        response = self.client.get(reverse("food_home"), {"pincode": "243638", "q": "Biryani", "cuisine": "Biryani", "veg": "1"})
+        self.assertContains(response, "Test Kitchen")
+        self.assertEqual(response.context["selected_cuisine"], "Biryani")
+        response = self.client.get(reverse("food_home"), {"pincode": "243638", "q": "Pizza"})
+        self.assertNotContains(response, "Test Kitchen")
+        self.assertContains(response, "No matching kitchens just yet")
+        self.option.is_available = False
+        self.option.save()
+        response = self.client.get(reverse("food_home"), {"q": "Biryani"})
+        self.assertNotContains(response, "Test Kitchen")
+
+    def test_vegetarian_search_and_menu_exclude_non_vegetarian_dishes(self):
+        item = self.option.item
+        item.food_type = "non_veg"
+        item.save()
+        response = self.client.get(reverse("food_home"), {"veg": "1"})
+        self.assertNotContains(response, "Test Kitchen")
+        response = self.client.get(reverse("food_restaurant", args=[self.restaurant.slug]), {"veg": "1"})
+        self.assertNotContains(response, "Veg Biryani")
+        self.assertContains(response, "No dishes match your search")
+
+    def test_quick_preparation_sort_and_mobile_cart_navigation(self):
+        owner = User.objects.create_user("quick-kitchen-owner")
+        seller = SellerProfile.objects.create(user=owner, store_name="Quick Kitchen", business_segment="food", status="approved")
+        restaurant = Restaurant.objects.create(seller=seller, name="Quick Kitchen", pincode="243638", preparation_minutes=10)
+        restaurant.service_areas.add(*self.restaurant.service_areas.all())
+        response = self.client.get(reverse("food_home"), {"sort": "prep"})
+        self.assertEqual([r.pk for r in response.context["restaurants"]], [restaurant.pk, self.restaurant.pk])
+        self.assertContains(response, 'aria-label="Food navigation"')
+        self.client.post(reverse("food_cart_add", args=[self.option.pk]), {"quantity": 2})
+        response = self.client.get(reverse("food_restaurant", args=[self.restaurant.slug]))
+        self.assertContains(response, "2 items in your food cart")
 
     def menu_payload(self):
         return {

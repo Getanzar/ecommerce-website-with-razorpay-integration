@@ -21,6 +21,28 @@ class FoodServiceArea(models.Model):
         return f"{self.pincode}{' - ' + self.city if self.city else ''}"
 
 
+class FoodDeliveryAreaRequest(models.Model):
+    pincode = models.CharField(
+        max_length=6,
+        validators=[RegexValidator(r"^[1-9][0-9]{5}$", "Enter a valid 6-digit pincode.")],
+        db_index=True,
+    )
+    comment = models.TextField(blank=True, max_length=1000)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="food_delivery_area_requests",
+    )
+    reviewed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = "Food delivery area request"
+
+    def __str__(self):
+        return f"Food delivery request for {self.pincode}"
+
+
 class Restaurant(models.Model):
     seller = models.OneToOneField(
         "accounts.SellerProfile", related_name="restaurant", on_delete=models.CASCADE

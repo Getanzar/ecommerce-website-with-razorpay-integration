@@ -7,13 +7,15 @@ from django.utils import timezone
 from django.http import Http404
 from django.http import HttpResponseBadRequest
 from django.conf import settings
+from django.db.models import Q, Prefetch
+from django.urls import reverse
 import razorpay
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.cache import never_cache
 
 from .cart import FoodCart
-from .forms import FoodCheckoutForm, MenuItemForm, MenuOptionFormSet, MenuSectionForm, RestaurantForm
+from .forms import FoodCheckoutForm, FoodDeliveryAreaRequestForm, MenuItemForm, MenuOptionFormSet, MenuSectionForm, RestaurantForm
 from .models import FoodOrder, FoodOrderItem, FoodServiceArea, MenuItem, MenuItemOption, Restaurant
 
 
@@ -26,15 +28,66 @@ def _restaurant_seller(request):
     return seller
 
 
+@require_http_methods(["GET", "HEAD", "POST"])
 def restaurant_list(request):
     pincode = request.GET.get("pincode", request.session.get("food_pincode", "243638")).strip()
+    area_request_form = FoodDeliveryAreaRequestForm(
+        request.POST if request.method == "POST" else None,
+        initial={"pincode": pincode},
+    )
+    if request.method == "POST" and area_request_form.is_valid():
+        requested_pincode = area_request_form.cleaned_data["pincode"]
+        if FoodServiceArea.objects.filter(pincode=requested_pincode, is_active=True).exists():
+            messages.info(request, "Good news! We already deliver to this pincode. Explore the kitchens serving your area below.")
+        else:
+            now = timezone.now().timestamp()
+            last_submitted = request.session.get("food_area_request_at", 0)
+            if now - last_submitted < 60:
+                area_request_form.add_error(None, "We've already received your recent request. Please wait a minute before submitting another.")
+            else:
+                area_request = area_request_form.save(commit=False)
+                if request.user.is_authenticated:
+                    area_request.user = request.user
+                area_request.save()
+                request.session["food_area_request_at"] = now
+                request.session["food_area_request_received"] = requested_pincode
+        if not area_request_form.errors:
+            return redirect(f"{reverse('food_home')}?pincode={requested_pincode}#request-delivery")
+    if request.method == "POST":
+        pincode = request.POST.get("pincode", pincode).strip()[:6]
     area = FoodServiceArea.objects.filter(pincode=pincode, is_active=True).first()
     if area:
         request.session["food_pincode"] = pincode
     restaurants = Restaurant.objects.none()
+    query = request.GET.get("q", "").strip()[:100]
+    cuisine = request.GET.get("cuisine", "").strip()[:40]
+    veg = request.GET.get("veg") == "1"
+    sort = request.GET.get("sort", "recommended")
+    if sort not in ("recommended", "prep", "newest"):
+        sort = "recommended"
+    cuisine_choices = [("", "All", 0), ("Burger", "Burgers", 1), ("Biryani", "Biryani", 2), ("Dessert", "Desserts", 3), ("Paneer", "Paneer", 4), ("Pizza", "Pizza", 5)]
     if area:
         restaurants = area.restaurants.filter(pincode=pincode, accepts_orders=True, seller__status="approved")
-    return render(request, "food/restaurant_list.html", {"restaurants": restaurants, "pincode": pincode, "serviceable": bool(area)})
+        available_items = MenuItem.objects.filter(is_available=True, options__is_available=True)
+        if veg:
+            available_items = available_items.filter(food_type="veg")
+        if query:
+            matching = available_items.filter(Q(name__icontains=query) | Q(description__icontains=query)).values("restaurant_id")
+            restaurants = restaurants.filter(Q(name__icontains=query) | Q(cuisine__icontains=query) | Q(pk__in=matching))
+        if cuisine:
+            matching = available_items.filter(name__icontains=cuisine).values("restaurant_id")
+            restaurants = restaurants.filter(Q(cuisine__icontains=cuisine) | Q(pk__in=matching))
+        if veg:
+            restaurants = restaurants.filter(pk__in=available_items.filter(food_type="veg").values("restaurant_id"))
+        restaurants = restaurants.distinct().order_by({"prep": "preparation_minutes", "newest": "-created_at"}.get(sort, "name"), "pk")
+        restaurants = restaurants.prefetch_related(Prefetch("menu_items", queryset=MenuItem.objects.filter(is_available=True).exclude(image="").exclude(image__isnull=True), to_attr="browse_images"))
+    return render(request, "food/restaurant_list.html", {
+        "restaurants": restaurants, "pincode": pincode, "serviceable": bool(area),
+        "delivery_area": area, "query": query, "selected_cuisine": cuisine,
+        "veg_only": veg, "sort": sort, "cuisine_choices": cuisine_choices,
+        "area_request_form": area_request_form,
+        "area_request_received": request.session.pop("food_area_request_received", None) if request.method == "GET" else None,
+    })
 
 
 def restaurant_menu(request, slug):
@@ -43,8 +96,15 @@ def restaurant_menu(request, slug):
     if restaurant.pincode != pincode or not restaurant.service_areas.filter(pincode=pincode, is_active=True).exists():
         messages.error(request, "This restaurant does not deliver to that pincode.")
         return redirect(f"/food/?pincode={pincode}")
-    sections = restaurant.sections.prefetch_related("items__options")
-    return render(request, "food/menu.html", {"restaurant": restaurant, "sections": sections, "pincode": pincode})
+    menu_query = request.GET.get("q", "").strip()[:100]
+    veg_only = request.GET.get("veg") == "1"
+    items = MenuItem.objects.filter(is_available=True, options__is_available=True)
+    if menu_query:
+        items = items.filter(Q(name__icontains=menu_query) | Q(description__icontains=menu_query))
+    if veg_only:
+        items = items.filter(food_type="veg")
+    sections = restaurant.sections.filter(items__in=items).distinct().prefetch_related(Prefetch("items", queryset=items.distinct().prefetch_related("options")))
+    return render(request, "food/menu.html", {"restaurant": restaurant, "sections": sections, "pincode": pincode, "menu_query": menu_query, "veg_only": veg_only})
 
 
 def cart_detail(request):

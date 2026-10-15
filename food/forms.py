@@ -1,8 +1,22 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
-from .models import FoodOrder, MenuItem, MenuItemOption, MenuSection, Restaurant
+from .models import FoodDeliveryAreaRequest, FoodOrder, MenuItem, MenuItemOption, MenuSection, Restaurant
 from delivery.forms import RequiredGPSMixin
+
+
+class FoodDeliveryAreaRequestForm(forms.ModelForm):
+    class Meta:
+        model = FoodDeliveryAreaRequest
+        fields = ("pincode", "comment")
+        labels = {"pincode": "Your delivery pincode", "comment": "Anything you'd like us to know? (optional)"}
+        widgets = {
+            "pincode": forms.TextInput(attrs={"inputmode": "numeric", "pattern": "[1-9][0-9]{5}", "maxlength": "6", "autocomplete": "postal-code", "placeholder": "Enter your 6-digit pincode"}),
+            "comment": forms.Textarea(attrs={"rows": 3, "maxlength": "1000", "placeholder": "Tell us about your neighbourhood or the food you'd love to order."}),
+        }
+
+    def clean_comment(self):
+        return self.cleaned_data.get("comment", "").strip()
 
 
 class RestaurantForm(RequiredGPSMixin, forms.ModelForm):
