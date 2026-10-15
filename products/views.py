@@ -410,20 +410,35 @@ def category_page(request, category_id):
     subcategories = category.subcategories.filter(
         products__in=in_stock_products()
     ).distinct()
+    products = with_storefront_variants(in_stock_products(
+        Product.objects.filter(category=category)
+    ).select_related("seller", "category"))
+    products, sort = _collection_sort(products, request.GET.get("sort", "newest"))
     return render(request, "products/category_page.html", {
-    "category": category,
-    "subcategories": subcategories,
-})
+        "category": category, "subcategories": subcategories,
+        "products": products, "sort": sort,
+    })
+
+
+def _collection_sort(products, sort):
+    if sort in ("price_low", "price_high"):
+        return sorted(products, key=lambda product: product.storefront_price, reverse=sort == "price_high"), sort
+    if sort == "name":
+        return products.order_by("name", "pk"), sort
+    return products.order_by("-pk"), "newest"
 
 
 def subcategory_products(request, sub_id):
-    subcategory = get_object_or_404(SubCategory, id=sub_id)
+    subcategory = get_object_or_404(SubCategory.objects.select_related("category"), id=sub_id)
     products = with_storefront_variants(in_stock_products(Product.objects.filter(
         subcategory=subcategory,
     )).select_related("seller", "category"))
+    products, sort = _collection_sort(products, request.GET.get("sort", "newest"))
     return render(request, "products/subcategory_products.html", {
         "subcategory": subcategory,
-        "products": products,
+        "category": subcategory.category,
+        "subcategories": subcategory.category.subcategories.filter(products__in=in_stock_products()).distinct(),
+        "products": products, "sort": sort,
     })
 
 @login_required

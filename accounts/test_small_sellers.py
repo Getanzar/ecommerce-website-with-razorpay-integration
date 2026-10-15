@@ -64,6 +64,60 @@ class SmallSellerFlowTests(TestCase):
         self.assertContains(response, reverse("registered_seller_application"))
         self.assertEqual(self.client.get(reverse("small_seller_application")).status_code, 302)
 
+    def test_food_and_grocery_small_seller_registration_and_approval(self):
+        for segment in ("food", "grocery"):
+            with self.subTest(segment=segment):
+                user = User.objects.create_user("small-" + segment)
+                self.client.force_login(user)
+                url = reverse("small_" + segment + "_seller_application")
+                response = self.client.get(url)
+                self.assertContains(response, 'name="business_segment" value="' + segment + '"')
+                self.assertNotContains(response, 'name="gstin"')
+                response = self.client.post(url, self.payload(store_name="Local " + segment, business_segment=segment))
+                self.assertEqual(response.status_code, 302)
+                seller = SellerProfile.objects.get(user=user)
+                self.assertEqual(seller.business_segment, segment)
+                self.assertEqual(seller.gstin, "")
+                self.assertFalse(seller.is_approved)
+                self.approve(seller)
+                seller.full_clean()
+
+    def test_small_seller_segment_cannot_be_changed_by_posting_to_another_route(self):
+        seller = self.apply()
+        response = self.client.post(reverse("small_food_seller_application"), self.payload(business_segment="food"))
+        self.assertEqual(response.status_code, 200)
+        seller.refresh_from_db()
+        self.assertEqual(seller.business_segment, "shop")
+
+    def test_new_small_seller_signup_routes_are_remembered(self):
+        self.client.logout()
+        for segment in ("food", "grocery"):
+            self.client.get(reverse("signup"), {"seller": "small_" + segment})
+            self.assertEqual(self.client.session["seller_signup_next"], "small_" + segment + "_seller_application")
+
+    def test_mobile_small_food_and_grocery_forms(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(self.user)
+        for segment in ("food", "grocery"):
+            with self.subTest(segment=segment):
+                user = User.objects.create_user("mobile-small-" + segment)
+                client.force_authenticate(user)
+                response = client.get("/api/v1/partners/applications/seller/", {"registration_type": "small", "business_segment": segment})
+                self.assertEqual(response.status_code, 200)
+                form = SmallSellerApplicationForm(self.payload(business_segment=segment), segment=segment)
+                self.assertTrue(form.is_valid(), form.errors)
+                response = client.post(
+                    "/api/v1/partners/applications/seller/?registration_type=small&business_segment=" + segment,
+                    self.payload(store_name="Mobile " + segment, business_segment=segment),
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 201, response.data)
+                seller = SellerProfile.objects.get(user=user)
+                self.assertEqual(seller.business_segment, segment)
+                self.assertEqual(seller.registration_type, "small")
+                self.assertEqual(seller.gstin, "")
+
     def test_no_gstin_field_and_privileged_fields_are_not_accepted(self):
         form = SmallSellerApplicationForm(self.payload(status="approved", payouts_enabled=True, registration_type="registered", identity_status="verified"))
         self.assertTrue(form.is_valid(), form.errors)

@@ -145,8 +145,8 @@ class SellerProfile(models.Model):
         super().clean()
         if self.status == "approved" and self.business_segment not in dict(self.BUSINESS_SEGMENTS):
             raise ValidationError({"business_segment": "Select a selling segment before approving this seller."})
-        if self.is_small_seller and (self.business_segment != "shop" or self.gstin):
-            raise ValidationError("Small sellers without GSTIN can register only for merchandise, without a GSTIN.")
+        if self.is_small_seller and (self.business_segment not in dict(self.BUSINESS_SEGMENTS) or self.gstin):
+            raise ValidationError("Small sellers must select a supported selling segment and cannot supply a GSTIN.")
         if self.is_small_seller and self.status == "approved" and not self.kyc_complete:
             raise ValidationError("Complete Aadhaar identity review, enrolment eligibility and bank details before approving this small seller.")
         if self.is_small_seller and self.payouts_enabled and not (
@@ -161,7 +161,7 @@ class SellerProfile(models.Model):
     @property
     def small_seller_verified(self):
         return all([
-            self.business_segment == "shop", not self.gstin,
+            self.business_segment in dict(self.BUSINESS_SEGMENTS), not self.gstin,
             self.gst_enrolment_number, self.pan_last4, self.small_seller_declaration,
             self.aadhaar_consent_at, self.identity_status == "verified",
             self.identity_review_reference, self.identity_verified_at, self.identity_verified_by_id,

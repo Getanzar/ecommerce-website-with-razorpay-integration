@@ -1,0 +1,25 @@
+{% load static %}
+<section class="merch-collection">
+  <nav class="merch-breadcrumb" aria-label="Breadcrumb">
+    <a href="{% url 'home' %}">Home</a><span aria-hidden="true">/</span><a href="{% url 'categories_page' %}">Merchandise</a><span aria-hidden="true">/</span>
+    {% if subcategory %}<a href="{% url 'category_page' category.id %}">{{ category.name }}</a><span aria-hidden="true">/</span><span aria-current="page">{{ subcategory.name }}</span>{% else %}<span aria-current="page">{{ category.name }}</span>{% endif %}
+  </nav>
+  <header class="merch-hero">
+    <div class="merch-hero-copy"><span class="merch-eyebrow">THE ZIYAMART COLLECTION</span><h1>{% if subcategory %}{{ subcategory.name }}{% else %}{{ category.name }}{% endif %}</h1><p>A little browsing. A great find.<br>Explore styles and everyday essentials from our sellers.</p><a href="#collection-products" class="merch-hero-link">Explore the collection <i class="bi bi-arrow-down-right" aria-hidden="true"></i></a></div>
+    <div class="merch-hero-art" aria-hidden="true">{% if category.background_image %}<img src="{{ category.background_image.url }}" alt="">{% elif category.image %}<img src="{{ category.image.url }}" alt="">{% else %}<div class="merch-art-shape"><i class="bi bi-bag" aria-hidden="true"></i></div><span class="merch-art-caption">Find your next favourite.</span>{% endif %}</div>
+  </header>
+  <div class="merch-layout">
+    <aside class="merch-sidebar"><div class="merch-sidebar-title">Shop the collection</div><nav class="merch-category-nav" aria-label="Collection categories"><a href="{% url 'category_page' category.id %}" {% if not subcategory %}class="is-active" aria-current="page"{% endif %}>All {{ category.name }} <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>{% for sub in subcategories %}<a href="{% url 'subcategory_products' sub.id %}" {% if subcategory.pk == sub.pk %}class="is-active" aria-current="page"{% endif %}>{{ sub.name }} <i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% endfor %}</nav><div class="merch-sidebar-note"><i class="bi bi-shop" aria-hidden="true"></i><strong>Discover more, locally.</strong><p>Find something you love from the businesses on ZIYAMART.</p><a href="{% url 'categories_page' %}">Browse all categories <span aria-hidden="true">→</span></a></div></aside>
+    <div class="merch-results" id="collection-products">
+      <div class="merch-toolbar"><div><h2>{% if subcategory %}{{ subcategory.name }}{% else %}All {{ category.name }}{% endif %}</h2><p>{{ products|length }} product{{ products|length|pluralize }} to explore</p></div><form method="get" class="merch-sort"><label for="collection-sort">Sort by</label><select id="collection-sort" name="sort"><option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest arrivals</option><option value="price_low" {% if sort == 'price_low' %}selected{% endif %}>Price: low to high</option><option value="price_high" {% if sort == 'price_high' %}selected{% endif %}>Price: high to low</option><option value="name" {% if sort == 'name' %}selected{% endif %}>Name: A to Z</option></select><button type="submit">Apply</button></form></div>
+      <div class="merch-product-grid">
+        {% for product in products %}
+        <article class="merch-product">
+          <div class="merch-product-visual"><a href="{% url 'product_detail_page' product.slug %}" class="merch-product-image">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy" width="480" height="600">{% else %}<img src="{% static 'images/product-placeholder.svg' %}" alt="Image coming soon for {{ product.name }}" loading="lazy" width="480" height="600">{% endif %}</a><form method="post" action="{% url 'toggle_wishlist' product.pk %}" class="merch-wishlist">{% csrf_token %}<button type="submit" aria-label="Save {{ product.name }} to wishlist"><i class="bi bi-heart" aria-hidden="true"></i></button></form></div>
+          <div class="merch-product-info"><p class="merch-seller">{% if product.seller %}{{ product.seller.store_name }}{% else %}ZIYAMART{% endif %}</p><h3><a href="{% url 'product_detail_page' product.slug %}">{{ product.name }}</a></h3><div class="merch-product-bottom"><div><strong>₹{{ product.storefront_price|floatformat:2 }}</strong><span>Inclusive of applicable taxes</span></div><a class="merch-product-open" href="{% url 'product_detail_page' product.slug %}" aria-label="View {{ product.name }}"><i class="bi bi-arrow-up-right" aria-hidden="true"></i></a></div></div>
+        </article>
+        {% empty %}<div class="merch-empty"><i class="bi bi-bag" aria-hidden="true"></i><h3>Something good is on its way</h3><p>There are no available products in this collection right now.<br>Explore our other categories to find your next favourite.</p><a href="{% url 'categories_page' %}">Explore other categories <span aria-hidden="true">→</span></a></div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</section>

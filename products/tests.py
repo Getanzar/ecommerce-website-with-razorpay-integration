@@ -5,7 +5,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import SellerProfile
-from .models import Category, Product, ProductColor, ProductVariant, Wishlist
+from .models import Category, Product, ProductColor, ProductVariant, SubCategory, Wishlist
 
 
 class MarketplacePricingTests(TestCase):
@@ -105,6 +105,36 @@ class ProductStorefrontReadinessTests(TestCase):
         self.assertContains(response, 'type="application/ld+json"')
         self.assertContains(response, 'rel="canonical"')
         self.assertContains(response, 'aria-label="Select Black color"')
+
+    def test_category_collection_includes_products_without_subcategories(self):
+        pending = self._create_product("Pending Collection Item", moderation_status="pending")
+        sold_out = self._create_product("Sold Out Collection Item", variant_stock=0)
+        response = self.client.get(reverse("category_page", args=[self.category.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.product.name)
+        self.assertNotContains(response, pending.name)
+        self.assertNotContains(response, sold_out.name)
+        self.assertContains(response, 'aria-label="Breadcrumb"')
+
+    def test_subcategory_collection_navigation_and_price_sorting(self):
+        sub = SubCategory.objects.create(category=self.category, name="Everyday wear")
+        self.product.subcategory = sub
+        self.product.save()
+        cheaper = self._create_product("Affordable Shirt")
+        cheaper.subcategory = sub
+        cheaper.save()
+        for sort, expected in (("price_low", [cheaper.pk, self.product.pk]), ("price_high", [self.product.pk, cheaper.pk])):
+            response = self.client.get(reverse("subcategory_products", args=[sub.pk]), {"sort": sort})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([p.pk for p in response.context["products"]], expected)
+            self.assertContains(response, reverse("category_page", args=[self.category.pk]))
+
+    def test_empty_collection_and_unknown_sort(self):
+        category = Category.objects.create(name="Empty collection", slug="empty-collection")
+        response = self.client.get(reverse("category_page", args=[category.pk]), {"sort": "invalid"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["sort"], "newest")
+        self.assertContains(response, "Explore other categories")
 
     def test_homepage_uses_only_sellable_products_and_renders_launch_ui(self):
         pending = self._create_product("Pending Home Item", moderation_status="pending")

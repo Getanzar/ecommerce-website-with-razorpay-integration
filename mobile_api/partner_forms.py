@@ -113,6 +113,10 @@ class ApplicationView(PartnerView):
                 raise ValidationError("Unknown seller registration type.")
             if registration_type == "small":
                 form_class = SmallSellerApplicationForm
+                segment = request.query_params.get("business_segment", "shop")
+                if segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+                    raise ValidationError("Unknown seller segment.")
+                return form_class(request.data if submitted else None, request.FILES if submitted else None, segment=segment)
         return form_class(request.data if submitted else None, request.FILES if submitted else None)
 
     def get(self, request, role):

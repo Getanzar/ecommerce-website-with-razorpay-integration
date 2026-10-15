@@ -309,23 +309,31 @@ class SmallSellerApplicationForm(SellerApplicationForm):
     eligibility_declaration = forms.BooleanField(label="I am not GST registered, meet the applicable turnover limit, and will sell only within my registered state through this enrolment.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
 
     def __init__(self, *args, **kwargs):
+        self.segment = kwargs.pop("segment", "shop")
+        if self.segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
+            raise ValueError("Unknown small seller segment.")
         super().__init__(*args, **kwargs)
         self.fields.pop("gstin")
         self.fields["business_segment"].widget = forms.HiddenInput()
-        self.fields["business_segment"].initial = "shop"
+        self.fields["business_segment"].initial = self.segment
         self.fields["legal_business_name"].label = "Your legal name"
         self.fields["business_category"].widget.attrs["placeholder"] = "e.g. Handmade items, Clothing, Home decor"
         self.fields["aadhaar_last4"].label = "Last four digits of Aadhaar"
         self.fields["bank_ifsc_code"].label = "Bank IFSC code"
         self.fields["aadhaar_last4"].help_text = "Enter only the last four digits. Our team will verify your Aadhaar Secure QR during identity review. Do not upload or send your full Aadhaar number."
         self.instance.registration_type = "small"
-        self.instance.business_segment = "shop"
+        self.instance.business_segment = self.segment
+        if self.segment != "shop":
+            self.fields["business_category"].widget.attrs["placeholder"] = (
+                "e.g. Home kitchen, Snacks, Restaurant" if self.segment == "food"
+                else "e.g. Kirana, Fresh produce, Daily essentials"
+            )
         self.instance.gstin = ""
 
     def clean_business_segment(self):
-        if self.cleaned_data["business_segment"] != "shop":
-            raise ValidationError("This registration is for merchandise only.")
-        return "shop"
+        if self.cleaned_data["business_segment"] != self.segment:
+            raise ValidationError("Select the registration flow for your selling segment.")
+        return self.segment
 
     def clean_pan_number(self):
         value = self.cleaned_data["pan_number"].strip().upper()
@@ -349,7 +357,7 @@ class SmallSellerApplicationForm(SellerApplicationForm):
         from django.utils import timezone
         seller = super().save(commit=False)
         seller.registration_type = "small"
-        seller.business_segment = "shop"
+        seller.business_segment = self.segment
         seller.gstin = ""
         seller.pan_last4 = self.cleaned_data["pan_number"][-4:]
         seller.gst_enrolment_number = self.cleaned_data["gst_enrolment_number"]

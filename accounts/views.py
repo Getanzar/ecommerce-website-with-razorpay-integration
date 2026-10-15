@@ -28,7 +28,7 @@ from django.core.exceptions import ValidationError
 
 
 def signup_view(request):
-    seller_route = {"small": "small_seller_application", "registered": "registered_seller_application"}.get(request.GET.get("seller"))
+    seller_route = {"small": "small_seller_application", "small_food": "small_food_seller_application", "small_grocery": "small_grocery_seller_application", "registered": "registered_seller_application"}.get(request.GET.get("seller"))
     if seller_route:
         request.session["seller_signup_next"] = seller_route
 
@@ -234,8 +234,8 @@ def registered_seller_application(request):
 @login_required
 @never_cache
 @ensure_csrf_cookie
-def small_seller_application(request):
-    return _seller_application_form(request, small=True)
+def small_seller_application(request, segment="shop"):
+    return _seller_application_form(request, small=True, segment=segment)
 
 
 @login_required
@@ -258,10 +258,13 @@ def withdraw_small_seller_consent(request):
     return redirect("small_seller_application")
 
 
-def _seller_application_form(request, small=False):
+def _seller_application_form(request, small=False, segment="shop"):
     existing_application = SellerProfile.objects.filter(user=request.user).first()
     if existing_application and existing_application.is_small_seller != small:
         return redirect("small_seller_application" if existing_application.is_small_seller else "registered_seller_application")
+
+    if small and existing_application:
+        segment = existing_application.business_segment
 
     if existing_application and existing_application.is_approved:
         if existing_application.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
@@ -270,7 +273,7 @@ def _seller_application_form(request, small=False):
 
     if request.method == "POST":
         form_class = SmallSellerApplicationForm if small else SellerApplicationForm
-        form = form_class(request.POST, instance=existing_application)
+        form = form_class(request.POST, instance=existing_application, **({"segment": segment} if small else {}))
         if form.is_valid():
             seller = form.save(commit=False)
             seller.user = request.user
@@ -293,12 +296,12 @@ def _seller_application_form(request, small=False):
             return redirect("seller_application")
     else:
         form_class = SmallSellerApplicationForm if small else SellerApplicationForm
-        form = form_class(instance=existing_application)
+        form = form_class(instance=existing_application, **({"segment": segment} if small else {}))
 
     return render(
         request,
         "accounts/seller_application.html",
-        {"form": form, "seller": existing_application, "small_seller": small},
+        {"form": form, "seller": existing_application, "small_seller": small, "segment_label": dict(SellerProfile.BUSINESS_SEGMENTS).get(segment, "")},
     )
 
 
