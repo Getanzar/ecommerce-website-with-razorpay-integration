@@ -13,6 +13,7 @@ django-phonenumber-field==8.4.0
 djangorestframework==3.16.1
 frozenlist==1.8.0
 gunicorn==23.0.0
+google-auth==2.62.0
 idna==3.11
 multidict==6.7.1
 packaging==25.0

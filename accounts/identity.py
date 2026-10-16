@@ -32,3 +32,12 @@ def duplicate_identifiers(username, email, phone, exclude_user_id=None):
     if phone and profiles.annotate(identity=Right(cleaned, 10)).filter(identity=phone).exists():
         duplicates["phone"] = "This mobile number is already registered. Sign in or recover your account."
     return duplicates
+
+
+def generate_username():
+    """Keep identifiers internal and independent of personal details."""
+    import uuid
+    while True:
+        username = "customer_" + uuid.uuid4().hex
+        if not User.objects.filter(username__iexact=username).exists():
+            return username

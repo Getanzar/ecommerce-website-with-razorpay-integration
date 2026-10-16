@@ -140,11 +140,7 @@ class LoginView(PublicAuthView):
     def post(self, request):
         identity = str(request.data.get("identity", "")).strip()
         password = str(request.data.get("password", ""))
-        username = identity
-        if "@" in identity:
-            match = User.objects.filter(email__iexact=identity).first()
-            username = match.username if match else identity
-        user = authenticate(request=request, username=username, password=password)
+        user = authenticate(request=request, username=identity, password=password)
         if not user:
             return Response({"message": "The email/username or password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
         return Response(auth_payload(user, request.data.get("device_name", "Mobile device")))

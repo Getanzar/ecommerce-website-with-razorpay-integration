@@ -97,3 +97,11 @@ def request_username_reminder(email, ip=""):
             send_transactional_email(to_email=user.email.strip(), to_name=user.get_full_name(), subject="Your ZIYAMART username", html_content=render_to_string("emails/username_reminder.html", {"user": user}))
         except Exception:
             logger.exception("Username reminder could not be sent")
+
+
+def send_profile_email_otp(email, otp):
+    try:
+        return send_transactional_email(to_email=email, to_name="", subject="Verify your new ZIYAMART email", html_content=render_to_string("emails/profile_email_otp.html", {"otp": otp}))
+    except Exception:
+        logger.exception("Profile email verification could not be sent")
+        return False

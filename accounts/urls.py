@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 from django.contrib.auth import views as auth_views
+from .forms import EmailOrUsernameAuthenticationForm
+from . import google_auth
 
 urlpatterns = [
 
@@ -14,10 +16,16 @@ urlpatterns = [
     path(
         "login/",
         auth_views.LoginView.as_view(
-            template_name="accounts/login.html"
+            template_name="accounts/login.html",
+            authentication_form=EmailOrUsernameAuthenticationForm,
         ),
         name="login",
     ),
+
+    path("google/start/", google_auth.google_start, name="google_start"),
+    path("google/callback/", google_auth.google_callback, name="google_callback"),
+    path("verify-otp/resend/", views.resend_signup_otp, name="resend_signup_otp"),
+    path("profile/email/verify/", views.verify_profile_email, name="verify_profile_email"),
 
     path(
         "logout/",

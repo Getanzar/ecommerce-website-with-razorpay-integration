@@ -10,165 +10,21 @@ from .identity import normalize_phone, duplicate_identifiers
 
 
 class SignUpForm(forms.Form):
-
-    first_name = forms.CharField(
-        max_length=50,
-        widget=forms.TextInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "First Name",
-                "autocomplete": "given-name",
-            }
-        ),
-    )
-
-    last_name = forms.CharField(
-        max_length=50,
-        required=False,
-        widget=forms.TextInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "Last Name (Optional)",
-                "autocomplete": "family-name",
-            }
-        ),
-    )
-
-    username = forms.CharField(
-        max_length=150,
-        widget=forms.TextInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "Username",
-                "autocomplete": "username",
-            }
-        ),
-    )
-
-    email = forms.EmailField(
-        widget=forms.EmailInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "Email Address",
-                "autocomplete": "email",
-            }
-        ),
-    )
-
-    phone = forms.CharField(
-        max_length=20,
-        widget=forms.TextInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "10-digit Mobile Number",
-                "autocomplete": "tel",
-                "maxlength": "20",
-                "inputmode": "numeric",
-            }
-        ),
-    )
-
-    password1 = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "Password",
-                "autocomplete": "new-password",
-            }
-        ),
-    )
-
-    password2 = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "placeholder": "Confirm Password",
-                "autocomplete": "new-password",
-            }
-        ),
-    )
-
-    terms = forms.BooleanField(
-        error_messages={
-            "required": "You must accept the Terms & Conditions."
-        },
-        widget=forms.CheckboxInput(
-            attrs={
-                "class": "form-check-input",
-            }
-        ),
-    )
-
-    def clean_first_name(self):
-        first_name = self.cleaned_data["first_name"].strip()
-
-        if len(first_name) < 2:
-            raise ValidationError(
-                "First name must contain at least 2 characters."
-            )
-
-        return first_name.title()
-
-    def clean_last_name(self):
-        return self.cleaned_data["last_name"].strip().title()
-
-    def clean_username(self):
-        username = self.cleaned_data["username"].strip().lower()
-
-        if len(username) < 4:
-            raise ValidationError(
-                "Username must be at least 4 characters."
-            )
-
-        error = duplicate_identifiers(username, "", "").get("username")
-        if error:
-            raise ValidationError(error, code="existing_account")
-
-        return username
+    email = forms.EmailField(max_length=254, widget=forms.EmailInput(attrs={"class": "form-control form-control-lg", "placeholder": "you@example.com", "autocomplete": "email"}))
+    password1 = forms.CharField(label="Password", strip=False, widget=forms.PasswordInput(attrs={"class": "form-control form-control-lg", "autocomplete": "new-password", "placeholder": "Create a password"}))
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
-
         error = duplicate_identifiers("", email, "").get("email")
         if error:
             raise ValidationError(error, code="existing_account")
-
         return email
 
-    def clean_phone(self):
-        phone = normalize_phone(self.cleaned_data["phone"])
-
-        if not re.fullmatch(r"[6-9]\d{9}", phone):
-            raise ValidationError(
-                "Enter a valid 10-digit Indian mobile number."
-            )
-
-        error = duplicate_identifiers("", "", phone).get("phone")
-        if error:
-            raise ValidationError(error, code="existing_account")
-
-        return phone
-
-    def clean_password1(self):
-        password = self.cleaned_data["password1"]
-
-        validate_password(password)
-
-        return password
-
     def clean(self):
-        cleaned_data = super().clean()
-
-        password1 = cleaned_data.get("password1")
-        password2 = cleaned_data.get("password2")
-
-        if password1 and password2 and password1 != password2:
-            self.add_error(
-                "password2",
-                "Passwords do not match."
-            )
-
-        return cleaned_data
+        data = super().clean()
+        if data.get("password1"):
+            validate_password(data["password1"], User(email=data.get("email", "")))
+        return data
 
     @property
     def has_existing_account(self):
@@ -177,24 +33,59 @@ class SignUpForm(forms.Form):
     def save(self):
         if not self.is_valid():
             raise ValueError("A user cannot be created from an invalid signup form.")
+        from .identity import generate_username
+        return User.objects.create_user(username=generate_username(), email=self.cleaned_data["email"], password=self.cleaned_data["password1"], is_active=False)
 
-        user = User.objects.create_user(
-            username=self.cleaned_data["username"],
-            first_name=self.cleaned_data["first_name"],
-            last_name=self.cleaned_data["last_name"],
-            email=self.cleaned_data["email"],
-            password=self.cleaned_data["password1"],
-            is_active=False,  # User cannot login until email is verified
-        )
 
-        profile, created = UserProfile.objects.get_or_create(user=user)
+from django.contrib.auth.forms import AuthenticationForm
 
-        profile.phone = self.cleaned_data["phone"]
-        profile.phone_verified = False
-        profile.email_verified = False
-        profile.save()
 
-        return user
+class EmailOrUsernameAuthenticationForm(AuthenticationForm):
+    username = forms.CharField(label="Email or username", max_length=254, widget=forms.TextInput(attrs={"class": "form-control form-control-lg", "autocomplete": "username", "placeholder": "Email or username", "autofocus": True}))
+    password = forms.CharField(label="Password", strip=False, widget=forms.PasswordInput(attrs={"class": "form-control form-control-lg", "autocomplete": "current-password"}))
+
+
+class CustomerProfileForm(forms.Form):
+    first_name = forms.CharField(max_length=150, required=False)
+    last_name = forms.CharField(max_length=150, required=False)
+    username = forms.CharField(max_length=150)
+    email = forms.EmailField(max_length=254)
+    phone = forms.CharField(max_length=20, required=False)
+    gender = forms.ChoiceField(choices=[("", "Select gender"), *UserProfile.GENDER_CHOICES], required=False)
+    date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    profile_picture = forms.ImageField(required=False)
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        kwargs.setdefault("initial", {**{key: getattr(user, key) for key in ("first_name", "last_name", "username", "email")}, **{key: getattr(profile, key) for key in ("phone", "gender", "date_of_birth")}})
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"
+
+    def clean_username(self):
+        return User._meta.get_field("username").clean(self.cleaned_data["username"].strip(), self.user)
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()
+
+    def clean_phone(self):
+        phone = normalize_phone(self.cleaned_data.get("phone", ""))
+        if phone and not re.fullmatch(r"[6-9][0-9]{9}", phone):
+            raise ValidationError("Enter a valid 10-digit Indian mobile number.")
+        return phone
+
+    def clean_profile_picture(self):
+        picture = self.cleaned_data.get("profile_picture")
+        if picture and picture.size > 5 * 1024 * 1024:
+            raise ValidationError("Choose a profile picture smaller than 5 MB.")
+        return picture
+
+    def clean(self):
+        data = super().clean()
+        for field, error in duplicate_identifiers(data.get("username", ""), data.get("email", ""), data.get("phone", ""), exclude_user_id=self.user.pk).items():
+            self.add_error(field, error)
+        return data
 
 
 from delivery.forms import RequiredGPSMixin

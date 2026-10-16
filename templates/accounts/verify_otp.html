@@ -48,6 +48,8 @@
                                 type="text"
                                 name="otp"
                                 maxlength="6"
+                                inputmode="numeric"
+                                pattern="[0-9]{6}"
                                 class="form-control form-control-lg text-center"
                                 placeholder="Enter 6-digit OTP"
                                 required
@@ -64,6 +66,8 @@
                         </button>
 
                     </form>
+                    <form method="post" action="{% url 'resend_signup_otp' %}" class="text-center mt-3">{% csrf_token %}<button type="submit" class="btn btn-link">Resend verification code</button></form>
+                    <p class="small text-muted text-center mt-3">After verification, you can add your details in My Profile.</p>
 
                 </div>
 

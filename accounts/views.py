@@ -4,9 +4,13 @@ from django.db import IntegrityError, transaction
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth import login
+from django.contrib.auth.hashers import make_password, check_password
+from django.core.cache import cache
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
@@ -20,6 +24,7 @@ from .forms import (
     SellerPayoutSetupForm,
     SetPasswordWithOTPForm,
     SignUpForm,
+    CustomerProfileForm,
 )
 from .models import EmailOTP, SellerProfile, UserProfile
 from .utils import send_email_otp, send_password_reset_otp, request_username_reminder
@@ -27,7 +32,11 @@ from .identity import normalize_phone, duplicate_identifiers, DUPLICATE_MESSAGE
 from django.core.exceptions import ValidationError
 
 
+@never_cache
+@ensure_csrf_cookie
 def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect("profile_detail")
     seller_route = {"small": "small_seller_application", "small_food": "small_food_seller_application", "small_grocery": "small_grocery_seller_application", "registered": "registered_seller_application"}.get(request.GET.get("seller"))
     if seller_route:
         request.session["seller_signup_next"] = seller_route
@@ -40,12 +49,12 @@ def signup_view(request):
 
             try:
                 # Validation gives useful field errors; the database constraint
-                # closes the small race where two requests use the same phone.
+                # closes the race where two requests use the same email.
                 with transaction.atomic():
                     # Recheck immediately before writing. Besides protecting
                     # against stale/double form submissions, this guarantees
                     # that a duplicate response never leaves a new User behind.
-                    duplicate_fields = duplicate_identifiers(form.cleaned_data["username"], form.cleaned_data["email"], form.cleaned_data["phone"])
+                    duplicate_fields = duplicate_identifiers("", form.cleaned_data["email"], "")
                     if duplicate_fields:
                         for field, error in duplicate_fields.items():
                             form.add_error(field, ValidationError(error, code="existing_account"))
@@ -152,62 +161,77 @@ def profile(request):
 
 
 @login_required
+@never_cache
 def profile_detail(request):
+    user = request.user
+    form = CustomerProfileForm(request.POST if request.method == "POST" else None, request.FILES or None, user=user)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        pending_email = None
+        if data["email"] != user.email.strip().lower():
+            key = f"profile-email-change:{user.pk}"
+            if not cache.add(key, True, 60):
+                form.add_error("email", "Please wait a minute before requesting another email verification code.")
+            else:
+                from .utils import send_profile_email_otp
+                code = f"{secrets.randbelow(900000) + 100000:06d}"
+                if send_profile_email_otp(data["email"], code):
+                    pending_email = {"email": data["email"], "code_hash": make_password(code), "expires_at": timezone.now().timestamp() + 600, "attempts": 0}
+                else:
+                    cache.delete(key)
+                    form.add_error("email", "We couldn't send a code to the new email. Your current email is unchanged; please try again.")
+        if not form.errors:
+            profile = user.profile
+            for key in ("first_name", "last_name", "username"):
+                setattr(user, key, data[key])
+            if profile.phone != data["phone"]:
+                profile.phone_verified = False
+            for key in ("phone", "gender", "date_of_birth"):
+                setattr(profile, key, data[key])
+            if data.get("profile_picture"):
+                profile.profile_picture = data["profile_picture"]
+            try:
+                with transaction.atomic():
+                    user.save()
+                    profile.save()
+            except IntegrityError:
+                form.add_error(None, "Those account details are already registered to another account.")
+            else:
+                if pending_email:
+                    request.session["pending_profile_email"] = pending_email
+                    messages.info(request, "Your profile is saved. Verify the code sent to your new email before it becomes your login email.")
+                messages.success(request, "Profile updated successfully.")
+                return redirect("profile_detail")
+    return render(request, "accounts/profile_detail.html", {"form": form, "pending_profile_email": request.session.get("pending_profile_email", {}).get("email")})
 
-    if request.method == "POST":
 
-        user = request.user
-
-        first_name = request.POST.get("first_name", "").strip()
-        last_name = request.POST.get("last_name", "").strip()
-        username = request.POST.get("username", "").strip()
-        email = request.POST.get("email", "").strip()
-
-        phone = normalize_phone(request.POST.get("phone", ""))
-        duplicates = duplicate_identifiers(username, email, phone, exclude_user_id=user.pk)
-        if duplicates:
-            messages.error(request, "Those account details are already registered to another account.")
-            return redirect("profile_detail")
-
-        user.first_name = first_name
-        user.last_name = last_name
-        user.username = username
-        user.email = email
-
-        profile, created = UserProfile.objects.get_or_create(
-            user=user
-        )
-
-        profile.phone = phone
-        profile.gender = request.POST.get("gender", "").strip()
-
-        dob = request.POST.get("date_of_birth")
-
-        if dob:
-            profile.date_of_birth = dob
-
-        if request.FILES.get("profile_picture"):
-            profile.profile_picture = request.FILES["profile_picture"]
-
+@login_required
+@require_POST
+def verify_profile_email(request):
+    pending = request.session.get("pending_profile_email")
+    if not pending or pending["expires_at"] < timezone.now().timestamp() or pending["attempts"] >= 5:
+        request.session.pop("pending_profile_email", None)
+        messages.error(request, "This email verification code expired. Update your email in the profile to request a new code.")
+    elif not check_password(request.POST.get("otp", "").strip(), pending["code_hash"]):
+        pending["attempts"] += 1
+        request.session["pending_profile_email"] = pending
+        messages.error(request, "The verification code is incorrect. Please try again.")
+    elif duplicate_identifiers("", pending["email"], "", exclude_user_id=request.user.pk):
+        request.session.pop("pending_profile_email", None)
+        messages.error(request, "This email is already registered to another account.")
+    else:
         try:
             with transaction.atomic():
-                user.save()
-                profile.save()
+                request.user.email = pending["email"]
+                request.user.save(update_fields=["email"])
+                request.user.profile.email_verified = True
+                request.user.profile.save(update_fields=["email_verified"])
         except IntegrityError:
-            messages.error(request, "Those account details are already registered to another account.")
-            return redirect("profile_detail")
-
-        messages.success(
-            request,
-            "Profile updated successfully."
-        )
-
-        return redirect("profile_detail")
-
-    return render(
-        request,
-        "accounts/profile_detail.html"
-    )
+            messages.error(request, "This email is already registered to another account.")
+        else:
+            messages.success(request, "Your new email is verified and ready to use for login.")
+        request.session.pop("pending_profile_email", None)
+    return redirect("profile_detail")
 
 
 @never_cache
@@ -427,6 +451,8 @@ def password_reset_resend(request):
         messages.error(request, "We could not send a new code. Please try again.")
     return redirect("password_reset_verify")
 
+@never_cache
+@transaction.atomic
 def verify_otp(request):
 
     email = request.session.get("pending_verification_email")
@@ -439,7 +465,7 @@ def verify_otp(request):
         return redirect("signup")
 
     try:
-        user = User.objects.get(email=email)
+        user = User.objects.select_for_update().get(email=email)
         otp_record = EmailOTP.objects.get(user=user)
 
     except (User.DoesNotExist, EmailOTP.DoesNotExist):
@@ -450,7 +476,7 @@ def verify_otp(request):
         request.session.pop("pending_verification_email", None)
         return redirect("signup")
 
-    if user.is_active:
+    if user.is_active or user.profile.email_verified:
         request.session.pop("pending_verification_email", None)
 
         messages.info(
@@ -465,8 +491,6 @@ def verify_otp(request):
 
         if otp_record.is_expired():
 
-            otp_record.delete()
-
             messages.error(
                 request,
                 "Your OTP has expired. Please request a new one."
@@ -474,7 +498,11 @@ def verify_otp(request):
 
             return redirect("verify_otp")
 
-        if entered_otp != otp_record.otp:
+        if otp_record.attempts >= 5:
+            messages.error(request, "Too many incorrect codes. Please request a new verification code.")
+            return redirect("verify_otp")
+
+        if not constant_time_compare(entered_otp, otp_record.otp):
 
             otp_record.attempts += 1
             otp_record.save(update_fields=["attempts"])
@@ -499,7 +527,7 @@ def verify_otp(request):
         otp_record.delete()
 
         # Automatically login
-        login(request, user)
+        login(request, user, backend="accounts.backends.EmailOrUsernameBackend")
 
         # Clear session
         request.session.pop("pending_verification_email", None)
@@ -509,7 +537,7 @@ def verify_otp(request):
             "Your account has been verified successfully."
         )
 
-        return redirect(request.session.pop("seller_signup_next", "home"))
+        return redirect(request.session.pop("seller_signup_next", "profile_detail"))
 
     return render(
         request,
@@ -528,3 +556,20 @@ def forgot_username(request):
         request_username_reminder(form.cleaned_data["email"], request.META.get("REMOTE_ADDR", ""))
         sent = True
     return render(request, "accounts/forgot_username.html", {"form": form, "sent": sent})
+
+
+@require_POST
+@never_cache
+def resend_signup_otp(request):
+    email = request.session.get("pending_verification_email")
+    user = User.objects.filter(email__iexact=email, is_active=False, profile__email_verified=False).first() if email else None
+    if not user or not EmailOTP.objects.filter(user=user).exists():
+        return redirect("signup")
+    if not cache.add(f"website-signup-resend:{user.pk}", True, 60):
+        messages.info(request, "Please wait a minute before requesting another code.")
+    elif send_email_otp(user):
+        messages.success(request, "A new verification code was sent to your email.")
+    else:
+        cache.delete(f"website-signup-resend:{user.pk}")
+        messages.error(request, "We couldn't send a new code. Please try again.")
+    return redirect("verify_otp")

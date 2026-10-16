@@ -47,7 +47,7 @@ class SellerCoverageTests(TestCase):
         quote = {"provider": "delhivery", "quoted_total": Decimal("40"), "tax_amount": Decimal("0")}
         courier.return_value = quote.copy()
         local.return_value = {**quote, "provider": "local"}
-        items = [{"product": SimpleNamespace(seller=self.seller, gst_rate=Decimal("5")),
+        items = [{"product": SimpleNamespace(seller=self.seller, gst_rate=Decimal("5"), effective_gst_rate=Decimal("5")),
                   "variant": SimpleNamespace(seller_price=Decimal("100"), final_price=Decimal("110")), "quantity": 1}]
         destination = {"pincode": "243638", "latitude": "28.074", "longitude": "78.751"}
         _, quotes = build_parcel_pricing(items, destination, "cod")

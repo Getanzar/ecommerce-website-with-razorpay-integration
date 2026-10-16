@@ -58,6 +58,15 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+class GoogleAccount(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="google_account")
+    subject = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Google sign-in for {self.user.username}"
+
+
 class SellerProfile(models.Model):
     """Marketplace information for an account that is allowed to sell."""
 

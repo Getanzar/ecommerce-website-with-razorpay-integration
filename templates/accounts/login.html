@@ -1,28 +1,5 @@
-{% extends 'base.html' %}
-{% block title %}Login - ZiyaMart{% endblock %}
-{% block content %}
-<div class="container d-flex justify-content-center align-items-center py-5" style="min-height: 80vh; background-color: #f8f9fa;">
-    <div class="card shadow-sm p-4" style="width: 400px; background-color: #ffffff; border: 1px solid #dee2e6;">
-        <h2 class="text-center mb-4" style="color: #000;">Welcome Back</h2>
-        <form method="POST">
-            {% csrf_token %}{{ form.non_field_errors }}
-            <div class="form-group mb-3">
-                {{ form.username.label_tag }}
-                {{ form.username }}
-            </div>
-            <div class="form-group mb-3">
-                {{ form.password.label_tag }}
-                {{ form.password }}
-            </div>
-            <button type="submit" class="btn w-100" style="background-color: #000; color: #fff;">Login</button>
-        </form>
-        <div class="text-center mt-3">
-            <a href="{% url 'password_reset' %}" style="color: #6c757d; text-decoration: none;">Forgot Password?</a><br><a href="{% url 'forgot_username' %}">Forgot username?</a>
-        </div>
-        <div class="text-center mt-2">
-            <span style="color: #6c757d;">Don't have an account?</span>
-            <a href="{% url 'signup' %}" style="color: #000; font-weight: 500; text-decoration: none;">Sign Up</a>
-        </div>
-    </div>
-</div>
-{% endblock %}
+{% extends "base.html" %}{% load static %}
+{% block title %}Sign in | ZIYAMART{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/customer-auth.css' %}">{% endblock %}
+{% block content %}<section class="customer-auth"><span class="customer-auth-eyebrow">GOOD TO SEE YOU AGAIN</span><h1>Welcome back</h1><p>Sign in and pick up where you left off.</p>{% include "accounts/_google_button.html" %}<div class="customer-auth-divider"><span>or sign in with email</span></div>
+<form method="post">{% csrf_token %}{{ form.non_field_errors }}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}{% for field in form %}<div class="customer-auth-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small mt-2">{{ error }}</div>{% endfor %}</div>{% endfor %}<div class="customer-auth-links"><a href="{% url 'password_reset' %}">Forgot password?</a><a href="{% url 'forgot_username' %}">Forgot username?</a></div><button class="customer-auth-primary" type="submit">Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i></button></form><p class="customer-auth-footer">New to ZIYAMART? <a href="{% url 'signup' %}">Create an account</a></p></section>{% endblock %}

@@ -30,12 +30,8 @@ class SignUpTests(TestCase):
             "terms": "on",
         }
 
-    def test_any_duplicate_identifier_prevents_account_creation(self):
-        cases = {
-            "username": "ExistingUser",
-            "email": "EXISTING@example.com",
-            "phone": "9876543210",
-        }
+    def test_duplicate_email_prevents_account_creation(self):
+        cases = {"email": "EXISTING@example.com"}
         for field, duplicate_value in cases.items():
             with self.subTest(field=field):
                 data = {**self.data, field: duplicate_value}
@@ -47,11 +43,7 @@ class SignUpTests(TestCase):
 
     def test_duplicate_signup_post_does_not_create_any_user(self):
         original_count = get_user_model().objects.count()
-        for field, duplicate_value in {
-            "username": "ExistingUser",
-            "email": "EXISTING@example.com",
-            "phone": "9876543210",
-        }.items():
+        for field, duplicate_value in {"email": "EXISTING@example.com"}.items():
             with self.subTest(field=field):
                 response = self.client.post(reverse("signup"), {**self.data, field: duplicate_value})
                 self.assertEqual(response.status_code, 200)
@@ -61,7 +53,7 @@ class SignUpTests(TestCase):
     def test_valid_signup_sends_otp_and_redirects_to_verification(self, send_email):
         response = self.client.post(reverse("signup"), self.data)
         self.assertRedirects(response, reverse("verify_otp"), fetch_redirect_response=False)
-        self.assertTrue(get_user_model().objects.filter(username="newcustomer").exists())
+        self.assertTrue(get_user_model().objects.filter(email="new@example.com").exists())
         send_email.assert_called_once()
 
     @patch("accounts.views.send_email_otp", return_value=False)
@@ -69,7 +61,7 @@ class SignUpTests(TestCase):
         with patch("accounts.views.render", return_value=HttpResponse("signup")):
             response = self.client.post(reverse("signup"), self.data)
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(get_user_model().objects.filter(username="newcustomer").exists())
+        self.assertFalse(get_user_model().objects.filter(email="new@example.com").exists())
         self.assertNotIn("pending_verification_email", self.client.session)
 
     @patch(
@@ -81,7 +73,7 @@ class SignUpTests(TestCase):
             response = self.client.post(reverse("signup"), self.data)
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(get_user_model().objects.filter(username="newcustomer").exists())
+        self.assertFalse(get_user_model().objects.filter(email="new@example.com").exists())
 
 
 class SellerApplicationFormTests(TestCase):
