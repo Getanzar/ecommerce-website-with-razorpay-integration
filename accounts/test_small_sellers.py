@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.forms import SmallSellerApplicationForm
+from accounts.forms import SellerApplicationForm, SmallSellerApplicationForm
 from accounts.models import SellerProfile
 from accounts.seller_profile import SellerProfileForm
 from dashboard.forms import SellerProductForm
@@ -26,7 +26,7 @@ class SmallSellerFlowTests(TestCase):
         self.client.force_login(self.user)
 
     def payload(self, **changes):
-        data = {"store_name": "Local crafts", "legal_business_name": "Test Seller", "business_category": "Handmade goods", "business_segment": "shop", "business_phone": "9999999999", "business_address": "Local market", "business_pincode": "243638", "business_latitude": "28.073100", "business_longitude": "78.750200", "business_gps_accuracy_meters": "10", "gps_captured_at": timezone.now().isoformat(), "aadhaar_last4": "1234", "pan_number": "ABCDE1234F", "gst_enrolment_number": "ENROL12345678901", "bank_account_holder": "Test Seller", "bank_account_number": "123456789012", "bank_ifsc_code": "SBIN0001234", "aadhaar_consent": "on", "eligibility_declaration": "on"}
+        data = {"store_name": "Local crafts", "legal_business_name": "Test Seller", "business_category": "Handmade goods", "business_segment": "shop", "business_phone": "9999999999", "business_address": "Local market", "business_pincode": "243638", "business_latitude": "28.073100", "business_longitude": "78.750200", "business_gps_accuracy_meters": "10", "gps_captured_at": timezone.now().isoformat(), "aadhaar_last4": "1234", "bank_account_holder": "Test Seller", "bank_account_number": "123456789012", "bank_ifsc_code": "SBIN0001234", "aadhaar_consent": "on", "eligibility_declaration": "on"}
         return {**data, **changes}
 
     def apply(self):
@@ -36,7 +36,7 @@ class SmallSellerFlowTests(TestCase):
 
     def verify(self, seller):
         self.client.force_login(self.reviewer)
-        response = self.client.post(reverse("review_small_seller", args=[seller.pk]), {"decision": "verified", "identity_checked": "on", "enrolment_checked": "on", "reference": "REVIEW-SMALL-001"})
+        response = self.client.post(reverse("review_small_seller", args=[seller.pk]), {"decision": "verified", "identity_checked": "on", "eligibility_checked": "on", "reference": "REVIEW-SMALL-001"})
         self.assertEqual(response.status_code, 302)
         seller.refresh_from_db()
         return seller
@@ -64,20 +64,24 @@ class SmallSellerFlowTests(TestCase):
         self.assertContains(response, reverse("registered_seller_application"))
         self.assertEqual(self.client.get(reverse("small_seller_application")).status_code, 302)
 
-    def test_food_and_grocery_small_seller_registration_and_approval(self):
-        for segment in ("food", "grocery"):
+    def test_all_small_seller_segments_register_and_approve_without_pan_or_enrolment(self):
+        for segment in ("shop", "food", "grocery"):
             with self.subTest(segment=segment):
                 user = User.objects.create_user("small-" + segment)
                 self.client.force_login(user)
-                url = reverse("small_" + segment + "_seller_application")
+                url = reverse("small_seller_application" if segment == "shop" else "small_" + segment + "_seller_application")
                 response = self.client.get(url)
                 self.assertContains(response, 'name="business_segment" value="' + segment + '"')
                 self.assertNotContains(response, 'name="gstin"')
+                self.assertNotContains(response, 'name="pan_number"')
+                self.assertNotContains(response, 'name="gst_enrolment_number"')
                 response = self.client.post(url, self.payload(store_name="Local " + segment, business_segment=segment))
                 self.assertEqual(response.status_code, 302)
                 seller = SellerProfile.objects.get(user=user)
                 self.assertEqual(seller.business_segment, segment)
                 self.assertEqual(seller.gstin, "")
+                self.assertEqual(seller.pan_last4, "")
+                self.assertEqual(seller.gst_enrolment_number, "")
                 self.assertFalse(seller.is_approved)
                 self.approve(seller)
                 seller.full_clean()
@@ -99,12 +103,14 @@ class SmallSellerFlowTests(TestCase):
         from rest_framework.test import APIClient
         client = APIClient()
         client.force_authenticate(self.user)
-        for segment in ("food", "grocery"):
+        for segment in ("shop", "food", "grocery"):
             with self.subTest(segment=segment):
                 user = User.objects.create_user("mobile-small-" + segment)
                 client.force_authenticate(user)
                 response = client.get("/api/v1/partners/applications/seller/", {"registration_type": "small", "business_segment": segment})
                 self.assertEqual(response.status_code, 200)
+                names = {field["name"] for field in response.data["fields"]}
+                self.assertTrue({"pan_number", "gst_enrolment_number", "gstin"}.isdisjoint(names))
                 form = SmallSellerApplicationForm(self.payload(business_segment=segment), segment=segment)
                 self.assertTrue(form.is_valid(), form.errors)
                 response = client.post(
@@ -117,6 +123,55 @@ class SmallSellerFlowTests(TestCase):
                 self.assertEqual(seller.business_segment, segment)
                 self.assertEqual(seller.registration_type, "small")
                 self.assertEqual(seller.gstin, "")
+                self.assertEqual(seller.pan_last4, "")
+                self.assertEqual(seller.gst_enrolment_number, "")
+
+    def test_small_forms_ignore_removed_fields_even_if_an_old_client_posts_them(self):
+        for segment in ("shop", "food", "grocery"):
+            with self.subTest(segment=segment):
+                form = SmallSellerApplicationForm(self.payload(business_segment=segment, pan_number="INVALIDPAN", gst_enrolment_number="INVALID"), segment=segment)
+                self.assertTrue(form.is_valid(), form.errors)
+                seller = form.save(commit=False)
+                self.assertEqual(seller.pan_last4, "")
+                self.assertEqual(seller.gst_enrolment_number, "")
+
+    def test_registered_sellers_still_require_gstin_in_every_segment(self):
+        for segment in ("shop", "food", "grocery"):
+            with self.subTest(segment=segment):
+                form = SellerApplicationForm(self.payload(business_segment=segment))
+                self.assertFalse(form.is_valid())
+                self.assertIn("gstin", form.errors)
+                self.assertTrue(form.fields["gstin"].required)
+
+    def test_small_seller_admin_hides_removed_fields_without_deleting_legacy_values(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+        from accounts.admin import SellerProfileAdmin
+        seller = self.apply()
+        seller.pan_last4 = "234F"
+        seller.gst_enrolment_number = "ENROL12345678901"
+        seller.save()
+        form = SmallSellerApplicationForm(self.payload(), instance=seller)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        seller.refresh_from_db()
+        self.assertEqual(seller.pan_last4, "234F")
+        self.assertEqual(seller.gst_enrolment_number, "ENROL12345678901")
+        model_admin = SellerProfileAdmin(SellerProfile, AdminSite())
+        request = RequestFactory().get("/")
+        self.assertIn("pan_last4", model_admin.get_exclude(request, seller))
+        self.assertIn("gst_enrolment_number", model_admin.get_exclude(request, seller))
+        seller.registration_type = "registered"
+        self.assertNotIn("pan_last4", model_admin.get_exclude(request, seller))
+
+    def test_review_screen_requests_business_eligibility_without_pan_or_enrolment(self):
+        seller = self.apply()
+        self.client.force_login(self.reviewer)
+        response = self.client.get(reverse("ops_seller_detail", args=[seller.pk]))
+        self.assertContains(response, 'name="eligibility_checked"')
+        self.assertNotContains(response, 'name="enrolment_checked"')
+        self.assertNotContains(response, "PAN reference")
+        self.assertNotContains(response, "Enrolment number")
 
     def test_no_gstin_field_and_privileged_fields_are_not_accepted(self):
         form = SmallSellerApplicationForm(self.payload(status="approved", payouts_enabled=True, registration_type="registered", identity_status="verified"))
@@ -130,7 +185,8 @@ class SmallSellerFlowTests(TestCase):
 
     def test_application_retains_only_identity_and_bank_suffixes(self):
         seller = self.apply()
-        self.assertEqual(seller.pan_last4, "234F")
+        self.assertEqual(seller.pan_last4, "")
+        self.assertEqual(seller.gst_enrolment_number, "")
         self.assertEqual(seller.aadhaar_last4, "1234")
         self.assertEqual(seller.bank_account_last4, "9012")
         self.assertEqual(seller.gstin, "")
@@ -141,14 +197,14 @@ class SmallSellerFlowTests(TestCase):
         self.assertNotIn("123456789012", str(seller.__dict__))
         self.assertEqual(self.client.get(reverse("seller_products")).status_code, 403)
 
-    def test_full_aadhaar_no_consent_bad_pan_and_wrong_segment_are_rejected(self):
-        for changes, field in (({"aadhaar_last4": "123456789012"}, "aadhaar_last4"), ({"aadhaar_consent": ""}, "aadhaar_consent"), ({"pan_number": "INVALIDPAN"}, "pan_number"), ({"business_segment": "food"}, "business_segment"), ({"eligibility_declaration": ""}, "eligibility_declaration")):
+    def test_full_aadhaar_no_consent_and_wrong_segment_are_rejected(self):
+        for changes, field in (({"aadhaar_last4": "123456789012"}, "aadhaar_last4"), ({"aadhaar_consent": ""}, "aadhaar_consent"), ({"business_segment": "food"}, "business_segment"), ({"eligibility_declaration": ""}, "eligibility_declaration")):
             with self.subTest(field=field):
                 form = SmallSellerApplicationForm(self.payload(**changes))
                 self.assertFalse(form.is_valid())
                 self.assertIn(field, form.errors)
 
-    def test_approval_and_payouts_require_identity_and_enrolment_review(self):
+    def test_approval_and_payouts_require_identity_and_business_review(self):
         seller = self.apply()
         self.client.force_login(self.reviewer)
         self.client.post(reverse("update_seller_status", args=[seller.pk]), {"status": "approved"})
@@ -219,12 +275,12 @@ class SmallSellerFlowTests(TestCase):
 
     def test_corrections_revoke_active_access_and_are_shown_to_the_seller(self):
         seller = self.approve(self.apply())
-        self.client.post(reverse("review_small_seller", args=[seller.pk]), {"decision": "needs_changes", "note": "Please correct your enrolment details."})
+        self.client.post(reverse("review_small_seller", args=[seller.pk]), {"decision": "needs_changes", "note": "Please correct your business address."})
         seller.refresh_from_db()
         self.assertFalse(seller.is_approved)
         self.assertEqual(seller.status, "suspended")
         self.client.force_login(self.user)
-        self.assertContains(self.client.get(reverse("small_seller_application")), "Please correct your enrolment details.")
+        self.assertContains(self.client.get(reverse("small_seller_application")), "Please correct your business address.")
 
     def test_withdrawing_consent_removes_aadhaar_reference_and_pauses_selling(self):
         seller = self.approve(self.apply())
@@ -238,7 +294,7 @@ class SmallSellerFlowTests(TestCase):
         self.assertFalse(seller.is_approved)
         self.assertFalse(seller.payouts_enabled)
 
-    def test_reviewed_location_is_locked_and_enrolment_type_cannot_be_switched(self):
+    def test_reviewed_location_is_locked_and_registration_type_cannot_be_switched(self):
         seller = self.approve(self.apply())
         self.assertTrue(SellerProfileForm(instance=seller).fields["business_pincode"].disabled)
         self.client.force_login(self.user)
@@ -279,7 +335,8 @@ class SmallSellerFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         names = {row["name"] for row in response.data["fields"]}
         self.assertNotIn("gstin", names)
-        self.assertIn("gst_enrolment_number", names)
+        self.assertNotIn("gst_enrolment_number", names)
+        self.assertNotIn("pan_number", names)
         self.assertNotIn("identity_verified_by", names)
         response = client.post(url, self.payload(), format="json")
         self.assertEqual(response.status_code, 201, response.data)

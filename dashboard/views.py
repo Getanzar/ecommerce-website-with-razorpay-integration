@@ -795,7 +795,7 @@ def update_seller_status(request, seller_id):
 
     old_status = seller.status
     if new_status == "approved" and seller.is_small_seller and not seller.kyc_complete:
-        messages.error(request, "Review Aadhaar identity, GST-portal enrolment eligibility and bank details before approving this small seller.")
+        messages.error(request, "Review Aadhaar identity, the small-seller declaration and bank details before approving this small seller.")
         return redirect("sellers_management")
     if new_status == "approved" and seller.business_segment not in dict(SellerProfile.BUSINESS_SEGMENTS):
         messages.error(request, "Select a valid selling segment in Django admin before approving this seller.")
@@ -836,7 +836,7 @@ def review_small_seller(request, seller_id):
     else:
         form = SmallSellerReviewForm(request.POST)
         if not form.is_valid():
-            messages.error(request, "Confirm both identity and enrolment checks and enter a valid review reference.")
+            messages.error(request, "Confirm both identity and business eligibility checks and enter a valid review reference.")
             return redirect("ops_seller_detail", seller_id=seller.pk)
         seller.identity_status = "verified"
         seller.identity_verified_at = timezone.now()
@@ -857,7 +857,7 @@ def review_small_seller(request, seller_id):
 def verify_seller_payouts(request, seller_id):
     seller = get_object_or_404(SellerProfile, id=seller_id)
     if not seller.kyc_complete:
-        messages.error(request, "KYC is incomplete. Review legal identity, GSTIN or small-seller enrolment eligibility, Aadhaar and bank details first.")
+        messages.error(request, "KYC is incomplete. Review legal identity, GSTIN for registered sellers or the declaration for small sellers, Aadhaar and bank details first.")
     elif not seller.razorpay_contact_id or not seller.razorpay_fund_account_id:
         messages.error(request, "RazorpayX payout account is missing. Ask the seller to resubmit bank details once.")
     else:

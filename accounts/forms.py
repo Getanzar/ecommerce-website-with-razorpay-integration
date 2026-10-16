@@ -194,10 +194,8 @@ class SellerApplicationForm(RequiredGPSMixin, forms.ModelForm):
 
 
 class SmallSellerApplicationForm(SellerApplicationForm):
-    pan_number = forms.CharField(max_length=10, min_length=10, label="PAN", widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off"}), help_text="Needed to match your GST-portal enrolment. Only the last four characters are retained.")
-    gst_enrolment_number = forms.CharField(max_length=20, min_length=10, label="GST-portal enrolment number", widget=forms.TextInput(attrs={"class": "form-control"}), help_text="The enrolment number for an unregistered e-commerce supplier, not a GSTIN.")
     aadhaar_consent = forms.BooleanField(label="I consent to Aadhaar offline identity verification for my seller application.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
-    eligibility_declaration = forms.BooleanField(label="I am not GST registered, meet the applicable turnover limit, and will sell only within my registered state through this enrolment.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
+    eligibility_declaration = forms.BooleanField(label="I am a small seller without GST registration, meet the applicable turnover limit, and will sell only within my approved local selling area.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
 
     def __init__(self, *args, **kwargs):
         self.segment = kwargs.pop("segment", "shop")
@@ -226,22 +224,10 @@ class SmallSellerApplicationForm(SellerApplicationForm):
             raise ValidationError("Select the registration flow for your selling segment.")
         return self.segment
 
-    def clean_pan_number(self):
-        value = self.cleaned_data["pan_number"].strip().upper()
-        if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", value):
-            raise ValidationError("Enter a valid PAN.")
-        return value
-
     def clean_business_phone(self):
         value = self.cleaned_data["business_phone"].strip()
         if not re.fullmatch(r"(?:\+91)?[6-9]\d{9}", value):
             raise ValidationError("Enter a valid Indian mobile number for identity review.")
-        return value
-
-    def clean_gst_enrolment_number(self):
-        value = self.cleaned_data["gst_enrolment_number"].strip().upper()
-        if not re.fullmatch(r"[A-Z0-9]{10,20}", value):
-            raise ValidationError("Enter the enrolment number issued by the GST portal.")
         return value
 
     def save(self, commit=True):
@@ -250,8 +236,6 @@ class SmallSellerApplicationForm(SellerApplicationForm):
         seller.registration_type = "small"
         seller.business_segment = self.segment
         seller.gstin = ""
-        seller.pan_last4 = self.cleaned_data["pan_number"][-4:]
-        seller.gst_enrolment_number = self.cleaned_data["gst_enrolment_number"]
         seller.small_seller_declaration = True
         seller.aadhaar_consent_at = timezone.now()
         seller.identity_status = "pending"
@@ -269,7 +253,7 @@ class SmallSellerApplicationForm(SellerApplicationForm):
 
 class SmallSellerReviewForm(forms.Form):
     identity_checked = forms.BooleanField(label="I verified the seller's identity against their Aadhaar Secure QR using official UIDAI offline tools and confirmed their consent.")
-    enrolment_checked = forms.BooleanField(label="I verified GST-portal enrolment, PAN match, registered state and applicable turnover eligibility.")
+    eligibility_checked = forms.BooleanField(label="I reviewed the seller's business details, approved selling area and small-seller declaration.")
     reference = forms.CharField(max_length=100, label="Review reference", help_text="Use an internal review reference, never an Aadhaar number.")
 
     def clean_reference(self):

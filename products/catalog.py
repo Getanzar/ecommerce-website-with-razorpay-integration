@@ -15,8 +15,8 @@ def _approved_seller_condition(prefix):
         prefix + "business_latitude__isnull": False,
         prefix + "business_longitude__isnull": False,
         prefix + "business_gps_verified_at__isnull": False,
-    }) & ~Q(**{prefix + "gst_enrolment_number": ""}) & ~Q(**{prefix + "identity_review_reference": ""})
-    for name in ("pan_last4", "aadhaar_last4", "legal_business_name", "business_category", "business_pincode", "bank_account_holder", "bank_account_last4", "bank_ifsc_code"):
+    }) & ~Q(**{prefix + "identity_review_reference": ""})
+    for name in ("aadhaar_last4", "legal_business_name", "business_category", "business_pincode", "bank_account_holder", "bank_account_last4", "bank_ifsc_code"):
         small &= ~Q(**{prefix + name: ""})
     return Q(**{prefix + "status": "approved"}) & (registered | small)
 

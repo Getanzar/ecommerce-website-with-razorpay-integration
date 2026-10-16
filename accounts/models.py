@@ -157,7 +157,7 @@ class SellerProfile(models.Model):
         if self.is_small_seller and (self.business_segment not in dict(self.BUSINESS_SEGMENTS) or self.gstin):
             raise ValidationError("Small sellers must select a supported selling segment and cannot supply a GSTIN.")
         if self.is_small_seller and self.status == "approved" and not self.kyc_complete:
-            raise ValidationError("Complete Aadhaar identity review, enrolment eligibility and bank details before approving this small seller.")
+            raise ValidationError("Complete Aadhaar identity review, small-seller declaration and bank details before approving this small seller.")
         if self.is_small_seller and self.payouts_enabled and not (
             self.status == "approved" and self.kyc_complete and self.razorpay_contact_id and self.razorpay_fund_account_id
         ):
@@ -171,7 +171,7 @@ class SellerProfile(models.Model):
     def small_seller_verified(self):
         return all([
             self.business_segment in dict(self.BUSINESS_SEGMENTS), not self.gstin,
-            self.gst_enrolment_number, self.pan_last4, self.small_seller_declaration,
+            self.small_seller_declaration,
             self.aadhaar_consent_at, self.identity_status == "verified",
             self.identity_review_reference, self.identity_verified_at, self.identity_verified_by_id,
         ])

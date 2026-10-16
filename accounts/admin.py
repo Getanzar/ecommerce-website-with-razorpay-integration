@@ -34,6 +34,12 @@ class SellerProfileAdmin(admin.ModelAdmin):
     )
     list_editable = ("status", "commission_percent", "payouts_enabled")
 
+    def get_exclude(self, request, obj=None):
+        excluded = super().get_exclude(request, obj) or ()
+        if obj and obj.is_small_seller:
+            return (*excluded, "pan_last4", "gst_enrolment_number")
+        return excluded
+
 
 @admin.register(SellerAIPlanPurchase)
 class SellerAIPlanPurchaseAdmin(admin.ModelAdmin):
