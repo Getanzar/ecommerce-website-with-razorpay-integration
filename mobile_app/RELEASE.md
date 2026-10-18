@@ -1,4 +1,35 @@
-# Mobile release 1.1.0
+# Mobile release 1.2.0
+
+## Customer and storefront parity
+
+- Email/password signup generates an internal username, verifies email by OTP, then opens My Profile. Existing username/email sign-in and recovery remain compatible.
+- My Profile edits name, username, phone, optional gender/date of birth and a photo up to 5 MB. Changing a phone clears its verification flag. Email changes use a separate expiring, attempt-limited OTP; the current login email stays active until verification.
+- Continue with Google opens the system authentication browser. Render retains the existing web OAuth credentials and callback. State, nonce and provider PKCE are verified server-side; a second app-generated PKCE challenge protects a 60-second, single-use return code. No Google secrets or mobile tokens appear in app links. Connecting an existing account requires an authenticated app session and a matching verified email; it does not create another device session.
+- Small seller applications explicitly offer merchandise, food and groceries without PAN/GST enrolment fields; registered seller requirements remain server-controlled.
+- All three checkout quotes add `item_price` (seller price plus platform fee) and `gst` (product plus platform-fee GST). Existing inclusive `item_subtotal` stays compatible with older clients. New screens show item price, GST, delivery and total.
+- Food discovery has a dark storefront, bundled original cuisine photography, restaurant/dish search, cuisine filters, vegetarian options, preparation sorting, new restaurants, filtered menus and food-cart access. Unavailable products/options stay hidden. No invented reviews, discounts or delivery estimates are displayed.
+- Food/grocery area requests save the pincode, optional comment and service for admin review. Filtered searches show a useful empty state instead of an unsupported-area claim. Merchandise and grocery cards use consistent spacing and uncropped product imagery.
+
+### Deployment order for 1.2.0
+
+1. Deploy the backend and run `python manage.py migrate` (includes food migration 0008). Keep Render's `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and `GOOGLE_OAUTH_REDIRECT_URI=https://www.ziyamart.in/accounts/google/callback/`. Google continues to redirect to this HTTPS callback; do not register `ziyamart://` with Google.
+2. Use the shared production cache documented below. Temporary Google tickets, exchange codes, OTPs and their one-use locks must be shared across all workers.
+3. Build a new 1.2.0 binary; expo-web-browser and expo-crypto are native dependencies. An OTA update alone cannot upgrade an older binary. The app return scheme is `ziyamart://auth/callback`; the production API is `https://www.ziyamart.in/api/v1`.
+4. If Google consent is still in Testing, add tester emails in Google Cloud before testing. Publish the consent configuration when ready for public users.
+
+### Verification status — 17 October 2026
+
+Passed: 373 backend tests, 42 mobile tests, TypeScript, migration consistency, production API URL safety, Android native prebuild and production Hermes export. A local APK build was attempted twice but Gradle 9.3.1 downloads timed out on both the main and direct distribution servers. No connected Android device was found. Native compilation, installed-device visual review, live Google authorization, real payments, push delivery and background GPS are **pending**, not verified by JavaScript export or mocked provider tests.
+
+### Installed-device acceptance pass
+
+- Fresh email signup: only email/password; invalid/expired OTP, resend cooldown, successful verification opens My Profile. Relaunch retains the signed-in account. Email and username both log in.
+- Profile: optional details can stay blank; valid changes persist on website and app; invalid/duplicate usernames, invalid/future birthdays, invalid/oversized photos are rejected. New email requires the correct OTP and becomes usable for login only after verification.
+- Google: new and returning accounts, cancel/back, browser closed, wrong account while linking, expired link, app foreground/background return. Confirm existing email accounts cannot be silently linked. Test using a newly installed APK, not Expo Go.
+- Seller signup: registered seller and small merchandise/food/grocery forms, photo/GPS permissions, validation, submission and pending-review state. Confirm PAN/GST enrolment are absent only for small sellers.
+- Food: real restaurant images, cuisine strip, long names, small/large text, search/veg/sort combinations, empty results, unsupported pincode request, menu options, cart replacement and quantity changes. Check grocery cards and merchandise collections at narrow widths.
+- Checkout: item price + GST + delivery equals total for shop/food/grocery. Test saved address/GPS, COD, Razorpay success/cancel/failure, and lost-callback recovery without duplicate orders. Use Razorpay test credentials for scripted payment checks.
+- Notifications/permissions: push tap from foreground/background/terminated app opens the correct order; denied permissions remain recoverable; rider background tracking starts/stops with active jobs and revoked sessions.
 
 ## What ships
 
@@ -76,12 +107,12 @@ In Django admin → Account deletion requests, a superuser may disable access an
 
 Use Node 22.13 or later and pnpm 11.19.0. Run `pnpm install --frozen-lockfile` in `mobile_app`. Configure `EXPO_PUBLIC_API_URL` as the HTTPS backend origin and `EXPO_PUBLIC_EAS_PROJECT_ID` as the actual EAS project ID. Public variables must never contain payment secrets.
 
-Authenticate EAS, link the existing app to its EAS project, and configure Android FCM v1/iOS APNs credentials. Verify the Android package and iOS bundle ID in app.json belong to the intended store listings before building. The repository provides development, internal preview, and production profiles; production auto-increments the remote build version. The marketing version is 1.1.0 in app.json and package.json.
+Authenticate EAS, link the existing app to its EAS project, and configure Android FCM v1/iOS APNs credentials. Verify the Android package and iOS bundle ID in app.json belong to the intended store listings before building. The repository provides development, internal preview, and production profiles; production auto-increments the remote build version. The marketing version is 1.2.0 in app.json and package.json.
 
 ```sh
-pnpm exec eas build --profile development --platform android
-pnpm exec eas build --profile preview --platform android
-pnpm exec eas build --profile production --platform all
+pnpm dlx eas-cli@latest build --profile development --platform android
+pnpm dlx eas-cli@latest build --profile preview --platform android
+pnpm dlx eas-cli@latest build --profile production --platform all
 ```
 
 Install/use EAS CLI separately if it is not on PATH. Native Razorpay and background location require a development or release build, not Expo Go. A JavaScript export checks bundling; it does not compile or certify native payment SDK behavior.

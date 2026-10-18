@@ -2,7 +2,8 @@
 
 {% block title %}{{ seller.store_name }} | Seller Center{% endblock %}
 
-{% block content %}{% include 'dashboard/seller/includes/identity.html' %}
+{% block content %}
+<div class="alert alert-light border">Create listings faster with the photo-to-listing assistant inside Add product. Review and apply suggestions before submitting.</div>{% include 'dashboard/seller/includes/identity.html' %}
 {% if order_alerts %}
 <div class="card mb-4"><div class="card-header"><strong>New order notifications</strong></div><div class="list-group list-group-flush">
 {% for alert in order_alerts %}<a class="list-group-item list-group-item-action" href="{% url 'seller_orders' %}">{{ alert.body }} <small class="text-muted">{{ alert.created_at|timesince }} ago</small></a>{% endfor %}
@@ -26,7 +27,6 @@
     <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Orders containing your items</small><div class="h3 mb-0">{{ order_count }}</div></div></div></div>
     <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted">Paid sales</small><div class="h3 mb-0">₹{{ gross_sales }}</div></div></div></div>
 </div>
-<div class="alert alert-light border d-flex justify-content-between align-items-center"><span>{% if seller.ai_subscription_active %}<strong>{{ seller.get_ai_plan_display }}</strong> active · {{ seller.ai_images_remaining }} images remaining · unlimited listing names and descriptions{% else %}Choose an AI image plan to unlock image enhancement, names, and descriptions.{% endif %}</span><a class="btn btn-sm btn-outline-primary" href="{% url 'seller_add_product' %}">Open AI listing studio</a></div>
 
 <div class="card">
     <div class="card-header bg-white"><strong>Recent order items</strong></div>

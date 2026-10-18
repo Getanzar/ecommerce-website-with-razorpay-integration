@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.db import transaction
 from rest_framework import serializers
 
 from addresses.models import Address
@@ -18,20 +19,48 @@ def absolute_url(request, image):
 
 class UserSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(source="profile.phone", allow_blank=True, required=False)
+    gender = serializers.ChoiceField(source="profile.gender", choices=["", "Male", "Female", "Other", "Prefer not to say"], required=False)
+    date_of_birth = serializers.DateField(source="profile.date_of_birth", allow_null=True, required=False)
+    profile_picture = serializers.ImageField(source="profile.profile_picture", required=False, write_only=True)
+    profile_picture_url = serializers.SerializerMethodField()
     email_verified = serializers.BooleanField(source="profile.email_verified", read_only=True)
+
+    def get_profile_picture_url(self, obj):
+        return absolute_url(self.context.get("request"), obj.profile.profile_picture)
+
+    def validate_date_of_birth(self, value):
+        from django.utils import timezone
+        if value and value > timezone.localdate():
+            raise serializers.ValidationError("Date of birth cannot be in the future.")
+        return value
+
+    def validate(self, attrs):
+        from accounts.forms import CustomerProfileForm
+        profile = attrs.get("profile", {})
+        data = {key: attrs.get(key, getattr(self.instance, key)) for key in ("username", "first_name", "last_name", "email")}
+        data.update({key: profile.get(key, getattr(self.instance.profile, key)) for key in ("phone", "gender", "date_of_birth")})
+        form = CustomerProfileForm(data, {"profile_picture": profile["profile_picture"]} if profile.get("profile_picture") else None, user=self.instance)
+        if not form.is_valid():
+            raise serializers.ValidationError(dict(form.errors))
+        if "phone" in profile:
+            profile["phone"] = form.cleaned_data["phone"]
+        return attrs
 
     class Meta:
         model = User
-        fields = ("id", "username", "first_name", "last_name", "email", "phone", "email_verified")
-        read_only_fields = ("id", "username", "email", "email_verified")
+        fields = ("id", "username", "first_name", "last_name", "email", "phone", "email_verified", "gender", "date_of_birth", "profile_picture", "profile_picture_url")
+        read_only_fields = ("id", "email", "email_verified")
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         profile_data = validated_data.pop("profile", {})
         instance = super().update(instance, validated_data)
         profile = instance.profile
-        if "phone" in profile_data:
-            profile.phone = profile_data["phone"]
-            profile.save(update_fields=["phone"])
+        if "phone" in profile_data and profile.phone != profile_data["phone"]:
+            profile.phone_verified = False
+        for key, value in profile_data.items():
+            setattr(profile, key, value)
+        profile.save()
         return instance
 
 

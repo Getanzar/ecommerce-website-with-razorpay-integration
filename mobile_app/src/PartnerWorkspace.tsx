@@ -201,22 +201,14 @@ return (
         )}
 
         {!role && !loading && !error && (
-          <Button
-            title={
-              mode === "seller"
-                ? "Apply as a seller"
-                : "Apply as a rider"
-            }
-            onPress={() =>
-              setForm({
-                path: `applications/${mode}/`,
-                title:
-                  mode === "seller"
-                    ? "Seller application"
-                    : "Rider application",
-              })
-            }
-          />
+          mode === "seller" ? <View style={s.card}>
+            <Text style={s.cardTitle}>Start selling with ZIYAMART</Text>
+            <Text style={s.muted}>Choose the registration that fits your business.</Text>
+            <Button title="Registered seller · GST registered" onPress={() => setForm({ path: "applications/seller/?registration_type=registered", title: "Registered seller application" })} />
+            <Text style={s.cardTitle}>Small seller · Without GST</Text>
+            <Text style={s.muted}>No PAN or GST enrolment required. Choose what you sell to open your application.</Text>
+            {([ ["shop", "Merchandise", "Clothing, footwear & more"], ["food", "Food", "Meals, snacks & local favourites"], ["grocery", "Groceries", "Daily essentials & pantry staples"] ] as const).map(([segment, title, copy]) => <View key={segment}><Button secondary title={`Small ${title.toLowerCase()} seller →`} onPress={() => setForm({ path: `applications/seller/?registration_type=small&business_segment=${segment}`, title: `Small ${title.toLowerCase()} seller` })} /><Text style={s.muted}>{copy}</Text></View>)}
+          </View> : <Button title="Apply as a rider" onPress={() => setForm({ path: "applications/rider/", title: "Rider application" })} />
         )}
 
         {approved &&

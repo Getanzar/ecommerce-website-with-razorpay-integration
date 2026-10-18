@@ -5,6 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { request } from "./api";
 import { appendPhoto } from "./uploads";
+import ListingAssistant from "./ListingAssistant";
 import ProductVariantsForm, { emptyVariant, NewVariant, validateVariants } from "./ProductVariantsForm";
 import {
   partnerRequest,
@@ -32,6 +33,7 @@ const [taxonomyBusy, setTaxonomyBusy] = useState(false);
   const submitting = useRef(false);
   const scroll = useRef<ScrollView>(null);
   const isNewMerchandise = path === "seller/products/new/";
+  const listingKind = /^seller\/products\/(?:new|\d+\/edit)\/$/.test(path) ? "shop" : path.match(/^seller\/(food|grocery)\/products\/(?:new|\d+\/edit)\/$/)?.[1];
   const isMerchandiseProductForm =
   path === "seller/products/new/" ||
   /^seller\/products\/\d+\/edit\/$/.test(path);
@@ -76,6 +78,15 @@ const [taxonomyBusy, setTaxonomyBusy] = useState(false);
   };
 }, [path, token, retry]);
   const change = (name: string, value: string) => setValues(prev => ({ ...prev, [name]: value }));
+  const applyListingDraft = (suggestions: Record<string, string>) => {
+    const supported = new Map(fields.map(field => [field.name, field]));
+    const allowed = ["name", "description", "category", "section_name", "brand", "unit"];
+    const updates = Object.fromEntries(Object.entries(suggestions).filter(([name, value]) => {
+      const field = supported.get(name);
+      return allowed.includes(name) && field && (field.type !== "choice" || field.choices.some(([id]) => id === String(value)));
+    }));
+    setValues(previous => ({ ...previous, ...updates, ...(updates.category && updates.category !== previous.category ? { subcategory: "" } : {}) }));
+  };
   const selectedCategory = sellerCategories.find(
   category => String(category.id) === values.category
 );
@@ -263,6 +274,7 @@ const createSubcategory = async () => {
   <Pressable style={s.button} onPress={() => setRetry(n => n + 1)}>
     <Text style={s.buttonText}>Retry</Text>
   </Pressable>}
+  {!loading && !!fields.length && !!listingKind && <ListingAssistant token={token} kind={listingKind} images={images} disabled={busy} onPick={() => void pick("image")} onApply={applyListingDraft} onBusy={setBusy} />}
   {!loading && isMerchandiseProductForm && (
   <View style={s.field}>
     <Text style={s.label}>Category *</Text>

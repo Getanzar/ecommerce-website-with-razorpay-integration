@@ -2,6 +2,15 @@ from django.conf import settings
 from django.db import models
 
 
+class SellerListingAIUsage(models.Model):
+    seller = models.ForeignKey("accounts.SellerProfile", on_delete=models.CASCADE)
+    day = models.DateField()
+    attempts = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("seller", "day"), name="unique_seller_listing_ai_day")]
+
+
 class AdminAuditLog(models.Model):
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name="admin_audit_events",

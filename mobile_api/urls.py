@@ -1,12 +1,18 @@
 from django.urls import include, path
 
-from . import views
+from . import views, customer_parity
 from . import customer_orders
 from .payment_api import NativePaymentView
 from .operations_api import InboxView, SessionsView, RiderEvidenceView, SellerCasesView
 
 
 urlpatterns = [
+    path("auth/google/start/", customer_parity.GoogleMobileStart.as_view(), name="mobile-google-start"),
+    path("auth/google/browser/", customer_parity.google_browser, name="mobile-google-browser"),
+    path("auth/google/exchange/", customer_parity.GoogleMobileExchange.as_view(), name="mobile-google-exchange"),
+    path("account/email/request/", customer_parity.ProfileEmailRequest.as_view(), name="mobile-profile-email-request"),
+    path("account/email/verify/", customer_parity.ProfileEmailVerify.as_view(), name="mobile-profile-email-verify"),
+    path("food/delivery-interest/", customer_parity.DeliveryInterest.as_view(), name="mobile-delivery-interest"),
     path("orders/<str:kind>/<int:pk>/payment/", NativePaymentView.as_view()),
     path("account/sessions/", SessionsView.as_view()),
     path("account/sessions/<int:pk>/", SessionsView.as_view()),

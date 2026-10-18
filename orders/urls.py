@@ -2,6 +2,7 @@ from django.urls import path
 from . import commerce, views
 
 urlpatterns = [
+    path("delivery-estimate/", commerce.delivery_estimate, name="delivery_estimate"),
     path("webhooks/razorpayx/", views.razorpayx_webhook, name="razorpayx_webhook"),
 
     # Checkout

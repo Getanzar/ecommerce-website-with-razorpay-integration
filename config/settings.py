@@ -22,27 +22,10 @@ cloudinary.config(
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
-# Seller AI listing tools. These credentials are server-side only and must
-# never be rendered into HTML or sent to the browser.
-CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
-CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
-CLOUDFLARE_TEXT_MODEL = os.getenv(
-    "CLOUDFLARE_TEXT_MODEL", "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
-)
-CLOUDFLARE_VISION_MODEL = os.getenv(
-    "CLOUDFLARE_VISION_MODEL", "@cf/meta/llama-3.2-11b-vision-instruct"
-)
-CLOUDFLARE_IMAGE_MODEL = os.getenv(
-    "CLOUDFLARE_IMAGE_MODEL", "@cf/black-forest-labs/flux-2-klein-4b"
-)
-
-# Monthly seller image plans. While a plan is active, text listing generation
-# is included without a per-generation charge.
-SELLER_AI_PLANS = {
-    "starter": {"name": "Starter", "price_paise": 9900, "image_limit": 25},
-    "growth": {"name": "Growth", "price_paise": 49900, "image_limit": 150},
-    "pro": {"name": "Pro", "price_paise": 99900, "image_limit": 400},
-}
+# Shared seller listing assistant. Credentials never leave the server.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+SELLER_LISTING_AI_MODEL = os.getenv("SELLER_LISTING_AI_MODEL", "gemini-3.1-flash-lite")
+SELLER_LISTING_AI_DAILY_LIMIT = int(os.getenv("SELLER_LISTING_AI_DAILY_LIMIT", "20"))
 
 # 🔑 Delhivery API Key
 DELHIVERY_API_KEY = os.getenv("DELHIVERY_API_KEY")

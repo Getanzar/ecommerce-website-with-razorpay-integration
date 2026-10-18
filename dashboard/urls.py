@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import operations
+from .listing_views import seller_listing_draft
 
 urlpatterns = [
     path("sellers/<int:seller_id>/small-review/", views.review_small_seller, name="review_small_seller"),
@@ -23,10 +24,8 @@ urlpatterns = [
         views.seller_add_product,
         name="seller_add_product",
     ),
-    path("seller/ai/copy/", views.seller_ai_generate_copy, name="seller_ai_generate_copy"),
-    path("seller/ai/image/", views.seller_ai_enhance_image, name="seller_ai_enhance_image"),
-    path("seller/ai/buy/", views.seller_ai_create_order, name="seller_ai_create_order"),
-    path("seller/ai/confirm/", views.seller_ai_confirm_payment, name="seller_ai_confirm_payment"),
+
+    path("seller/listing-assistant/", seller_listing_draft, name="seller_listing_draft"),
 
     # Marketplace seller approval
     path("sellers/", views.sellers_management, name="sellers_management"),

@@ -34,6 +34,10 @@ BACKEND = "accounts.backends.EmailOrUsernameBackend"
 @require_POST
 @never_cache
 def google_start(request):
+    return _start_google(request)
+
+
+def _start_google(request):
     if not settings.GOOGLE_OAUTH_CLIENT_ID or not settings.GOOGLE_OAUTH_CLIENT_SECRET:
         messages.error(request, "Google sign-in is not available yet. Please use email to continue.")
         return redirect("profile_detail" if request.user.is_authenticated else "login")
@@ -93,12 +97,21 @@ def google_callback(request):
     if not flow or not constant_time_compare(str(flow.get("state", "")), request.GET.get("state", "")) or timezone.now().timestamp() - flow.get("started_at", 0) > 600:
         messages.error(request, "Your Google sign-in session expired or could not be verified. Please try again.")
         return redirect(error_route)
+    if flow.get("mobile"):
+        from django.contrib.auth.models import AnonymousUser
+        request.user = User.objects.filter(pk=flow["user_id"], is_active=True).first() if flow.get("user_id") else AnonymousUser()
+        if request.user is None:
+            from mobile_api.customer_parity import google_mobile_result
+            return google_mobile_result(flow, error="This account is unavailable.")
     current_user_id = request.user.pk if request.user.is_authenticated else None
     if current_user_id != flow.get("user_id"):
         messages.error(request, "Your account session changed. Please start Google sign-in again.")
         return redirect(error_route)
     code = request.GET.get("code", "")
     if request.GET.get("error") or not code:
+        if flow.get("mobile"):
+            from mobile_api.customer_parity import google_mobile_result
+            return google_mobile_result(flow, error="Google sign-in was cancelled. Please try again.")
         messages.info(request, "Google sign-in was not completed. You can try again or continue with email.")
         return redirect(error_route)
     try:
@@ -122,6 +135,9 @@ def google_callback(request):
             raise ValueError("Your Google email address is too long.")
         user = _google_user(claims, request.user)
     except (requests.RequestException, GoogleAuthError, KeyError, TypeError, ValidationError, IntegrityError):
+        if flow.get("mobile"):
+            from mobile_api.customer_parity import google_mobile_result
+            return google_mobile_result(flow, error="We couldn't complete Google sign-in. Please try again.")
         messages.error(request, "We couldn't complete Google sign-in. Please try again or use email.")
         return redirect(error_route)
     except ValueError as exc:
@@ -133,8 +149,14 @@ def google_callback(request):
             "Your profile already has a different Google account connected.",
             "An account already uses this email. Sign in to your existing account, then connect Google from Personal Information.",
         }
+        if flow.get("mobile"):
+            from mobile_api.customer_parity import google_mobile_result
+            return google_mobile_result(flow, error=str(exc) if str(exc) in safe_errors else "We couldn't verify Google sign-in. Please try again.")
         messages.error(request, str(exc) if str(exc) in safe_errors else "We couldn't verify Google sign-in. Please try again or use email.")
         return redirect(error_route)
+    if flow.get("mobile"):
+        from mobile_api.customer_parity import google_mobile_result
+        return google_mobile_result(flow, user=user)
     login(request, user, backend=BACKEND)
     request.session.pop("pending_verification_email", None)
     messages.success(request, "You're signed in with Google. You can update your profile whenever you're ready.")

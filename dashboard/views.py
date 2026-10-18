@@ -1,7 +1,5 @@
 import json
-import razorpay
 from decimal import Decimal, InvalidOperation
-from datetime import timedelta
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
@@ -42,14 +40,8 @@ from products.models import ProductVariant
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Count
 from django.db.models.functions import TruncMonth
 from django.core.exceptions import PermissionDenied
-from accounts.models import SellerAIPlanPurchase, SellerProfile
+from accounts.models import SellerProfile
 from .forms import ProductAudienceForm, SellerProductEditForm, SellerProductForm, SellerVariantStockForm
-from .ai_services import (
-    AIListingError,
-    enhance_product_image,
-    generate_listing_copy,
-    generate_listing_from_photos,
-)
 from .security import audit, operations_admin_required
 
 # ✅ Only allow superusers (admins) to access dashboard
@@ -386,8 +378,6 @@ def seller_add_product(request):
         {
             "seller": seller,
             "form": form,
-            "razorpay_key_id": settings.RAZORPAY_KEY_ID,
-            "ai_plans": settings.SELLER_AI_PLANS,
         },
     )
 
@@ -591,171 +581,6 @@ def seller_catalog_requests(request):
             "catalog_requests": CatalogRequest.objects.filter(seller=seller),
         },
     )
-
-
-def _require_active_ai_plan(seller):
-    if not seller.ai_subscription_active:
-        raise AIListingError("Choose an AI image plan to unlock listing tools.")
-
-
-def _reserve_ai_image(seller):
-    updated = SellerProfile.objects.filter(
-        pk=seller.pk,
-        ai_subscription_ends_at__gt=timezone.now(),
-        ai_images_used__lt=F("ai_image_limit"),
-    ).update(
-        ai_images_used=F("ai_images_used") + 1
-    )
-    if not updated:
-        raise AIListingError("Your monthly AI image allowance has been used. Renew or choose another plan.")
-
-
-def _refund_ai_image(seller):
-    SellerProfile.objects.filter(pk=seller.pk, ai_images_used__gt=0).update(
-        ai_images_used=F("ai_images_used") - 1
-    )
-
-
-@login_required
-@require_POST
-def seller_ai_generate_copy(request):
-    seller = _approved_seller_for(request)
-    notes = request.POST.get("notes", "").strip()
-    front_image = request.FILES.get("front_image")
-    back_image = request.FILES.get("back_image")
-    image_error = _validate_ai_photos(front_image, back_image)
-    if image_error:
-        return JsonResponse({"error": image_error}, status=400)
-    try:
-        _require_active_ai_plan(seller)
-        result = generate_listing_from_photos(
-            front_image,
-            back_image,
-            request.POST.get("category", "").strip(),
-            notes,
-        )
-    except AIListingError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
-    except Exception:
-        return JsonResponse({"error": "The AI service is temporarily unavailable."}, status=503)
-    return JsonResponse(result)
-
-
-@login_required
-@require_POST
-def seller_ai_enhance_image(request):
-    seller = _approved_seller_for(request)
-    front_image = request.FILES.get("front_image")
-    back_image = request.FILES.get("back_image")
-    image_error = _validate_ai_photos(front_image, back_image)
-    if image_error:
-        return JsonResponse({"error": image_error}, status=400)
-    try:
-        _require_active_ai_plan(seller)
-        _reserve_ai_image(seller)
-        try:
-            _reserve_ai_image(seller)
-        except AIListingError:
-            _refund_ai_image(seller)
-            raise
-        completed = 0
-        try:
-            front_encoded = enhance_product_image(front_image, back_image, "front")
-            completed = 1
-            back_encoded = enhance_product_image(back_image, front_image, "back")
-            completed = 2
-        except Exception as exc:
-            for _ in range(2 - completed):
-                _refund_ai_image(seller)
-            if isinstance(exc, AIListingError):
-                raise
-            raise AIListingError("The AI service is temporarily unavailable.") from exc
-    except AIListingError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
-    seller.refresh_from_db(fields=["ai_images_used"])
-    return JsonResponse({
-        "images": {"front": front_encoded, "back": back_encoded},
-        "images_remaining": seller.ai_images_remaining,
-    })
-
-
-def _validate_ai_photos(front_image, back_image):
-    if not front_image or not back_image:
-        return "Upload clear front and back product photos first."
-    for image in (front_image, back_image):
-        if not image.content_type or not image.content_type.startswith("image/"):
-            return "Upload valid front and back image files."
-        if image.size > 10 * 1024 * 1024:
-            return "Each image must be 10 MB or smaller."
-    return ""
-
-
-@login_required
-@require_POST
-def seller_ai_create_order(request):
-    seller = _approved_seller_for(request)
-    plan_code = request.POST.get("plan", "")
-    plan = settings.SELLER_AI_PLANS.get(plan_code)
-    if not plan:
-        return JsonResponse({"error": "Choose a valid monthly plan."}, status=400)
-    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-    order = client.order.create(
-        {
-            "amount": plan["price_paise"],
-            "currency": "INR",
-            "payment_capture": 1,
-            "notes": {"seller_id": str(seller.pk), "purpose": "seller_ai_plan", "plan": plan_code},
-        }
-    )
-    SellerAIPlanPurchase.objects.create(
-        seller=seller,
-        razorpay_order_id=order["id"],
-        amount_paise=plan["price_paise"],
-        plan_code=plan_code,
-        image_limit=plan["image_limit"],
-    )
-    return JsonResponse({"order_id": order["id"], "amount": order["amount"]})
-
-
-@login_required
-@require_POST
-def seller_ai_confirm_payment(request):
-    seller = _approved_seller_for(request)
-    params = {
-        "razorpay_order_id": request.POST.get("razorpay_order_id"),
-        "razorpay_payment_id": request.POST.get("razorpay_payment_id"),
-        "razorpay_signature": request.POST.get("razorpay_signature"),
-    }
-    try:
-        razorpay.Client(
-            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        ).utility.verify_payment_signature(params)
-    except Exception:
-        return JsonResponse({"error": "Payment verification failed."}, status=400)
-
-    with transaction.atomic():
-        purchase = get_object_or_404(
-            SellerAIPlanPurchase.objects.select_for_update(),
-            seller=seller,
-            razorpay_order_id=params["razorpay_order_id"],
-        )
-        if purchase.status != "paid":
-            purchase.status = "paid"
-            purchase.razorpay_payment_id = params["razorpay_payment_id"]
-            purchase.paid_at = timezone.now()
-            purchase.save(update_fields=["status", "razorpay_payment_id", "paid_at"])
-            SellerProfile.objects.filter(pk=seller.pk).update(
-                ai_plan=purchase.plan_code,
-                ai_image_limit=purchase.image_limit,
-                ai_images_used=0,
-                ai_subscription_ends_at=timezone.now() + timedelta(days=30),
-            )
-    seller.refresh_from_db()
-    return JsonResponse({
-        "plan": seller.get_ai_plan_display(),
-        "images_remaining": seller.ai_images_remaining,
-        "ends_at": seller.ai_subscription_ends_at.isoformat(),
-    })
 
 
 @operations_admin_required

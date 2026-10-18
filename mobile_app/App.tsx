@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,6 +23,10 @@ import Constants from "expo-constants";
 import PartnerWorkspace from "./src/PartnerWorkspace";
 import CustomerOrderTools from "./src/CustomerOrderTools";
 import AccountTools from "./src/AccountTools";
+import ProfileEditor from "./src/ProfileEditor";
+import { googleSignIn } from "./src/googleSignIn";
+import GroceryDiscovery from "./src/GroceryDiscovery";
+import FoodDiscovery from "./src/FoodDiscovery";
 import usePushRegistration from "./src/usePushRegistration";
 import { payOrder, recoverPayment } from "./src/nativePayments";
 import { completePlacedOrder } from "./src/checkoutCompletion";
@@ -67,9 +72,7 @@ import {
   getCheckoutQuote,
   getFoodCart,
   getGroceryCart,
-  getGroceryProducts,
   getGroceryCategories,
-  getGroceryStore,
   getGroceryStores,
   getOrders,
   getProduct,
@@ -172,8 +175,10 @@ function ProductCard({
   onOpen: () => void;
   onWishlist?: () => void;
 }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = (Math.min(width, 720) - 44) / 2;
   return (
-    <Pressable style={s.card} onPress={onOpen}>
+    <Pressable style={[s.card, { width: cardWidth }]} onPress={onOpen}>
       <View style={s.imageWrap}>
         {product.image_url ? (
           <Image source={{ uri: product.image_url }} style={s.productImage} />
@@ -239,13 +244,11 @@ function AuthModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onAuthenticated: (token: string, user: User) => Promise<void>;
+  onAuthenticated: (token: string, user: User, openProfile?: boolean) => Promise<void>;
 }) {
   const [mode, setMode] = useState<"login" | "signup" | "resume" | "otp" | "forgot" | "forgotUsername" | "reset">("login");
   const [identity, setIdentity] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
@@ -287,7 +290,7 @@ function AuthModal({
         await onAuthenticated(result.token, result.user);
         onClose();
       } else if (mode === "signup") {
-        const result = await signup({ username, email, phone, password });
+        const result = await signup({ email, password });
         setEmail(result.email);
         setOtp("");
         setResendAt(Date.now() + 60000);
@@ -306,7 +309,7 @@ function AuthModal({
         setMessage(result.message);
       } else if (mode === "otp") {
         const result = await verifyOtp(email, otp);
-        await onAuthenticated(result.token, result.user);
+        await onAuthenticated(result.token, result.user, true);
         onClose();
       } else if (mode === "forgotUsername") {
         const result = await requestUsernameReminder(email);
@@ -373,6 +376,7 @@ function AuthModal({
               ? `Enter the six-digit code sent to ${email}.`
               : "Your orders, wishlist and addresses stay safely synced."}
           </Text>
+          {(mode === "login" || mode === "signup") && <><Text style={s.secureNote}>{mode === "signup" ? "Create your account with email and password. Verify your email, then add personal details whenever you're ready." : "Welcome back. Sign in with email or username."}</Text><Pressable disabled={busy} style={[s.googleButton, busy && s.disabled]} onPress={async () => { setBusy(true); setMessage(""); try { const result = await googleSignIn(); if (result) { await onAuthenticated(result.token, result.user, true); onClose(); } } catch (error) { showAuthError(error); } finally { setBusy(false); } }}><Text style={s.googleButtonText}>G  ·  Continue with Google</Text></Pressable><Text style={s.authDivider}>or continue with email</Text></>}
           {mode === "login" && (
             <>
               <Field
@@ -393,18 +397,11 @@ function AuthModal({
           )}
           {mode === "signup" && (
             <>
-              <Field label="Username" value={username} onChange={setUsername} />
               <Field
                 label="Email"
                 value={email}
                 onChange={setEmail}
                 keyboard="email-address"
-              />
-              <Field
-                label="Mobile number"
-                value={phone}
-                onChange={setPhone}
-                keyboard="phone-pad"
               />
               <Field
                 label="Password"
@@ -499,18 +496,20 @@ function Header({
   onLocation,
   onCart,
   onLogo,
+  dark = false,
 }: {
   count: number;
   location: string;
   onLocation: () => void;
   onCart: () => void;
   onLogo: () => void;
+  dark?: boolean;
 }) {
   return (
-    <View style={s.header}>
+    <View style={[s.header, dark && s.foodChrome]}>
       <Pressable onPress={onLocation} style={s.locationButton}>
         <Text style={s.eyebrow}>DELIVERING TO</Text>
-        <Text style={s.location} numberOfLines={1}>
+        <Text style={[s.location, dark && s.foodText]} numberOfLines={1}>
           {location}⌄
         </Text>
       </Pressable>
@@ -536,9 +535,11 @@ function Header({
 function ServiceStrip({
   selected,
   onSelect,
+  dark = false,
 }: {
   selected: Service;
   onSelect: (service: Service) => void;
+  dark?: boolean;
 }) {
   const items: [Service, string, string][] = [
     ["shop", "🛍️", "Shop"],
@@ -546,16 +547,16 @@ function ServiceStrip({
     ["grocery", "🥬", "Groceries"],
   ];
   return (
-    <View style={s.serviceStrip}>
+    <View style={[s.serviceStrip, dark && s.foodChrome]}>
       {items.map(([value, icon, label]) => (
         <Pressable
           key={value}
-          style={[s.serviceButton, selected === value && s.serviceActive]}
+          style={[s.serviceButton, dark && s.foodChip, selected === value && (dark ? s.foodSelected : s.serviceActive)]}
           onPress={() => onSelect(value)}
         >
           <Text style={s.serviceIcon}>{icon}</Text>
           <Text
-            style={[s.serviceLabel, selected === value && s.serviceLabelActive]}
+            style={[s.serviceLabel, dark && s.foodMuted, selected === value && (dark ? s.foodText : s.serviceLabelActive)]}
           >
             {label}
           </Text>
@@ -575,6 +576,7 @@ function LocalServiceScreen({
   groceryCart,
   setGroceryCart,
   onOpenCart,
+  onLocation,
 }: {
   service: Exclude<Service, "shop">;
   pincode: string;
@@ -585,23 +587,16 @@ function LocalServiceScreen({
   groceryCart: GroceryCartRow[];
   setGroceryCart: React.Dispatch<React.SetStateAction<GroceryCartRow[]>>;
   onOpenCart: () => void;
+  onLocation: () => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [stores, setStores] = useState<GroceryStore[]>([]);
-  const [groceryGroups, setGroceryGroups] = useState<{ id: number; name: string; slug: string }[]>([]);
+  const [groceryGroups, setGroceryGroups] = useState<{ id: number; name: string; slug: string; image_url?: string | null }[]>([]);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [store, setStore] = useState<
-    (GroceryStore & { products: GroceryProduct[] }) | null
-  >(null);
-  const [localQuery, setLocalQuery] = useState("");
-  const [groceryCategory, setGroceryCategory] = useState("");
-  const groceryPages = useCatalog<GroceryProduct>(
-    JSON.stringify([service, pincode, store?.slug, localQuery, groceryCategory]),
-    (page, signal) => getGroceryProducts({ store: store?.slug, q: localQuery, category: groceryCategory, page: String(page) }, signal),
-    service === "grocery" && !!store,
-  );
+  const [menuQuery, setMenuQuery] = useState("");
+  const [menuVeg, setMenuVeg] = useState(false);
   const [foodDetail, setFoodDetail] = useState<MenuItem | null>(null);
   const [groceryDetail, setGroceryDetail] = useState<GroceryProduct | null>(
     null,
@@ -611,7 +606,7 @@ function LocalServiceScreen({
     setLoading(true);
     setError("");
     setRestaurant(null);
-    setStore(null);
+    setMenuQuery(""); setMenuVeg(false);
     const action =
       service === "food"
         ? getRestaurants(pincode)
@@ -629,11 +624,6 @@ function LocalServiceScreen({
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [service, pincode]);
-  const title = service === "food" ? "Food delivery" : "Groceries";
-  const subtitle =
-    service === "food"
-      ? "Fresh meals from nearby restaurants"
-      : "Daily essentials from local stores";
   if (loading)
     return (
       <View style={s.servicePage}>
@@ -688,31 +678,13 @@ function LocalServiceScreen({
       else Alert.alert("Could not add item", error.message);
     }
   };
-  const serviceItems =
-    service === "food"
-      ? foodCart.map((row) => ({
-          name: row.item.name,
-          meta: row.option_name,
-          image_url: row.item.image_url,
-          price:
-            row.item.options.find((o) => o.id === row.option_id)?.price ||
-            row.item.starting_price,
-          quantity: row.quantity,
-        }))
-      : groceryCart.map((row) => ({
-          name: row.product.name,
-          meta: row.product.unit,
-          image_url: row.product.image_url,
-          price: row.product.price,
-          quantity: row.quantity,
-        }));
-  const groceryItems = groceryPages.items;
+  const menuItems = restaurant?.menu_items?.filter(item => (!menuVeg || item.food_type === "veg") && `${item.name} ${item.description} ${item.section}`.toLowerCase().includes(menuQuery.toLowerCase().trim())) || [];
   if (restaurant)
     return (
       <>
-        <ScrollView contentContainerStyle={s.serviceContent}>
+        <ScrollView style={s.foodPage} contentContainerStyle={s.serviceContent} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setRestaurant(null)} style={s.back}>
-            <Text style={s.backText}>‹ Restaurants</Text>
+            <Text style={[s.backText, s.foodAccent]}>‹ Restaurants</Text>
           </Pressable>
           {restaurant.image_url && (
             <Image
@@ -720,27 +692,31 @@ function LocalServiceScreen({
               style={s.restaurantHero}
             />
           )}
-          <Text style={s.serviceTitle}>{restaurant.name}</Text>
-          <Text style={s.serviceSubtitle}>
-            {restaurant.cuisine} · {restaurant.preparation_minutes} min
+          <Text style={[s.serviceTitle, s.foodText]}>{restaurant.name}</Text>
+          <Text style={[s.serviceSubtitle, s.foodMuted]}>
+            {restaurant.cuisine} · {restaurant.preparation_minutes} min preparation
           </Text>
-          {restaurant.menu_items?.map((item) => (
+          <Text style={s.foodMuted}>{restaurant.description}</Text>
+          <TextInput accessibilityLabel="Search this restaurant menu" style={[s.searchInput, s.foodInput]} placeholder="Search dishes on this menu" placeholderTextColor="#9898A7" value={menuQuery} onChangeText={setMenuQuery} />
+          <View style={s.filterChips}>{[false, true].map(veg => <Pressable key={String(veg)} accessibilityState={{ selected: menuVeg === veg }} style={[s.filterChip, s.foodChip, menuVeg === veg && s.foodSelected]} onPress={() => setMenuVeg(veg)}><Text style={s.foodText}>{veg ? "Vegetarian" : "All dishes"}</Text></Pressable>)}</View>
+          <Text style={[s.sectionTitle, s.foodText]}>Made for your cravings</Text>
+          {menuItems.map((item) => (
             <Pressable
               key={item.id}
-              style={s.menuCard}
+              style={[s.menuCard, s.foodMenuCard]}
               onPress={() => setFoodDetail(item)}
             >
               <View style={s.menuCopy}>
-                <Text style={s.storeName}>{item.name}</Text>
-                <Text style={s.storeMeta}>
+                <Text style={[s.storeName, s.foodText]}>{item.name}</Text>
+                <Text style={[s.storeMeta, s.foodMuted]}>
                   {item.food_type === "veg" ? "🟢 Veg" : "🔴 Non-veg"} ·{" "}
                   {item.section}
                 </Text>
-                <Text style={s.description} numberOfLines={2}>
+                <Text style={[s.description, s.foodMuted]} numberOfLines={2}>
                   {item.description}
                 </Text>
-                <Text style={s.price}>From {money(item.starting_price)}</Text>
-                <Text style={s.viewDetails}>View details →</Text>
+                <Text style={[s.price, s.foodText]}>From {money(item.starting_price)}</Text>
+                <Text style={[s.viewDetails, s.foodAccent]}>Choose & add +</Text>
               </View>
               {item.image_url ? (
                 <Image source={{ uri: item.image_url }} style={s.menuImage} />
@@ -749,8 +725,9 @@ function LocalServiceScreen({
               )}
             </Pressable>
           ))}
+          {!menuItems.length && <View style={s.emptyService}><Text style={[s.storeName, s.foodText]}>No dishes match your search</Text><Text style={[s.emptyCopy, s.foodMuted]}>Try another dish or switch to all dishes.</Text></View>}
           {!!foodCart.length && (
-            <Pressable style={s.stickyCheckout} onPress={onOpenCart}>
+            <Pressable style={[s.stickyCheckout, s.foodPrimary]} onPress={onOpenCart}>
               <Text style={s.primaryText}>
                 {foodCart.reduce((n, r) => n + r.quantity, 0)} items · View food
                 cart
@@ -766,188 +743,13 @@ function LocalServiceScreen({
         />
       </>
     );
-  return (
-    <ScrollView contentContainerStyle={s.serviceContent}>
-      {store && (
-        <Pressable
-          style={s.back}
-          onPress={() => {
-            setStore(null);
-            setGroceryCategory("");
-            setLocalQuery("");
-          }}
-        >
-          <Text style={s.backText}>‹ All grocery stores</Text>
-        </Pressable>
-      )}
-      <Text style={s.serviceTitle}>{store?.name || title}</Text>
-      <Text style={s.serviceSubtitle}>
-        {store
-          ? `${store.estimated_delivery_minutes} min · Free delivery on orders of ₹200 or more`
-          : subtitle}
-      </Text>
-      {!!error && <Text style={s.errorText}>{error}</Text>}
-      {service === "food" &&
-        restaurants.map((row) => (
-          <Pressable
-            key={row.id}
-            style={s.storeCard}
-            onPress={async () => {
-              try {
-                setRestaurant(await getRestaurant(row.slug));
-              } catch {
-                Alert.alert("Could not open menu", "Please try again.");
-              }
-            }}
-          >
-            {row.image_url ? (
-              <Image source={{ uri: row.image_url }} style={s.storeImage} />
-            ) : (
-              <View style={s.storeFallback}>
-                <Text style={s.storeEmoji}>🍲</Text>
-              </View>
-            )}
-            <View style={s.storeCopy}>
-              <Text style={s.storeName}>{row.name}</Text>
-              <Text style={s.storeMeta}>
-                {row.cuisine || "Local favourites"} · {row.preparation_minutes}{" "}
-                min
-              </Text>
-              <Text style={s.storeMeta}>
-                Free delivery on orders of ₹200 or more
-              </Text>
-              <Text style={s.openText}>View menu →</Text>
-            </View>
-          </Pressable>
-        ))}
-      {service === "grocery" &&
-        !store &&
-        stores.map((row) => (
-          <Pressable
-            key={row.id}
-            style={s.storeCard}
-            onPress={async () => {
-              try {
-                setStore(await getGroceryStore(row.slug));
-              } catch {
-                Alert.alert("Could not open store", "Please try again.");
-              }
-            }}
-          >
-            {row.image_url ? (
-              <Image source={{ uri: row.image_url }} style={s.storeImage} />
-            ) : (
-              <View style={s.storeFallback}>
-                <Text style={s.storeEmoji}>🥬</Text>
-              </View>
-            )}
-            <View style={s.storeCopy}>
-              <Text style={s.storeName}>{row.name}</Text>
-              <Text style={s.storeMeta}>
-                {row.estimated_delivery_minutes} min · Free delivery on orders of ₹200 or more
-              </Text>
-              <Text style={s.storeMeta}>
-                Minimum order {money(row.minimum_order)}
-              </Text>
-              <Text style={s.openText}>Shop this store →</Text>
-            </View>
-          </Pressable>
-        ))}
-      {service === "grocery" && store && (
-        <>
-          <TextInput
-            value={localQuery}
-            onChangeText={setLocalQuery}
-            placeholder="Search this store"
-            style={s.searchInput}
-          />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.filterChips}
-          >
-            <Pressable
-              style={[s.filterChip, !groceryCategory && s.filterChipActive]}
-              onPress={() => setGroceryCategory("")}
-            >
-              <Text>All</Text>
-            </Pressable>
-            {groceryGroups.map((group) => (
-              <Pressable
-                key={group.slug}
-                style={[
-                  s.filterChip,
-                  groceryCategory === group.slug && s.filterChipActive,
-                ]}
-                onPress={() => setGroceryCategory(group.slug)}
-              >
-                <Text>{group.name}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </>
-      )}
-      {service !== "food" && store && (
-        <>
-        {groceryPages.loading && <ActivityIndicator />}
-        <View style={s.groceryGrid}>
-          {groceryItems.map((row) => (
-            <Pressable
-              key={row.id}
-              style={s.groceryCard}
-              onPress={() => setGroceryDetail(row)}
-            >
-              {row.image_url ? (
-                <Image source={{ uri: row.image_url }} style={s.groceryImage} />
-              ) : (
-                <View style={s.groceryFallback}>
-                  <Text style={s.storeEmoji}>🥫</Text>
-                </View>
-              )}
-              <Text style={s.groceryName} numberOfLines={2}>
-                {row.name}
-              </Text>
-              <Text style={s.storeMeta}>
-                {row.brand || row.store_name} · {row.unit}
-              </Text>
-              <Text style={s.price}>{money(row.price)}</Text>
-              <Text style={s.stockText}>{row.stock} available</Text>
-              <Text style={s.viewDetails}>View details →</Text>
-            </Pressable>
-          ))}
-        </View>
-        <CatalogMore catalog={groceryPages} />
-        {!groceryPages.loading && !groceryPages.error && !groceryItems.length && <Text style={s.emptyCopy}>No products match these filters.</Text>}
-        </>
-      )}
-      {!error &&
-        ((service === "food" && !restaurants.length) ||
-          (service === "grocery" && !stores.length)) && (
-          <View style={s.emptyService}>
-            <Text style={s.emptyIcon}>{service === "food" ? "🍲" : "🥬"}</Text>
-            <Text style={s.pageTitle}>Coming to your area</Text>
-            <Text style={s.emptyCopy}>
-              No approved {title.toLowerCase()} inventory is currently published
-              on ZIYAMART. It will appear here automatically when a seller adds
-              it.
-            </Text>
-          </View>
-        )}
-      {!!groceryCart.length && (
-        <Pressable style={s.stickyCheckout} onPress={onOpenCart}>
-          <Text style={s.primaryText}>
-            {groceryCart.reduce((n, r) => n + r.quantity, 0)} items · View
-            grocery cart
-          </Text>
-        </Pressable>
-      )}
-      <GroceryDetailModal
-        product={groceryDetail}
-        onClose={() => setGroceryDetail(null)}
-        onAdd={addGrocery}
-      />
-    </ScrollView>
-  );
+  if (service === "food") return <FoodDiscovery pincode={pincode} token={token} availableCount={restaurants.length} onLocation={onLocation} cartCount={foodCart.reduce((sum, row) => sum + row.quantity, 0)} onCart={onOpenCart} onOpen={async row => { try { setRestaurant(await getRestaurant(row.slug)); setMenuQuery(""); setMenuVeg(false); } catch (error: any) { Alert.alert("Could not open menu", error.message); } }} />;
+  return <>
+    <GroceryDiscovery key={pincode} pincode={pincode} stores={stores} groups={groceryGroups} error={error} token={token}
+      cartCount={groceryCart.reduce((sum, row) => sum + row.quantity, 0)}
+      onCart={onOpenCart} onLocation={onLocation} onProduct={setGroceryDetail} />
+    <GroceryDetailModal product={groceryDetail} onClose={() => setGroceryDetail(null)} onAdd={addGrocery} />
+  </>;
 }
 
 function FoodDetailModal({
@@ -983,11 +785,11 @@ function FoodDetailModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={s.authPage} edges={["top", "bottom"]}>
+      <SafeAreaView style={[s.authPage, s.foodPage]} edges={["top", "bottom"]}>
         <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Food details</Text>
+          <Text style={[s.modalTitle, s.foodText]}>Food details</Text>
           <Pressable onPress={onClose}>
-            <Text style={s.close}>×</Text>
+            <Text style={[s.close, s.foodAccent]}>×</Text>
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.detailPage}>
@@ -998,57 +800,57 @@ function FoodDetailModal({
               <Text style={s.detailPlaceholder}>🍲</Text>
             </View>
           )}
-          <Text style={s.detailTitle}>{item.name}</Text>
-          <Text style={s.storeMeta}>
+          <Text style={[s.detailTitle, s.foodText]}>{item.name}</Text>
+          <Text style={[s.storeMeta, s.foodMuted]}>
             {item.food_type === "veg" ? "🟢 Vegetarian" : "🔴 Non-vegetarian"} ·{" "}
             {item.section}
           </Text>
-          <Text style={s.description}>
+          <Text style={[s.description, s.foodMuted]}>
             {item.description ||
               "Freshly prepared by the restaurant after your order is confirmed."}
           </Text>
           <View style={s.infoGrid}>
             <View style={s.infoHalf}>
-              <Text style={s.infoLabel}>RESTAURANT</Text>
-              <Text style={s.infoValue}>{restaurant.name}</Text>
+              <Text style={[s.infoLabel, s.foodMuted]}>RESTAURANT</Text>
+              <Text style={[s.infoValue, s.foodText]}>{restaurant.name}</Text>
             </View>
             <View style={s.infoHalf}>
-              <Text style={s.infoLabel}>PREPARATION</Text>
-              <Text style={s.infoValue}>
+              <Text style={[s.infoLabel, s.foodMuted]}>PREPARATION</Text>
+              <Text style={[s.infoValue, s.foodText]}>
                 {restaurant.preparation_minutes} min
               </Text>
             </View>
           </View>
-          <Text style={s.sectionTitle}>Choose an option</Text>
+          <Text style={[s.sectionTitle, s.foodText]}>Choose an option</Text>
           <View style={s.variants}>
             {item.options.map((option) => (
               <Pressable
                 key={option.id}
-                style={[s.variant, optionId === option.id && s.optionSelected]}
+                style={[s.variant, s.foodChip, optionId === option.id && s.foodSelected]}
                 onPress={() => setOptionId(option.id)}
               >
-                <Text style={s.variantText}>{option.name}</Text>
-                <Text style={s.variantPrice}>{money(option.price)}</Text>
+                <Text style={[s.variantText, s.foodText]}>{option.name}</Text>
+                <Text style={[s.variantPrice, s.foodText]}>{money(option.price)}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={s.sectionTitle}>Quantity</Text>
+          <Text style={[s.sectionTitle, s.foodText]}>Quantity</Text>
           <View style={s.qty}>
             <Pressable onPress={() => setQuantity(Math.max(1, quantity - 1))}>
-              <Text style={s.qtyBtn}>−</Text>
+              <Text style={[s.qtyBtn, s.foodText]}>−</Text>
             </Pressable>
-            <Text style={s.qtyValue}>{quantity}</Text>
+            <Text style={[s.qtyValue, s.foodText]}>{quantity}</Text>
             <Pressable onPress={() => setQuantity(Math.min(20, quantity + 1))}>
-              <Text style={s.qtyBtn}>＋</Text>
+              <Text style={[s.qtyBtn, s.foodText]}>＋</Text>
             </Pressable>
           </View>
-          <Text style={s.sectionTitle}>Cooking instructions</Text>
+          <Text style={[s.sectionTitle, s.foodText]}>Cooking instructions</Text>
           <TextInput
             value={note}
             onChangeText={(value) => setNote(value.slice(0, 300))}
             placeholder="Example: less spicy, no onion"
             multiline
-            style={[s.fieldInput, s.noteInput]}
+            placeholderTextColor="#9898A7" style={[s.fieldInput, s.noteInput, s.foodInput]}
           />
           <View style={s.stockBanner}>
             <Text style={s.stockBannerText}>
@@ -1057,7 +859,7 @@ function FoodDetailModal({
           </View>
           <Pressable
             disabled={!chosen}
-            style={[s.primary, !chosen && s.disabled]}
+            style={[s.primary, s.foodPrimary, !chosen && s.disabled]}
             onPress={() => {
               onAdd(
                 { ...item, options: chosen ? [chosen] : [] },
@@ -1244,6 +1046,7 @@ function ZiyaApp() {
     updateToken(value);
   };
   const catalogParams = tab === "Search" ? { q: query, sort, ...filters } : {
+    ...(tab === "Categories" ? { q: query, sort, ...filters } : {}),
     category: category?.slug,
     gender: category?.slug === "kids-wear" ? kidsGender : "",
     kids_age_group: category?.slug === "kids-wear" ? kidsAgeGroup : "",
@@ -1389,12 +1192,18 @@ function ZiyaApp() {
     if (food.status === "fulfilled") setFoodCart(foodRows(food.value));
     if (grocery.status === "fulfilled") setGroceryCart(groceryRows(grocery.value));
   };
-  const authenticate = async (nextToken: string, nextUser: User) => {
+  const authenticate = async (nextToken: string, nextUser: User, openProfile = false) => {
     await SecureStore.setItemAsync("ziyamart_token", nextToken);
     setToken(nextToken);
     setUser(nextUser);
     void AsyncStorage.removeItem("ziyamart_token").catch(() => {});
     void syncSessionCarts(nextToken);
+    if (openProfile) { setSelected(null); setTab("Account"); setTimeout(() => setAccountView("profile"), 400); }
+  };
+  const chooseCategory = (group: Category | null) => {
+    setCategory(group); setQuery(""); setSort("newest"); setKidsGender(""); setKidsAgeGroup("");
+    setFilters({ subcategory: "", color: "", size: "", seller: "", min_price: "", max_price: "", rating: "" });
+    setTab("Categories");
   };
   const rememberSearch = (value: string) => {
     const clean = value.trim();
@@ -1865,9 +1674,10 @@ function ZiyaApp() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[s.safe, service === "food" && tab === "Home" && s.foodChrome]}>
+      <StatusBar style={service === "food" && tab === "Home" ? "light" : "dark"} />
       <Header
+        dark={service === "food" && tab === "Home"}
         count={count}
         location={deliveryLocation}
         onLocation={() => setLocationVisible(true)}
@@ -1878,6 +1688,7 @@ function ZiyaApp() {
         }}
       />
       <ServiceStrip
+        dark={service === "food" && tab === "Home"}
         selected={service}
         onSelect={(value) => {
           setService(value);
@@ -1887,6 +1698,7 @@ function ZiyaApp() {
       <View style={s.body}>
         {tab === "Home" && service !== "shop" && (
           <LocalServiceScreen
+            onLocation={() => setLocationVisible(true)}
             service={service}
             pincode={deliveryLocation.match(/\b\d{6}\b/)?.[0] || ""}
             token={token}
@@ -1901,13 +1713,16 @@ function ZiyaApp() {
         {tab === "Home" && service === "shop" && (
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={s.page}
+            contentContainerStyle={s.shopPage}
           >
+            <Pressable accessibilityRole="button" accessibilityLabel="Search products and brands" style={s.homeSearch} onPress={() => setTab("Search")}>
+              <Text style={s.homeSearchText}>Search products and brands</Text><Text style={s.homeSearchIcon}>⌕</Text>
+            </Pressable>
             <LinearGradient colors={["#ECFAF4", "#D7F4E6"]} style={s.hero}>
               <View style={s.heroCopy}>
                 <Text style={s.heroKicker}>QUALITY · VARIETY · VALUE</Text>
                 <Text style={s.heroTitle}>
-                  Everything you love,{`\n`}all in one place.
+                  Everyday finds,{`\n`}all in one place.
                 </Text>
                 <Pressable
                   style={s.shopButton}
@@ -1923,7 +1738,7 @@ function ZiyaApp() {
             <View style={s.sectionRow}>
               <Text style={s.heading}>Shop by category</Text>
 
-              <Pressable onPress={() => setTab("Categories")}>
+              <Pressable onPress={() => chooseCategory(null)}>
                 <Text style={s.link}>See all →</Text>
               </Pressable>
             </View>
@@ -1942,7 +1757,7 @@ function ZiyaApp() {
                 <Pressable
                   key={group.id}
                   style={s.category}
-                  onPress={() => setCategory(group)}
+                  onPress={() => chooseCategory(group)}
                 >
                   <View
                     style={[
@@ -1959,7 +1774,7 @@ function ZiyaApp() {
                       <Text style={s.categoryEmoji}>🛍️</Text>
                     )}
                   </View>
-                  <Text style={s.categoryLabel} numberOfLines={1}>
+                  <Text style={s.categoryLabel} numberOfLines={2}>
                     {group.name}
                   </Text>
                 </Pressable>
@@ -1967,7 +1782,7 @@ function ZiyaApp() {
             </ScrollView>
             <View style={s.sectionRow}>
               <Text style={s.heading}>Fresh picks for you</Text>
-              <Text style={s.link}>Explore</Text>
+              <Pressable accessibilityRole="button" onPress={() => setTab("Search")}><Text style={s.link}>Explore →</Text></Pressable>
             </View>
             {loading ? (
               <ActivityIndicator
@@ -2266,6 +2081,23 @@ function ZiyaApp() {
                   </>
                 )}
               </>
+            ) : category ? (
+              <>
+                <View style={s.collectionHero}>
+                  <Pressable onPress={() => chooseCategory(null)}><Text style={s.link}>‹ All categories</Text></Pressable>
+                  <Text style={s.collectionEyebrow}>THE ZIYAMART COLLECTION</Text>
+                  <Text style={s.collectionTitle}>{category.name}</Text>
+                  <Text style={s.collectionCopy}>Discover your next everyday favourite.</Text>
+                  <Text style={s.collectionCount}>{catalog.count} products to explore</Text>
+                </View>
+                <View style={s.searchToolbar}><TextInput accessibilityLabel={`Search ${category.name}`} style={[s.searchInput, s.searchGrow]} placeholder={`Search ${category.name.toLowerCase()}`} value={query} onChangeText={setQuery} /><Pressable style={s.filterButton} onPress={() => setFiltersVisible(true)}><Text style={s.filterButtonText}>Filters</Text></Pressable></View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.collectionChips}>
+                  <Pressable style={[s.filterChip, !filters.subcategory && s.filterChipActive]} onPress={() => setFilters({ ...filters, subcategory: "" })}><Text>All {category.name}</Text></Pressable>
+                  {category.subcategories.map(group => <Pressable key={group.id} style={[s.filterChip, filters.subcategory === String(group.id) && s.filterChipActive]} onPress={() => setFilters({ ...filters, subcategory: String(group.id) })}><Text>{group.name}</Text></Pressable>)}
+                </ScrollView>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.collectionChips}>{[["newest", "New arrivals"], ["price_low", "Price: low to high"], ["price_high", "Price: high to low"], ["rating", "Top rated"]].map(([value, label]) => <Pressable key={value} style={[s.filterChip, sort === value && s.filterChipActive]} onPress={() => setSort(value)}><Text>{label}</Text></Pressable>)}</ScrollView>
+                {loading ? <ActivityIndicator color={C.orange} style={s.loader} /> : error && !products.length ? <View style={s.errorBox}><Text style={s.errorText}>{error}</Text><Pressable onPress={load}><Text style={s.retry}>Try again</Text></Pressable></View> : <><View style={s.grid}>{products.map(product => <ProductCard key={product.id} product={product} onOpen={() => openProduct(product)} onWishlist={() => toggleWishlist(product)} />)}</View><CatalogMore catalog={catalog} />{!products.length && <EmptyState icon="🛍️" title="Your next favourite is on its way" copy="No products match these choices. Try another search or explore the full collection." />}</>}
+              </>
             ) : (
               <>
                 {/* ================================= */}
@@ -2298,6 +2130,7 @@ function ZiyaApp() {
                       setCategory(null);
                       setKidsGender("");
                       setKidsAgeGroup("");
+                      setQuery(""); setFilters({ subcategory: "", color: "", size: "", seller: "", min_price: "", max_price: "", rating: "" }); setTab("Search");
                     }}
                   >
                     <View
@@ -2317,19 +2150,9 @@ function ZiyaApp() {
                     <Pressable
                       key={group.id}
                       style={s.categoryGridItem}
-                      onPress={() => {
-                        setKidsGender("");
-                        setKidsAgeGroup("");
-                        setCategory(group);
-                      }}
+                      onPress={() => chooseCategory(group)}
                     >
-                      <View
-                        style={[
-                          s.categoryIcon,
-                          category?.id === group.id &&
-                            s.categorySelected,
-                        ]}
-                      >
+                      <View style={s.categoryIcon}>
                         {group.image_url ? (
                           <Image
                             source={{ uri: group.image_url }}
@@ -2434,20 +2257,11 @@ function ZiyaApp() {
                 {!error && !visible.length && <Text style={s.emptyCopy}>No products match your search.</Text>}
               </ScrollView>
             )}
-            <FilterModal
-              visible={filtersVisible}
-              filters={filters}
-              categories={categories}
-              onApply={(value) => {
-                setFilters(value);
-                setFiltersVisible(false);
-              }}
-              onClose={() => setFiltersVisible(false)}
-            />
           </View>
         )}
         {tab === "Cart" && (
           <CartHub
+            initialService={service}
             cart={cart}
             token={token}
             onLogin={() => setAuthVisible(true)}
@@ -2534,7 +2348,7 @@ function ZiyaApp() {
           </ScrollView>
         )}
       </View>
-      <View style={s.nav}>
+      <View style={[s.nav, service === "food" && tab === "Home" && s.foodChrome]}>
         {(["Home", "Search", "Cart", "Account"] as Tab[]).map((item) => (
           <Pressable key={item} onPress={() => setTab(item)} style={s.navItem}>
             <Text style={[s.navIcon, tab === item && s.navActive]}>
@@ -2557,6 +2371,7 @@ function ZiyaApp() {
         onClose={() => setAuthVisible(false)}
         onAuthenticated={authenticate}
       />
+      <FilterModal visible={filtersVisible} filters={filters} categories={tab === "Categories" && category ? [category] : categories} onApply={value => { setFilters(value); setFiltersVisible(false); }} onClose={() => setFiltersVisible(false)} />
       {token && partnerMode && <PartnerWorkspace key={`${token}-${partnerMode}-${partnerTarget?.order_id}-${partnerTarget?.delivery_id}`} token={token} mode={partnerMode} target={partnerTarget} onClose={() => { setPartnerMode(null); setPartnerTarget(null); }} />}
       {token && inboxVisible && <NotificationInbox token={token} onOpen={openNotification} onClose={() => setInboxVisible(false)} />}
       {token && notificationOrder && <OrderDetailModal token={token} order={notificationOrder} onClose={() => setNotificationOrder(null)} onChanged={async () => { const rows = await getOrders(token); setNotificationOrder(rows.find(o => o.id === notificationOrder.id && o.kind === notificationOrder.kind) || null); }} />}
@@ -2576,6 +2391,7 @@ function ZiyaApp() {
         <AccountSectionModal
           view={accountView}
           token={token}
+          onProfileSaved={setUser}
           onClose={() => setAccountView(null)}
           onOpenProduct={(product) => {
             setAccountView(null);
@@ -2844,6 +2660,7 @@ function LocationModal({
 }
 
 function CartHub({
+  initialService,
   cart,
   token,
   onLogin,
@@ -2854,6 +2671,7 @@ function CartHub({
   setGroceryCart,
   onBrowse,
 }: {
+  initialService: Service;
   cart: Cart;
   token: string | null;
   onLogin: () => void;
@@ -2864,7 +2682,7 @@ function CartHub({
   setGroceryCart: React.Dispatch<React.SetStateAction<GroceryCartRow[]>>;
   onBrowse: (service: Service) => void;
 }) {
-  const [active, setActive] = useState<Service>("shop");
+  const [active, setActive] = useState<Service>(initialService);
   const [checkout, setCheckout] = useState(false);
   const totals = {
     shop: Number(cart.subtotal),
@@ -3869,12 +3687,13 @@ function CheckoutModal({
             </View>
           ) : quote ? (
             <View style={s.checkoutAddressForm}>
-              <View style={s.totalRow}><Text style={s.totalLabel}>Items subtotal</Text><Text style={s.listPrice}>{money(quote.price.item_subtotal)}</Text></View>
+              <View style={s.totalRow}><Text style={s.totalLabel}>{quote.price.item_price !== undefined ? "Item price" : "Items subtotal"}</Text><Text style={s.listPrice}>{money(quote.price.item_price ?? quote.price.item_subtotal)}</Text></View>
+              {quote.price.gst !== undefined && <View style={s.totalRow}><Text style={s.totalLabel}>GST</Text><Text style={s.listPrice}>{money(quote.price.gst)}</Text></View>}
               <View style={s.totalRow}><Text style={s.totalLabel}>Delivery</Text><Text style={s.listPrice}>{Number(quote.price.delivery_charge) ? money(quote.price.delivery_charge) : "FREE"}</Text></View>
               {Number(quote.price.discount) > 0 && <View style={s.totalRow}><Text style={s.totalLabel}>Discount</Text><Text style={s.discountText}>− {money(quote.price.discount)}</Text></View>}
               <View style={s.totalRow}><Text style={s.totalLabel}>Total</Text><Text style={s.totalValue}>{money(quote.price.total)}</Text></View>
               {(quote.price.kind === "food" || quote.price.kind === "grocery") && <Text style={s.secureNote}>Free delivery on orders of ₹200 or more.</Text>}
-              <Text style={s.secureNote}>Prices include applicable taxes · {quote.price.eta} · Fulfilled by {quote.price.source}</Text>
+              <Text style={s.secureNote}>{quote.price.item_price !== undefined ? "Item price includes seller price and platform fee. GST includes product GST and platform fee GST. " : "Prices include applicable taxes. "}{quote.price.eta} · Fulfilled by {quote.price.source}</Text>
             </View>
           ) : null}
           {confirming && quote && (
@@ -3905,11 +3724,13 @@ function AccountSectionModal({
   token,
   onClose,
   onOpenProduct,
+  onProfileSaved,
 }: {
   view: "profile" | "orders" | "addresses" | "wishlist" | null;
   token: string;
   onClose: () => void;
   onOpenProduct: (product: Product) => void;
+  onProfileSaved: (user: User) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -3918,11 +3739,6 @@ function AccountSectionModal({
   const [adding, setAdding] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [profile, setProfile] = useState({
-    first_name: "",
-    last_name: "",
-    phone: "",
-  });
   const [form, setForm] = useState({
     full_name: "",
     phone: "",
@@ -3937,14 +3753,6 @@ function AccountSectionModal({
     if (!view) return;
     setLoading(true);
     try {
-      if (view === "profile") {
-        const row = await getProfile(token);
-        setProfile({
-          first_name: row.first_name || "",
-          last_name: row.last_name || "",
-          phone: row.phone || "",
-        });
-      }
       if (view === "orders") setOrders(await getOrders(token));
       if (view === "addresses") setAddresses(await getAddresses(token));
       if (view === "wishlist") setWishlist(await getWishlist(token));
@@ -3958,7 +3766,7 @@ function AccountSectionModal({
   if (!view) return null;
   const title =
     view === "profile"
-      ? "Personal details"
+      ? "My Profile"
       : view === "orders"
         ? "My orders"
         : view === "addresses"
@@ -4004,51 +3812,7 @@ function AccountSectionModal({
           <ActivityIndicator color={C.green} size="large" style={s.loader} />
         ) : (
           <ScrollView contentContainerStyle={s.modalContent}>
-            {view === "profile" && (
-              <>
-                <Text style={s.secureNote}>
-                  Complete these details so checkout forms and customer support
-                  can identify you correctly.
-                </Text>
-                <Field
-                  label="First name"
-                  value={profile.first_name}
-                  onChange={(value) =>
-                    setProfile({ ...profile, first_name: value })
-                  }
-                />
-                <Field
-                  label="Last name"
-                  value={profile.last_name}
-                  onChange={(value) =>
-                    setProfile({ ...profile, last_name: value })
-                  }
-                />
-                <Field
-                  label="Mobile number"
-                  value={profile.phone}
-                  onChange={(value) => setProfile({ ...profile, phone: value })}
-                  keyboard="phone-pad"
-                />
-                <Pressable
-                  style={s.primary}
-                  onPress={async () => {
-                    try {
-                      await updateProfile(token, profile);
-                      Alert.alert(
-                        "Profile saved",
-                        "Your account details are now updated.",
-                      );
-                      onClose();
-                    } catch (error: any) {
-                      Alert.alert("Could not save profile", error.message);
-                    }
-                  }}
-                >
-                  <Text style={s.primaryText}>Save personal details</Text>
-                </Pressable>
-              </>
-            )}
+            {view === "profile" && <ProfileEditor token={token} onSaved={onProfileSaved} />}
             {view === "orders" && (
               <>
                 {orders.map((order) => (
@@ -4527,6 +4291,25 @@ export default function App() {
 }
 
 const s: any = StyleSheet.create({
+  collectionHero: { margin: 18, padding: 24, borderRadius: 24, backgroundColor: "#F4F0E8", gap: 11 },
+  collectionEyebrow: { color: "#8B7458", letterSpacing: 1.7, fontSize: 9, fontWeight: "800", marginTop: 8 },
+  collectionTitle: { color: C.ink, fontSize: 31, lineHeight: 38, fontWeight: "800", letterSpacing: -0.7 },
+  collectionCopy: { color: "#706A60", fontSize: 14, lineHeight: 22 },
+  collectionCount: { color: C.green, fontSize: 12, fontWeight: "700" },
+  collectionChips: { paddingHorizontal: 18, paddingBottom: 16, gap: 8 },
+  foodPage: { flex: 1, backgroundColor: "#17171D" },
+  foodChrome: { backgroundColor: "#17171D", borderColor: "#36313D" },
+  foodText: { color: "#FFFFFF" },
+  foodMuted: { color: "#A9A5B5", lineHeight: 21 },
+  foodAccent: { color: "#FF9BAA" },
+  foodPrimary: { backgroundColor: "#DD435B" },
+  foodInput: { backgroundColor: "#25252E", borderColor: "#3B3B47", color: "#FFFFFF", marginVertical: 16 },
+  foodChip: { backgroundColor: "#25252E", borderColor: "#3B3B47" },
+  foodSelected: { backgroundColor: "#452B37", borderColor: "#EF5269" },
+  foodMenuCard: { borderColor: "#36313D", paddingVertical: 22 },
+  googleButton: { minHeight: 52, borderWidth: 1, borderColor: "#D0D5DD", borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", marginVertical: 12 },
+  googleButtonText: { color: "#17243A", fontSize: 15, fontWeight: "700" },
+  authDivider: { textAlign: "center", color: "#718096", fontSize: 12, marginBottom: 12 },
   safe: { flex: 1, backgroundColor: C.white },
   body: { flex: 1 },
   heartActive: { color: "#D14343" },
@@ -4606,9 +4389,13 @@ const s: any = StyleSheet.create({
     borderTopColor: C.line,
   },
   page: { paddingBottom: 28 },
+  shopPage: { width: "100%", maxWidth: 720, alignSelf: "center", paddingBottom: 24 },
+  homeSearch: { marginHorizontal: 16, marginTop: 16, minHeight: 46, paddingHorizontal: 14, backgroundColor: "#F6F8F7", borderWidth: 1, borderColor: "#E3E9E6", borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  homeSearchText: { fontSize: 13, color: C.muted, flexShrink: 1 },
+  homeSearchIcon: { fontSize: 24, color: C.green },
   header: {
-    height: 68,
-    paddingHorizontal: 20,
+    minHeight: 60,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -4654,7 +4441,7 @@ const s: any = StyleSheet.create({
     lineHeight: 18,
   },
   serviceStrip: {
-    height: 70,
+    minHeight: 62,
     flexDirection: "row",
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -4679,24 +4466,26 @@ const s: any = StyleSheet.create({
   serviceLabelActive: { color: C.green, fontWeight: "900" },
   hero: {
     margin: 16,
-    borderRadius: 24,
-    minHeight: 205,
-    padding: 22,
+    marginBottom: 8,
+    borderRadius: 20,
+    minHeight: 180,
+    padding: 20,
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
   },
-  heroCopy: { flex: 1, zIndex: 2 },
+  heroCopy: { flex: 1, zIndex: 2, paddingRight: 24 },
   heroKicker: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1.5,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
     color: C.green,
   },
   heroTitle: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "900",
+    fontSize: 27,
+    lineHeight: 33,
+    letterSpacing: -0.7,
+    fontWeight: "700",
     color: C.ink,
     marginTop: 8,
   },
@@ -4710,27 +4499,33 @@ const s: any = StyleSheet.create({
   },
   shopText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   heroOrb: {
+    position: "absolute",
+    right: -30,
+    top: 34,
+    opacity: 0.16,
     width: 125,
     height: 125,
     borderRadius: 63,
     backgroundColor: "rgba(15,139,109,.09)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: -45,
+    marginRight: 0,
   },
   heroBrand: { width: 100, height: 100, resizeMode: "contain" },
   sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 18,
-    marginTop: 14,
-    marginBottom: 14,
+    paddingHorizontal: 16,
+    marginTop: 24,
+    marginBottom: 16,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  heading: { fontSize: 20, fontWeight: "900", color: C.ink },
+  heading: { fontSize: 19, lineHeight: 25, fontWeight: "700", color: C.ink, flexShrink: 1 },
   link: { fontSize: 13, fontWeight: "700", color: C.orange },
-  categories: { paddingHorizontal: 14, gap: 10 },
-  category: { width: 76, alignItems: "center" },
+  categories: { paddingHorizontal: 16, gap: 12, paddingBottom: 4 },
+  category: { width: 72, alignItems: "center" },
   categoriesGrid: {
   paddingHorizontal: 14,
   flexDirection: "row",
@@ -4740,9 +4535,15 @@ const s: any = StyleSheet.create({
  },
 
  categoryGridItem: {
-  width: 76,
+  width: "29%",
   alignItems: "center",
-  marginBottom: 10,
+  marginBottom: 2,
+  paddingVertical: 18,
+  paddingHorizontal: 6,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#E8ECF0",
+  backgroundColor: "#FFFFFF",
  },
  categoryIcon: {
     width: 64,
@@ -4760,32 +4561,36 @@ const s: any = StyleSheet.create({
     fontSize: 12,
     color: C.ink,
     fontWeight: "600",
-    marginTop: 7,
+    marginTop: 8,
+    lineHeight: 16,
+    textAlign: "center",
   },
   grid: {
-    paddingHorizontal: 14,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+    paddingHorizontal: 16,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
     paddingBottom: 30,
   },
   card: {
-    width: "48%",
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 18,
-    padding: 9,
+    borderColor: "#E8ECF0",
+    borderRadius: 16,
+    padding: 10,
     backgroundColor: "#fff",
   },
   imageWrap: {
-    height: 145,
+    aspectRatio: 1,
     borderRadius: 14,
     backgroundColor: "#F6F4EF",
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-  productImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  productImage: { width: "100%", height: "100%", resizeMode: "contain" },
   placeholder: { fontSize: 25, fontWeight: "900", color: "#C7BFB2" },
   heart: {
     position: "absolute",
@@ -4800,11 +4605,11 @@ const s: any = StyleSheet.create({
   },
   productName: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     color: C.ink,
-    lineHeight: 18,
-    minHeight: 36,
-    marginTop: 9,
+    lineHeight: 19,
+    minHeight: 38,
+    marginTop: 10,
   },
   price: { fontSize: 16, fontWeight: "900", color: C.ink, marginTop: 3 },
   viewDetails: {
@@ -5166,7 +4971,7 @@ const s: any = StyleSheet.create({
   totalLabel: { fontSize: 17, fontWeight: "800", color: C.ink },
   totalValue: { fontSize: 20, fontWeight: "900", color: C.dark },
   servicePage: { flex: 1, alignItems: "center", justifyContent: "center" },
-  serviceContent: { padding: 18, paddingBottom: 110 },
+  serviceContent: { padding: 18, paddingBottom: 110, flexGrow: 1 },
   serviceTitle: { fontSize: 28, fontWeight: "900", color: C.ink },
   serviceSubtitle: {
     color: C.muted,
@@ -5200,14 +5005,16 @@ const s: any = StyleSheet.create({
     width: "48%",
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 16,
-    padding: 9,
+    borderRadius: 20,
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 6,
   },
   groceryImage: {
-    height: 125,
+    aspectRatio: 1,
     width: "100%",
     borderRadius: 12,
-    resizeMode: "cover",
+    resizeMode: "contain",
   },
   groceryFallback: {
     height: 125,
@@ -5220,9 +5027,11 @@ const s: any = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: C.ink,
-    marginTop: 8,
-    minHeight: 38,
+    marginTop: 12,
+    lineHeight: 21,
+    minHeight: 42,
   },
+  groceryAction: { color: "#0F8B6D", fontWeight: "800", fontSize: 12, textAlign: "center", paddingVertical: 10, borderWidth: 1, borderColor: "#CCE5D9", borderRadius: 10, backgroundColor: "#F1F9F4", marginTop: 12 },
   emptyService: { alignItems: "center", paddingVertical: 55 },
   modalHeader: {
     minHeight: 72,

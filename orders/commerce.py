@@ -5,10 +5,10 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from addresses.models import Address
 from cart.cart import Cart
@@ -21,6 +21,34 @@ from products.models import Product, ProductVariant
 from .emails import send_order_confirmation_email
 from .forms import CheckoutForm
 from .models import Order, OrderItem, OrderTimeline
+
+
+@login_required
+@require_GET
+def delivery_estimate(request):
+    from delivery.coverage import has_local_coverage
+
+    pincode = request.GET.get("pincode", "").strip()
+    if len(pincode) != 6 or not pincode.isascii() or not pincode.isdigit():
+        return JsonResponse({"estimate": "Enter a valid 6-digit PIN code."}, status=400)
+    items = list(Cart(request))
+    if not items:
+        return JsonResponse({"estimate": "Add items to your cart to see delivery timing."})
+    modes = set()
+    covered = has_local_coverage(pincode)
+    for row in items:
+        seller = row["product"].seller
+        origin = seller.business_pincode if seller and seller.business_pincode else settings.DELHIVERY_ORIGIN_PINCODE
+        local = bool(seller and origin == pincode and covered)
+        if seller and seller.is_small_seller and (not seller.is_approved or not local):
+            return JsonResponse({"estimate": "Local delivery is unavailable for a seller in your cart at this PIN code."})
+        modes.add("local" if local else "courier")
+    messages = []
+    if "courier" in modes:
+        messages.append("Courier: estimated 3–7 business days after dispatch. Indicative only; serviceability and delivery date require carrier confirmation.")
+    if "local" in modes:
+        messages.append("Local delivery: timing will be confirmed after seller preparation and rider assignment.")
+    return JsonResponse({"estimate": " ".join(messages)})
 
 
 def _json_value(value):

@@ -22,6 +22,7 @@ class FoodServiceArea(models.Model):
 
 
 class FoodDeliveryAreaRequest(models.Model):
+    service = models.CharField(max_length=10, choices=(("food", "Food"), ("grocery", "Groceries")), default="food")
     pincode = models.CharField(
         max_length=6,
         validators=[RegexValidator(r"^[1-9][0-9]{5}$", "Enter a valid 6-digit pincode.")],

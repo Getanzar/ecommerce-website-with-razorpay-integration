@@ -1,8 +1,10 @@
 from django.urls import path
 from . import partners as views
 from . import partner_forms as forms
+from dashboard.listing_views import SellerListingDraftView
 
 urlpatterns = [
+    path("seller/listing-assistant/", SellerListingDraftView.as_view()),
     path("seller/profile/", forms.SellerProfileFormView.as_view()),
     path("applications/<str:role>/", forms.ApplicationView.as_view()),
     path("payout-setup/<str:role>/", forms.PayoutSetupView.as_view()),

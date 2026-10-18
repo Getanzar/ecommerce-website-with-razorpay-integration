@@ -203,6 +203,9 @@ class CommerceApiTests(APITestCase):
         self.assertEqual(quoted.status_code, 201)
         self.assertNotIn("platform_fee", quoted.data["price"])
         self.assertNotIn("platform_fee_gst", quoted.data["price"])
+        from decimal import Decimal
+        price = quoted.data["price"]
+        self.assertEqual(Decimal(price["item_price"]) + Decimal(price["gst"]) + Decimal(price["delivery_charge"]), Decimal(price["total"]))
         self.assertIn("total", quoted.data["price"])
         payload = {
             "address_id": address.id,

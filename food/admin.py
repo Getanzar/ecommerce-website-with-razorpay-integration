@@ -4,10 +4,10 @@ from .models import FoodDeliveryAreaRequest, FoodOrder, FoodOrderItem, FoodSelle
 
 @admin.register(FoodDeliveryAreaRequest)
 class FoodDeliveryAreaRequestAdmin(admin.ModelAdmin):
-    list_display = ("pincode", "user", "created_at", "reviewed")
-    list_filter = ("reviewed", "created_at", "pincode")
+    list_display = ("pincode", "service", "user", "created_at", "reviewed")
+    list_filter = ("service", "reviewed", "created_at", "pincode")
     search_fields = ("pincode", "comment", "user__username")
-    readonly_fields = ("pincode", "comment", "user", "created_at")
+    readonly_fields = ("pincode", "service", "comment", "user", "created_at")
     list_editable = ("reviewed",)
     date_hierarchy = "created_at"
 

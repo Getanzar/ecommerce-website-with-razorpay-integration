@@ -7,7 +7,7 @@ import { assertSafeProductionApiUrl } from "./apiUrlSafety";
  * Public API variables are commonly entered as a site origin. Keep that
  * configuration safe by normalising it to the versioned mobile API root.
  */
-const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL || "https://ziyamart.in/api/v1";
+const configuredApiUrl = (process.env.EXPO_PUBLIC_API_URL || "https://www.ziyamart.in/api/v1").replace(/^https:\/\/ziyamart\.in(?=\/|$)/i, "https://www.ziyamart.in");
 const isProductionBuild = process.env.EXPO_PUBLIC_APP_ENV === "production";
 assertSafeProductionApiUrl(configuredApiUrl, isProductionBuild);
 export const API_URL = `${configuredApiUrl.replace(/\/$/, "").replace(/\/api\/v1$/i, "")}/api/v1`;
@@ -20,6 +20,9 @@ export type User = {
   email: string;
   phone: string;
   email_verified: boolean;
+  gender: string;
+  date_of_birth: string | null;
+  profile_picture_url: string | null;
 };
 export type Category = {
   id: number;
@@ -194,6 +197,8 @@ export type CheckoutQuote = {
   price: {
     kind: string;
     item_subtotal: string;
+    item_price?: string;
+    gst?: string;
     delivery_charge: string;
     discount: string;
     total: string;
@@ -258,6 +263,7 @@ export async function request<T>(
       ? "The server took too long to respond." : "Could not reach ZIYAMART. Check your connection.";
     const recovery = !writing ? "Please retry."
       : path.startsWith("/checkout/") || /\/payment\/$/.test(path) ? "Check Orders before submitting again."
+      : path === "/partners/seller/listing-assistant/" ? "No listing was saved. You can retry the assistant or complete the form manually."
       : path.startsWith("/partners/") ? "The change may have been saved. Reopen the catalog or settings to check before submitting again."
       : "The change may have been saved. Refresh to check before submitting again.";
     throw new Error(`${reason} ${recovery}`);
@@ -315,9 +321,7 @@ export const login = (identity: string, password: string) =>
     body: JSON.stringify({ identity, password, device_name: Device.modelName || "Mobile device" }),
   });
 export const signup = (data: {
-  username: string;
   email: string;
-  phone: string;
   password: string;
 }) =>
   request<SignupResponse>("/auth/signup/", {
@@ -422,9 +426,9 @@ export const addWishlist = (token: string, productId: number) =>
   );
 export const removeWishlist = (token: string, productId: number) =>
   request<void>(`/wishlist/${productId}/`, { method: "DELETE" }, token);
-export const getRestaurants = (pincode = "") =>
+export const getRestaurants = (pincode = "", filters: Record<string, string> = {}) =>
   request<Restaurant[]>(
-    `/food/restaurants/${pincode ? `?pincode=${encodeURIComponent(pincode)}` : ""}`,
+    `/food/restaurants/?${new URLSearchParams({ pincode, ...filters }).toString()}`,
   );
 export const getRestaurant = (slug: string) =>
   request<Restaurant>(`/food/restaurants/${slug}/`);
@@ -484,7 +488,7 @@ export const getGroceryProducts = async (
 
   return catalogPage(payload);
 };
-export const getGroceryCategories = () => request<{ id: number; name: string; slug: string }[]>("/groceries/categories/");
+export const getGroceryCategories = () => request<{ id: number; name: string; slug: string; image_url?: string | null }[]>("/groceries/categories/");
 export const getGroceryCart = (token: string) =>
   request<ServiceCart<GroceryCartItem>>("/groceries/cart/", {}, token);
 export const addGroceryCartItem = (
@@ -619,13 +623,17 @@ export const createCareRequest = (
   );
 export const updateProfile = (
   token: string,
-  data: { first_name: string; last_name: string; phone: string },
+  data: Partial<Pick<User, "first_name" | "last_name" | "phone" | "username" | "gender" | "date_of_birth">> | FormData,
 ) =>
   request<User>(
     "/account/profile/",
-    { method: "PATCH", body: JSON.stringify(data) },
+    { method: "PATCH", body: data instanceof FormData ? data : JSON.stringify(data) },
     token,
   );
 
 export const requestUsernameReminder = (email: string) =>
   request<{ message: string }>("/auth/username/recover/", { method: "POST", body: JSON.stringify({ email }) });
+
+export const requestProfileEmail = (token: string, email: string) => request<{ message: string; email: string }>("/account/email/request/", { method: "POST", body: JSON.stringify({ email }) }, token);
+export const verifyProfileEmail = (token: string, otp: string) => request<User>("/account/email/verify/", { method: "POST", body: JSON.stringify({ otp }) }, token);
+export const submitDeliveryInterest = (pincode: string, comment: string, token?: string | null, service: "food" | "grocery" = "food") => request<{ message: string }>("/food/delivery-interest/", { method: "POST", body: JSON.stringify({ pincode, comment, service }) }, token);

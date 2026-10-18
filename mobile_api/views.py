@@ -9,7 +9,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 from rest_framework import generics, status, serializers as drf_serializers
 from rest_framework.authtoken.models import Token
@@ -52,7 +52,8 @@ class SignupView(EmailAuthView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = str(request.data.get("username", "")).strip()
+        from accounts.identity import generate_username
+        username = str(request.data.get("username", "")).strip() or generate_username()
         email = str(request.data.get("email", "")).strip().lower()
         phone = normalize_phone(request.data.get("phone", ""))
         password = str(request.data.get("password", ""))
@@ -66,7 +67,7 @@ class SignupView(EmailAuthView):
             drf_serializers.EmailField(max_length=254).run_validation(email)
         except drf_serializers.ValidationError:
             errors["email"] = ["Enter a valid email address."]
-        if not phone.isdigit() or len(phone) != 10 or phone[0] not in "6789": errors["phone"] = ["Enter a valid 10-digit mobile number."]
+        if phone and (not phone.isdigit() or len(phone) != 10 or phone[0] not in "6789"): errors["phone"] = ["Enter a valid 10-digit mobile number."]
         try:
             validate_password(password, User(username=username, email=email))
         except ValidationError as exc:
@@ -442,8 +443,22 @@ class RestaurantListView(generics.ListAPIView):
     def get_queryset(self):
         rows=Restaurant.objects.filter(seller__status="approved",accepts_orders=True).select_related("seller")
         pincode=self.request.query_params.get("pincode","").strip()
-        if pincode: rows=rows.filter(service_areas__pincode=pincode,service_areas__is_active=True)
-        return rows.distinct().order_by("name")
+        if pincode: rows=rows.filter(pincode=pincode,service_areas__pincode=pincode,service_areas__is_active=True)
+        available_items = MenuItem.objects.filter(is_available=True, options__is_available=True)
+        if self.request.query_params.get("veg") == "true":
+            available_items = available_items.filter(food_type="veg")
+        query = self.request.query_params.get("q", "").strip()[:120]
+        cuisine = self.request.query_params.get("cuisine", "").strip()[:80]
+        if query:
+            matching = available_items.filter(Q(name__icontains=query) | Q(description__icontains=query)).values("restaurant_id")
+            rows = rows.filter(Q(name__icontains=query) | Q(cuisine__icontains=query) | Q(pk__in=matching))
+        if cuisine:
+            matching = available_items.filter(name__icontains=cuisine).values("restaurant_id")
+            rows = rows.filter(Q(cuisine__icontains=cuisine) | Q(pk__in=matching))
+        if self.request.query_params.get("veg") == "true":
+            rows = rows.filter(pk__in=available_items.values("restaurant_id"))
+        ordering = {"fastest": "preparation_minutes", "newest": "-pk"}.get(self.request.query_params.get("sort"), "name")
+        return rows.distinct().order_by(ordering, "pk")
 
 
 class RestaurantDetailView(generics.RetrieveAPIView):
@@ -451,8 +466,8 @@ class RestaurantDetailView(generics.RetrieveAPIView):
     serializer_class = RestaurantDetailSerializer
     lookup_field = "slug"
     def get_queryset(self):
-        available_options = MenuItem.objects.filter(is_available=True).prefetch_related("options").select_related("section")
-        return Restaurant.objects.filter(seller__status="approved").select_related("seller").prefetch_related("menu_items__options", "menu_items__section")
+        menu = MenuItem.objects.filter(is_available=True, options__is_available=True).distinct().select_related("section").prefetch_related(Prefetch("options", queryset=MenuItemOption.objects.filter(is_available=True)))
+        return Restaurant.objects.filter(seller__status="approved", accepts_orders=True).select_related("seller").prefetch_related(Prefetch("menu_items", queryset=menu))
 
 
 class GroceryStoreListView(generics.ListAPIView):
@@ -648,6 +663,7 @@ def _quote_data(request, kind, address, location=None):
     except InvalidOperation: cod_limit=Decimal("50000.00")
     cod_eligible=cod_limit<=0 or total<=cod_limit
     public={"kind":kind,"item_subtotal":str(pricing["grand_total"]-pricing["customer_delivery_charge"]),"delivery_charge":str(pricing["customer_delivery_charge"]),"discount":"0.00","total":str(total),"tax_inclusive":True,"delivery_mode":pricing["delivery_mode"],"eta":eta,"source":source,"cod_eligible":cod_eligible,"cod_unavailable_reason":"" if cod_eligible else f"Cash on delivery is available up to â‚¹{cod_limit}.","address":{"id":address.pk,"label":f"{address.address_line_1}, {address.city} {address.pincode}"}}
+    public.update(item_price=str(pricing["merchant_subtotal"] + pricing["platform_fee"]), gst=str(pricing["merchandise_gst"] + pricing["platform_fee_gst"]))
     address_snapshot = {key: getattr(address, key) for key in ("full_name", "phone", "address_line_1", "address_line_2", "city", "state", "pincode")}
     quotes = [_json_value({**{key:value for key,value in row.items() if key != "seller"}, "seller_id": row["seller"].pk if row["seller"] else None}) for row in delivery_quotes]
     fingerprint=hashlib.sha256(json.dumps({"items":snapshot,"address":address_snapshot,"location":location,"pricing":_json_value(pricing)},sort_keys=True).encode()).hexdigest()
