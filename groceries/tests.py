@@ -34,6 +34,20 @@ class GroceryMarketplaceTests(TestCase):
         response = self.client.get(reverse("grocery_home"), {"pincode": "110001"})
         self.assertNotContains(response, "Staples")
 
+    def test_seller_description_is_saved_and_available_to_mobile(self):
+        from django.forms.models import model_to_dict
+        from .forms import GroceryProductForm
+        from mobile_api.serializers import GroceryProductSerializer
+
+        values = model_to_dict(self.product)
+        values["description"] = "Seller-confirmed whole wheat flour in a sealed pack."
+        form = GroceryProductForm(data=values, instance=self.product)
+        self.assertTrue(form.is_valid(), form.errors)
+        product = form.save()
+        product.refresh_from_db()
+        self.assertEqual(product.description, values["description"])
+        self.assertEqual(GroceryProductSerializer(product).data["description"], values["description"])
+
     def test_checkout_creates_order_and_reduces_stock(self):
         self.client.login(username="grocery-customer", password="test-password")
         self.client.get(reverse("grocery_home"), {"pincode": "243638"})

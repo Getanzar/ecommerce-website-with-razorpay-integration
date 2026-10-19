@@ -1,4 +1,5 @@
 import io
+import base64
 import json
 from unittest.mock import Mock, patch
 
@@ -38,6 +39,45 @@ def provider(value=None):
 
 @override_settings(GEMINI_API_KEY="test-key-not-real", SELLER_LISTING_AI_MODEL="gemini-3.1-flash-lite", SELLER_LISTING_AI_DAILY_LIMIT=2)
 class ListingAssistantTests(TestCase):
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_catalogue_photo_is_validated_and_shared_by_web_and_mobile(self, post):
+        image_response = Mock(ok=True)
+        image_response.json.return_value = {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+            {"inlineData": {"mimeType": "image/png", "data": base64.b64encode(photo().read()).decode("ascii")}}
+        ]}}]}
+        for client, url in ((self.client, self.web_url), (self.api, self.api_url)):
+            post.side_effect = [provider(), image_response]
+            response = client.post(url, {"kind": "shop", "photos": photo(), "enhance_photo": "true"})
+            self.assertEqual(response.status_code, 200)
+            result = response.json()
+            self.assertEqual(result["catalogue_image"]["mime_type"], "image/jpeg")
+            with Image.open(io.BytesIO(base64.b64decode(result["catalogue_image"]["data"]))) as generated:
+                self.assertEqual(generated.format, "JPEG")
+            self.assertTrue(result["review_required"])
+        self.assertEqual(Product.objects.count(), 0)
+
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_invalid_provider_image_is_never_returned_as_a_photo(self, post):
+        image_response = Mock(ok=True)
+        image_response.json.return_value = {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+            {"inlineData": {"mimeType": "image/png", "data": base64.b64encode(b"invalid pixels").decode("ascii")}}
+        ]}}]}
+        post.side_effect = [provider(), image_response]
+        response = self.client.post(self.web_url, {"kind": "shop", "photos": photo(), "enhance_photo": "true"})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("catalogue_image", response.json())
+        self.assertIn("image_warning", response.json())
+
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_image_failure_keeps_text_and_does_not_charge_an_extra_attempt(self, post):
+        post.side_effect = [provider(), Mock(ok=False, status_code=429)]
+        response = self.client.post(self.web_url, {"kind": "shop", "photos": photo(), "enhance_photo": "true"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("image_warning", response.json())
+        self.assertNotIn("catalogue_image", response.json())
+        self.assertEqual(response.json()["fields"]["name"], "Blue shirt")
+        self.assertEqual(SellerListingAIUsage.objects.get().attempts, 1)
+
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user("listing-seller", password="testpass")
@@ -156,7 +196,7 @@ class ListingAssistantTests(TestCase):
 
     def test_grocery_and_menu_fields_are_limited_to_supported_suggestions(self):
         grocery = validate_draft({**draft(self.category.pk), "brand": "Test brand", "unit": "500 g"}, [{"id": self.category.pk, "name": "Staples"}], "grocery")
-        self.assertEqual(set(grocery["fields"]), {"name", "brand", "unit", "category"})
+        self.assertEqual(set(grocery["fields"]), {"name", "description", "brand", "unit", "category"})
         menu = validate_draft(draft(1), [{"id": 1, "name": "Lunch"}], "food")
         self.assertEqual(menu["fields"]["section_name"], "Lunch")
         self.assertNotIn("food_type", menu["fields"])

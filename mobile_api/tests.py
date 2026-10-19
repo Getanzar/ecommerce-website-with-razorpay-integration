@@ -95,6 +95,7 @@ class CommerceApiTests(APITestCase):
         self.assertEqual(response.data["variants"][0]["size"], "9")
         self.assertEqual(len(response.data["variants"]), 2)
         self.assertIn("specifications", response.data)
+        self.assertNotIn("dimensions", response.data["specifications"])
 
     def test_catalog_pages_have_stable_order_and_bounded_size(self):
         for index in range(55):

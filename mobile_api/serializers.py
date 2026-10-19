@@ -145,7 +145,7 @@ class ProductDetailSerializer(ProductSerializer):
         return [absolute_url(self.context.get("request"), row.image) for row in obj.images.all()]
 
     def get_specifications(self, obj):
-        return {"category": obj.category.name, "subcategory": obj.subcategory.name if obj.subcategory else "", "product_type": obj.get_product_type_display(), "weight": f"{obj.package_weight_grams} g", "dimensions": f"{obj.package_length_cm} × {obj.package_width_cm} × {obj.package_height_cm} cm", "gst_rate": f"{obj.effective_gst_rate}%"}
+        return {"category": obj.category.name, "subcategory": obj.subcategory.name if obj.subcategory else "", "product_type": obj.get_product_type_display(), "weight": f"{obj.package_weight_grams} g", "gst_rate": f"{obj.effective_gst_rate}%"}
 
     def get_reviews(self, obj):
         return [{"id": row.id, "username": row.user.first_name or row.user.username, "rating": row.rating, "title": row.title, "review": row.review, "verified": row.is_verified_purchase, "created_at": row.created_at} for row in obj.reviews.filter(is_approved=True).select_related("user")[:20]]
@@ -236,7 +236,7 @@ class GroceryProductSerializer(serializers.ModelSerializer):
     store_name = serializers.CharField(source="store.name", read_only=True)
     class Meta:
         model = GroceryProduct
-        fields = ("id", "name", "brand", "image_url", "unit", "mrp", "price", "price_with_tax", "stock", "options", "selected_option_id", "is_perishable", "category", "store_name")
+        fields = ("id", "name", "description", "brand", "image_url", "unit", "mrp", "price", "price_with_tax", "stock", "options", "selected_option_id", "is_perishable", "category", "store_name")
     def get_image_url(self, obj): return absolute_url(self.context.get("request"), obj.image)
 
     def selected(self, obj):

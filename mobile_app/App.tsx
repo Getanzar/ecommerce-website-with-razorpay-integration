@@ -923,6 +923,7 @@ function GroceryDetailModal({
             </View>
           )}
           <Text style={s.detailTitle}>{product.name}</Text>
+          {!!product.description && <Text style={s.description}>{product.description}</Text>}
           <Text style={s.storeMeta}>
             {product.brand || "Local selection"} · {product.unit}
           </Text>
@@ -1584,7 +1585,7 @@ function ZiyaApp() {
               <Text style={s.sectionTitle}>Specifications</Text>
               <View style={s.descriptionBox}>
                 {Object.entries(selected.specifications)
-                  .filter(([, value]) => !!value)
+                  .filter(([label, value]) => !!value && label.toLowerCase() !== "dimensions")
                   .map(([label, value]) => (
                     <View key={label} style={s.specRow}>
                       <Text style={s.storeMeta}>

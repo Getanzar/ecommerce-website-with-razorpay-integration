@@ -274,7 +274,7 @@ const createSubcategory = async () => {
   <Pressable style={s.button} onPress={() => setRetry(n => n + 1)}>
     <Text style={s.buttonText}>Retry</Text>
   </Pressable>}
-  {!loading && !!fields.length && !!listingKind && <ListingAssistant token={token} kind={listingKind} images={images} disabled={busy} onPick={() => void pick("image")} onApply={applyListingDraft} onBusy={setBusy} />}
+  {!loading && !!fields.length && !!listingKind && <ListingAssistant token={token} kind={listingKind} images={images} disabled={busy} onPick={() => void pick("image")} onApplyImage={image => { setImages(previous => ({ ...previous, image })); change("image-clear", ""); }} onApply={applyListingDraft} onBusy={setBusy} />}
   {!loading && isMerchandiseProductForm && (
   <View style={s.field}>
     <Text style={s.label}>Category *</Text>

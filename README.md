@@ -129,6 +129,30 @@ Use **Admin dashboard → Payouts & settlements** to confirm COD remittances and
 enter the final Delhivery invoice amount. A Delhivery-funded seller settlement
 stays on hold until its carrier charge is reconciled.
 
+## Seller catalogue assistant
+
+Approved shop, food and grocery sellers can upload a raw photo on web or mobile
+and prepare a catalogue photo together with an editable name and description
+plus brand and pack-size suggestions where supported. Sellers
+review the preview and explicitly apply it before saving through the normal
+product moderation and upload flow. Discarding leaves the original photo intact.
+The main photo is edited; additional photos are retained.
+
+Configure `GEMINI_API_KEY`, `SELLER_LISTING_AI_MODEL` (text) and
+`SELLER_LISTING_AI_IMAGE_MODEL` (defaults to `gemini-3.1-flash-image`) on the
+backend. The Google project needs access and billing/quota for the image model.
+Keys never ship to the mobile app. Each request shares the existing seller daily
+limit; image editing adds one provider call, without an extra daily-limit charge.
+If image generation fails, the text draft remains available with a warning and
+the original photo is retained. Generated photos are validated and metadata is
+removed before returning a preview; they are uploaded only when the seller saves.
+Verify colours, labels and product identity before applying AI output.
+
+Deploy the backend and web static assets, and release a new mobile build for the
+native assistant and dimensions-display changes. Run `python manage.py migrate`
+before serving the updated backend to add the optional grocery description field.
+Allow at least 120 seconds for assistant requests in the hosting proxy/server.
+
 ## Storefront launch safeguards
 
 The backend now targets Django 5.2.17 LTS. CI covers Python 3.12 (the

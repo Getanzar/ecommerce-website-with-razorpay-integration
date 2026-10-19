@@ -69,6 +69,7 @@ class GroceryProduct(models.Model):
     store = models.ForeignKey(GroceryStore, related_name="products", on_delete=models.CASCADE)
     category = models.ForeignKey(GroceryCategory, related_name="products", on_delete=models.PROTECT)
     name = models.CharField(max_length=180)
+    description = models.TextField(blank=True)
     brand = models.CharField(max_length=100, blank=True)
     image = models.ImageField(upload_to="groceries/products/", blank=True, null=True)
     unit = models.CharField(max_length=40, help_text="For example: 1 kg, 500 ml, pack of 6")

@@ -43,13 +43,14 @@
       changed = false;
       const body = new FormData();
       body.append('kind', panel.dataset.kind);
+      body.append('enhance_photo', 'true');
       body.append('notes', panel.querySelector('[data-ai-notes]').value.trim());
       photos.forEach(photo => body.append('photos', photo));
       busy = true;
       generate.disabled = true;
       message('Reading product photos and preparing your draft…');
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
+      const timeout = setTimeout(() => controller.abort(), 115000);
       try {
         const response = await fetch(panel.dataset.endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value }, body, signal: controller.signal });
         if (response.redirected) throw new Error('Your session expired. Sign in again, then retry.');
@@ -57,6 +58,11 @@
         if (current !== generation) return;
         if (!response.ok) throw new Error(data.error || 'Could not generate a draft. Please try again.');
         proposal = data;
+        const preview = panel.querySelector('[data-ai-image]');
+        preview.hidden = !data.catalogue_image;
+        if (data.catalogue_image) preview.src = `data:${data.catalogue_image.mime_type};base64,${data.catalogue_image.data}`;
+        else preview.removeAttribute('src');
+        panel.querySelector('[data-ai-image-warning]').textContent = data.image_warning || '';
         panel.querySelector('[data-ai-name]').textContent = data.draft.name;
         panel.querySelector('[data-ai-description]').textContent = data.draft.description;
         const details = panel.querySelector('[data-ai-details]');
@@ -77,6 +83,16 @@
     };
     apply.onclick = () => {
       if (!proposal) return;
+      const image = proposal.catalogue_image;
+      let imageFiles;
+      if (image && mainPhoto) {
+        try {
+          const bytes = Uint8Array.from(atob(image.data), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], image.name, { type: image.mime_type }));
+          imageFiles = transfer.files;
+        } catch { return message('Could not apply the catalogue photo in this browser. Your form is unchanged.', true); }
+      }
       const entries = Object.entries(proposal.fields).filter(([name]) => ['name', 'description', 'category', 'section', 'brand', 'unit'].includes(name));
       const overwrite = entries.some(([name, value]) => { const field = form.querySelector(`#id_${name}`); return field && field.value && field.value !== value; });
       if ((changed || overwrite) && !window.confirm('Apply this draft and replace the suggested fields? Your price, stock and other fields will be kept.')) return;
@@ -90,6 +106,12 @@
         field.value = value;
         field.dispatchEvent(new Event('input', { bubbles: true }));
         field.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (imageFiles) {
+        mainPhoto.files = imageFiles;
+        mainPhoto.dispatchEvent(new Event('change', { bubbles: true }));
+        const clear = form.querySelector('[name="image-clear"]');
+        if (clear) clear.checked = false;
       }
       proposal = null;
       apply.disabled = true;

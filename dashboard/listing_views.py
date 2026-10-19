@@ -11,7 +11,7 @@ from .listing_assistant import ListingAssistantError, generate_draft
 
 def draft_response(seller, data, files):
     try:
-        result = generate_draft(seller, data.get("kind", ""), data.get("notes", ""), files.getlist("photos"))
+        result = generate_draft(seller, data.get("kind", ""), data.get("notes", ""), files.getlist("photos"), enhance_photo=data.get("enhance_photo") == "true")
         return result, 200
     except ListingAssistantError as exc:
         return {"error": str(exc)}, exc.status

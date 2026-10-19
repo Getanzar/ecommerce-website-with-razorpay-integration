@@ -25,6 +25,7 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 # Shared seller listing assistant. Credentials never leave the server.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 SELLER_LISTING_AI_MODEL = os.getenv("SELLER_LISTING_AI_MODEL", "gemini-3.1-flash-lite")
+SELLER_LISTING_AI_IMAGE_MODEL = os.getenv("SELLER_LISTING_AI_IMAGE_MODEL", "gemini-3.1-flash-image")
 SELLER_LISTING_AI_DAILY_LIMIT = int(os.getenv("SELLER_LISTING_AI_DAILY_LIMIT", "20"))
 
 # 🔑 Delhivery API Key

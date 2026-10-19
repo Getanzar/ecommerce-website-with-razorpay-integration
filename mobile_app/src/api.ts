@@ -138,6 +138,7 @@ export type GroceryStore = {
 };
 export type GroceryPack = { id: number; unit: string; mrp: string; price: string; price_with_tax: string; stock: number; is_default: boolean };
 export type GroceryProduct = {
+  description?: string;
   options?: GroceryPack[];
   selected_option_id?: number;
   price_with_tax?: string;
