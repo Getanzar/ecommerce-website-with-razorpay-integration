@@ -4,6 +4,7 @@ from . import operations
 from .listing_views import seller_listing_draft
 
 urlpatterns = [
+    path("sellers/<int:seller_id>/aadhaar-image/", views.seller_aadhaar_image, name="seller_aadhaar_image"),
     path("sellers/<int:seller_id>/small-review/", views.review_small_seller, name="review_small_seller"),
     path("operations/delivery-proof/<int:evidence_id>/", operations.delivery_proof, name="ops_delivery_proof"),
 

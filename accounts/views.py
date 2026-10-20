@@ -267,6 +267,7 @@ def small_seller_application(request, segment="shop"):
 def withdraw_small_seller_consent(request):
     from django.shortcuts import get_object_or_404
     seller = get_object_or_404(SellerProfile, user=request.user, registration_type="small")
+    seller.aadhaar_image.delete(save=False)
     seller.aadhaar_consent_at = None
     seller.aadhaar_last4 = ""
     seller.identity_status = "pending"
@@ -297,7 +298,7 @@ def _seller_application_form(request, small=False, segment="shop"):
 
     if request.method == "POST":
         form_class = SmallSellerApplicationForm if small else SellerApplicationForm
-        form = form_class(request.POST, instance=existing_application, **({"segment": segment} if small else {}))
+        form = form_class(request.POST, request.FILES, instance=existing_application, **({"segment": segment} if small else {}))
         if form.is_valid():
             seller = form.save(commit=False)
             seller.user = request.user
@@ -306,7 +307,7 @@ def _seller_application_form(request, small=False, segment="shop"):
             seller.save()
             if small:
                 from dashboard.security import audit
-                audit(request, "seller.aadhaar_consent", seller, "Seller consented to offline Aadhaar verification for seller onboarding.", consent_version="small-seller-identity-v1", eligibility_declaration=True)
+                audit(request, "seller.aadhaar_consent", seller, "Seller consented to masked Aadhaar image storage and manual review for seller onboarding.", consent_version="small-seller-identity-v2", eligibility_declaration=True)
             if not small and not seller.razorpay_fund_account_id:
                 try:
                     from .payouts import PayoutOnboardingError, provision_seller_payout_account

@@ -637,6 +637,25 @@ def update_seller_status(request, seller_id):
     return redirect("sellers_management")
 
 
+@operations_admin_required
+def seller_aadhaar_image(request, seller_id):
+    from pathlib import Path
+    from django.http import FileResponse, Http404
+    seller = get_object_or_404(SellerProfile, pk=seller_id, registration_type="small")
+    if not seller.aadhaar_image or not seller.aadhaar_consent_at:
+        raise Http404
+    try:
+        document = seller.aadhaar_image.open("rb")
+    except FileNotFoundError:
+        raise Http404
+    audit(request, "seller.aadhaar_image_viewed", seller, "Admin viewed seller identity document.")
+    response = FileResponse(document, filename="aadhaar" + Path(seller.aadhaar_image.name).suffix)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return response
+
+
 @require_POST
 @operations_admin_required
 @transaction.atomic
@@ -659,6 +678,9 @@ def review_small_seller(request, seller_id):
         seller.status = "suspended" if seller.status == "approved" else "pending"
         seller.payouts_enabled = False
     else:
+        if not seller.aadhaar_image:
+            messages.error(request, "Ask the seller to upload a masked Aadhaar photo before reviewing.")
+            return redirect("ops_seller_detail", seller_id=seller.pk)
         form = SmallSellerReviewForm(request.POST)
         if not form.is_valid():
             messages.error(request, "Confirm both identity and business eligibility checks and enter a valid review reference.")

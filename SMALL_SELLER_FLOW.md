@@ -11,13 +11,13 @@ New-account links carry a fixed seller route through email verification. Existin
 
 ## Application and review
 
-Small sellers provide legal/business identity, local pickup GPS, contact details, Aadhaar last four digits, PAN, GST-portal enrolment, bank details, identity-verification consent and an eligibility declaration. Full Aadhaar numbers/documents are never requested or uploaded. PAN and bank account numbers are transient form inputs; only suffixes are saved.
+Small sellers provide legal/business details, local pickup GPS, contact details, Aadhaar last four digits, a masked Aadhaar image, bank details, consent to private image storage and review, and an eligibility declaration. No PAN or GST enrolment fields are requested by this form. The upload accepts JPG, PNG and WebP up to 8 MB. Sellers must hide the first eight Aadhaar digits and leave the name, photo, last four digits and Secure QR visible.
 
-Submitting last-four digits is not Aadhaar verification. Applications remain pending. The marketplace's authorized verification team must arrange an offline review, verify the Aadhaar Secure QR with official UIDAI tools, confirm identity/name and check GST-portal enrolment, PAN match, registered state and turnover eligibility. This release has no UIDAI OTP, biometric or GSTN validation API integration. Staff must perform the actual checks before recording a verified review.
+Images are stored outside public media at `PRIVATE_MEDIA_ROOT/seller_identity` with random filenames. Configure this directory on persistent private storage; never expose it through the web server. The operations dashboard serves images only to authorised operations admins with no-store response headers and audits document access. Django admin links to the same protected route. Mobile application schemas use the existing image picker and multipart upload support.
 
-In Seller Management, use the Small sellers filter, open the seller and record both completed checks and an internal review reference. Identity review does not approve the seller or activate payouts. Marketplace approval opens the standard merchandise workspace. Bank setup uses the existing RazorpayX integration; payout activation remains a separate staff action. Corrections are shown to the applicant. Resubmission invalidates previous verification and bank tokens. Identity consent, withdrawal and review actions are audited without full identity numbers.
+Admins open the seller in Seller Management, inspect the uploaded photo, compare the name and last four digits, confirm both document and eligibility checks, and record an internal reference. A new verified review requires an uploaded image. This is manual document review, not automatic UIDAI authentication. Official UIDAI QR tools can be used when checking document authenticity. Existing verified sellers retain their status; new applications and resubmissions require the image.
 
-Consent can be withdrawn from the application or seller settings. Withdrawal clears retained Aadhaar digits and verification details, suspends selling, hides products and disables payouts. A new reviewed application is required before selling resumes.
+Identity review, seller approval and payout activation remain separate actions. Corrections appear to the seller. Resubmission invalidates the previous review and payout tokens. Replaced images and documents belonging to deleted sellers are removed after the database transaction commits. Withdrawing consent deletes the photo, clears the Aadhaar suffix and review, suspends selling and disables payouts.
 
 ## Merchandise behavior
 
@@ -32,6 +32,8 @@ Apply the schema migration before serving this code:
 ```powershell
 python manage.py migrate
 ```
+
+Migration `accounts.0017_sellerprofile_aadhaar_image` adds the private document field.
 
 Migration `accounts.0014_small_seller_registration` defaults existing sellers to the registered-business route. It does not change existing seller status, tax or payout eligibility. Ensure the deployment's normal database and RazorpayX configuration are available. Product moderation and local rider coverage remain prerequisites for customer orders.
 

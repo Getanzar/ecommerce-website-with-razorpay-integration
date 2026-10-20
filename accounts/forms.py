@@ -194,7 +194,21 @@ class SellerApplicationForm(RequiredGPSMixin, forms.ModelForm):
 
 
 class SmallSellerApplicationForm(SellerApplicationForm):
-    aadhaar_consent = forms.BooleanField(label="I consent to Aadhaar offline identity verification for my seller application.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
+    aadhaar_image = forms.ImageField(label="Masked Aadhaar photo", widget=forms.FileInput(attrs={"class": "form-control", "accept": "image/jpeg,image/png,image/webp"}), help_text="Upload a clear JPG, PNG or WebP up to 8 MB. Hide the first eight Aadhaar digits; keep your name, photo, last four digits and Secure QR visible. Only authorised admins can view this image.")
+
+    class Meta(SellerApplicationForm.Meta):
+        fields = (*SellerApplicationForm.Meta.fields, "aadhaar_image")
+
+    def clean_aadhaar_image(self):
+        image = self.cleaned_data.get("aadhaar_image")
+        if image and hasattr(image, "image"):
+            if image.size > 8 * 1024 * 1024:
+                raise ValidationError("Aadhaar image must be 8 MB or smaller.")
+            if image.image.format not in {"JPEG", "PNG", "WEBP"}:
+                raise ValidationError("Upload a JPG, PNG or WebP image.")
+        return image
+
+    aadhaar_consent = forms.BooleanField(label="I consent to uploading and storing my masked Aadhaar photo for authorised admin review of my seller application.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
     eligibility_declaration = forms.BooleanField(label="I am a small seller without GST registration, meet the applicable turnover limit, and will sell only within my approved local selling area.", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
 
     def __init__(self, *args, **kwargs):
@@ -209,7 +223,7 @@ class SmallSellerApplicationForm(SellerApplicationForm):
         self.fields["business_category"].widget.attrs["placeholder"] = "e.g. Handmade items, Clothing, Home decor"
         self.fields["aadhaar_last4"].label = "Last four digits of Aadhaar"
         self.fields["bank_ifsc_code"].label = "Bank IFSC code"
-        self.fields["aadhaar_last4"].help_text = "Enter only the last four digits. Our team will verify your Aadhaar Secure QR during identity review. Do not upload or send your full Aadhaar number."
+        self.fields["aadhaar_last4"].help_text = "Enter only the last four digits. These digits must match your masked Aadhaar photo. Do not enter your full Aadhaar number."
         self.instance.registration_type = "small"
         self.instance.business_segment = self.segment
         if self.segment != "shop":
@@ -252,7 +266,7 @@ class SmallSellerApplicationForm(SellerApplicationForm):
 
 
 class SmallSellerReviewForm(forms.Form):
-    identity_checked = forms.BooleanField(label="I verified the seller's identity against their Aadhaar Secure QR using official UIDAI offline tools and confirmed their consent.")
+    identity_checked = forms.BooleanField(label="I reviewed the uploaded masked Aadhaar photo, matched the name and last four digits to this application, and confirmed the seller consented.")
     eligibility_checked = forms.BooleanField(label="I reviewed the seller's business details, approved selling area and small-seller declaration.")
     reference = forms.CharField(max_length=100, label="Review reference", help_text="Use an internal review reference, never an Aadhaar number.")
 

@@ -1,4 +1,8 @@
 from decimal import Decimal
+from io import BytesIO
+from tempfile import TemporaryDirectory
+from PIL import Image
+from django.core.files.uploadedfile import SimpleUploadedFile
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -21,13 +25,29 @@ from products.models import Category, Product, ProductColor, ProductVariant
 @override_settings(SECURE_SSL_REDIRECT=False, PLATFORM_FEE_GST_PERCENT="18.00", LOCAL_DELIVERY_BASE_FEE="30.00")
 class SmallSellerFlowTests(TestCase):
     def setUp(self):
+        self.identity_dir = TemporaryDirectory(dir=".")
+        self.addCleanup(self.identity_dir.cleanup)
+        storage = SellerProfile._meta.get_field("aadhaar_image").storage
+        self.storage_override = patch.object(storage, "_location", self.identity_dir.name)
+        self.storage_override.start()
+        self.addCleanup(self.storage_override.stop)
+        storage.__dict__.pop("location", None)
+        storage.__dict__.pop("base_location", None)
         self.user = User.objects.create_user("small-seller")
         self.reviewer = User.objects.create_superuser("small-reviewer", "reviewer@example.com", "test-password")
         self.client.force_login(self.user)
 
+    def image(self):
+        output = BytesIO()
+        Image.new("RGB", (30, 20), "white").save(output, format="PNG")
+        return SimpleUploadedFile("masked.png", output.getvalue(), content_type="image/png")
+
+    def small_form(self, data, **kwargs):
+        return SmallSellerApplicationForm(data, {"aadhaar_image": data.get("aadhaar_image", self.image())}, **kwargs)
+
     def payload(self, **changes):
         data = {"store_name": "Local crafts", "legal_business_name": "Test Seller", "business_category": "Handmade goods", "business_segment": "shop", "business_phone": "9999999999", "business_address": "Local market", "business_pincode": "243638", "business_latitude": "28.073100", "business_longitude": "78.750200", "business_gps_accuracy_meters": "10", "gps_captured_at": timezone.now().isoformat(), "aadhaar_last4": "1234", "bank_account_holder": "Test Seller", "bank_account_number": "123456789012", "bank_ifsc_code": "SBIN0001234", "aadhaar_consent": "on", "eligibility_declaration": "on"}
-        return {**data, **changes}
+        return {**data, "aadhaar_image": self.image(), **changes}
 
     def apply(self):
         response = self.client.post(reverse("small_seller_application"), self.payload())
@@ -111,12 +131,12 @@ class SmallSellerFlowTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 names = {field["name"] for field in response.data["fields"]}
                 self.assertTrue({"pan_number", "gst_enrolment_number", "gstin"}.isdisjoint(names))
-                form = SmallSellerApplicationForm(self.payload(business_segment=segment), segment=segment)
+                form = self.small_form(self.payload(business_segment=segment), segment=segment)
                 self.assertTrue(form.is_valid(), form.errors)
                 response = client.post(
                     "/api/v1/partners/applications/seller/?registration_type=small&business_segment=" + segment,
                     self.payload(store_name="Mobile " + segment, business_segment=segment),
-                    format="json",
+                    format="multipart",
                 )
                 self.assertEqual(response.status_code, 201, response.data)
                 seller = SellerProfile.objects.get(user=user)
@@ -129,7 +149,7 @@ class SmallSellerFlowTests(TestCase):
     def test_small_forms_ignore_removed_fields_even_if_an_old_client_posts_them(self):
         for segment in ("shop", "food", "grocery"):
             with self.subTest(segment=segment):
-                form = SmallSellerApplicationForm(self.payload(business_segment=segment, pan_number="INVALIDPAN", gst_enrolment_number="INVALID"), segment=segment)
+                form = self.small_form(self.payload(business_segment=segment, pan_number="INVALIDPAN", gst_enrolment_number="INVALID"), segment=segment)
                 self.assertTrue(form.is_valid(), form.errors)
                 seller = form.save(commit=False)
                 self.assertEqual(seller.pan_last4, "")
@@ -151,7 +171,7 @@ class SmallSellerFlowTests(TestCase):
         seller.pan_last4 = "234F"
         seller.gst_enrolment_number = "ENROL12345678901"
         seller.save()
-        form = SmallSellerApplicationForm(self.payload(), instance=seller)
+        form = self.small_form(self.payload(), instance=seller)
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
         seller.refresh_from_db()
@@ -174,7 +194,7 @@ class SmallSellerFlowTests(TestCase):
         self.assertNotContains(response, "Enrolment number")
 
     def test_no_gstin_field_and_privileged_fields_are_not_accepted(self):
-        form = SmallSellerApplicationForm(self.payload(status="approved", payouts_enabled=True, registration_type="registered", identity_status="verified"))
+        form = self.small_form(self.payload(status="approved", payouts_enabled=True, registration_type="registered", identity_status="verified"))
         self.assertTrue(form.is_valid(), form.errors)
         self.assertNotIn("gstin", form.fields)
         self.assertNotIn("identity_status", form.fields)
@@ -200,7 +220,7 @@ class SmallSellerFlowTests(TestCase):
     def test_full_aadhaar_no_consent_and_wrong_segment_are_rejected(self):
         for changes, field in (({"aadhaar_last4": "123456789012"}, "aadhaar_last4"), ({"aadhaar_consent": ""}, "aadhaar_consent"), ({"business_segment": "food"}, "business_segment"), ({"eligibility_declaration": ""}, "eligibility_declaration")):
             with self.subTest(field=field):
-                form = SmallSellerApplicationForm(self.payload(**changes))
+                form = self.small_form(self.payload(**changes))
                 self.assertFalse(form.is_valid())
                 self.assertIn(field, form.errors)
 
@@ -338,7 +358,7 @@ class SmallSellerFlowTests(TestCase):
         self.assertNotIn("gst_enrolment_number", names)
         self.assertNotIn("pan_number", names)
         self.assertNotIn("identity_verified_by", names)
-        response = client.post(url, self.payload(), format="json")
+        response = client.post(url, self.payload(), format="multipart")
         self.assertEqual(response.status_code, 201, response.data)
         seller = SellerProfile.objects.get(user=self.user)
         self.assertEqual(seller.registration_type, "small")
@@ -383,3 +403,65 @@ class SmallSellerFlowTests(TestCase):
         seller.payouts_enabled = True
         with self.assertRaises(ValidationError):
             seller.full_clean()
+
+    def test_identity_upload_required_and_validated(self):
+        data = self.payload()
+        del data["aadhaar_image"]
+        form = SmallSellerApplicationForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("aadhaar_image", form.errors)
+        form = SmallSellerApplicationForm(data, {"aadhaar_image": SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")})
+        self.assertFalse(form.is_valid())
+        self.assertIn("aadhaar_image", form.errors)
+
+    def test_identity_photo_is_private_and_removed_on_withdrawal(self):
+        seller = self.apply()
+        name = seller.aadhaar_image.name
+        storage = seller.aadhaar_image.storage
+        with self.assertRaises(ValueError):
+            _ = seller.aadhaar_image.url
+        url = reverse("seller_aadhaar_image", args=[seller.pk])
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.reviewer)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        response.close()
+        self.client.force_login(self.user)
+        self.client.post(reverse("withdraw_small_seller_consent"))
+        self.assertFalse(storage.exists(name))
+        self.client.force_login(self.reviewer)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_review_requires_uploaded_photo(self):
+        seller = self.apply()
+        seller.aadhaar_image.delete()
+        self.verify(seller)
+        seller.refresh_from_db()
+        self.assertEqual(seller.identity_status, "pending")
+
+    def test_replacement_removes_previous_photo_and_resets_review(self):
+        seller = self.verify(self.apply())
+        previous = seller.aadhaar_image.name
+        storage = seller.aadhaar_image.storage
+        self.client.force_login(self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse("small_seller_application"), self.payload())
+        self.assertEqual(response.status_code, 302)
+        seller.refresh_from_db()
+        self.assertNotEqual(seller.aadhaar_image.name, previous)
+        self.assertFalse(storage.exists(previous))
+        self.assertTrue(storage.exists(seller.aadhaar_image.name))
+        self.assertEqual(seller.identity_status, "pending")
+        self.client.force_login(self.reviewer)
+        response = self.client.get(reverse("ops_seller_detail", args=[seller.pk]))
+        self.assertContains(response, reverse("seller_aadhaar_image", args=[seller.pk]))
+
+    def test_oversized_identity_image_is_rejected(self):
+        image = self.image()
+        image.size = 8 * 1024 * 1024 + 1
+        form = SmallSellerApplicationForm(self.payload(), {"aadhaar_image": image})
+        self.assertFalse(form.is_valid())
+        self.assertIn("aadhaar_image", form.errors)

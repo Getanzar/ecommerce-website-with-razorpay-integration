@@ -1,4 +1,5 @@
 from django.db import models
+from .identity_storage import PrivateIdentityStorage, identity_upload_path
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
@@ -113,6 +114,7 @@ class SellerProfile(models.Model):
     identity_review_note = models.TextField(blank=True, max_length=1000)
     identity_verified_at = models.DateTimeField(blank=True, null=True)
     identity_verified_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="verified_small_sellers")
+    aadhaar_image = models.ImageField(storage=PrivateIdentityStorage(), upload_to=identity_upload_path, blank=True)
     aadhaar_last4 = models.CharField(max_length=4, blank=True)
     bank_account_holder = models.CharField(max_length=150, blank=True)
     bank_account_last4 = models.CharField(max_length=4, blank=True)

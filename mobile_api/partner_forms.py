@@ -136,7 +136,7 @@ class ApplicationView(PartnerView):
         profile.save()
         if role == "seller" and profile.is_small_seller:
             from dashboard.security import audit
-            audit(request, "seller.aadhaar_consent", profile, "Seller consented to offline Aadhaar verification for seller onboarding.", consent_version="small-seller-identity-v1", eligibility_declaration=True)
+            audit(request, "seller.aadhaar_consent", profile, "Seller consented to masked Aadhaar image storage and manual review for seller onboarding.", consent_version="small-seller-identity-v2", eligibility_declaration=True)
         # Do not initiate provider calls during application submission. Bank setup
         # is a separate explicit action and approval never enables payouts itself.
         return Response({"message": "Application submitted for marketplace review. Complete payout setup separately.", "status": profile.status}, status=201)

@@ -23,7 +23,7 @@ class SellerProfileAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "business_segment", "registration_type", "identity_status")
-    readonly_fields = ("aadhaar_consent_at", "identity_verified_at", "identity_verified_by", "identity_status", "identity_review_reference")
+    readonly_fields = ("aadhaar_image_review","aadhaar_consent_at", "identity_verified_at", "identity_verified_by", "identity_status", "identity_review_reference")
     search_fields = (
         "store_name",
         "legal_business_name",
@@ -34,8 +34,16 @@ class SellerProfileAdmin(admin.ModelAdmin):
     )
     list_editable = ("status", "commission_percent", "payouts_enabled")
 
+    @admin.display(description="Aadhaar document")
+    def aadhaar_image_review(self, obj):
+        from django.urls import reverse
+        from django.utils.html import format_html
+        if obj and obj.aadhaar_image:
+            return format_html('<a href="{}">View private Aadhaar photo in operations dashboard</a>', reverse("seller_aadhaar_image", args=[obj.pk]))
+        return "No document uploaded"
+
     def get_exclude(self, request, obj=None):
-        excluded = super().get_exclude(request, obj) or ()
+        excluded = (*(super().get_exclude(request, obj) or ()), "aadhaar_image")
         if obj and obj.is_small_seller:
             return (*excluded, "pan_last4", "gst_enrolment_number")
         return excluded
