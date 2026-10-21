@@ -206,7 +206,7 @@
                     {% for shipment in carrier_shipments %}
                         <div class="border rounded-3 p-3 mb-3">
                             <strong>{% if shipment.seller %}{{ shipment.seller.store_name }}{% else %}ZIYAMART direct inventory{% endif %}</strong>
-                            <div class="small text-muted">Delhivery · {{ shipment.carrier_status|default:"Preparing shipment" }}</div>
+                            <div class="small text-muted">Delhivery · {% if shipment.carrier_status == "manifested" %}Shipment booked — awaiting pickup{% else %}{{ shipment.carrier_status|default:"Preparing shipment" }}{% endif %}</div>
                             {% if shipment.awb_number %}<a class="btn btn-sm btn-outline-dark mt-2" target="_blank" rel="noopener" href="https://www.delhivery.com/track/package/{{ shipment.awb_number }}">Track AWB {{ shipment.awb_number }}</a>{% endif %}
                         </div>
                     {% endfor %}
@@ -244,7 +244,7 @@
 
                         </a>
 
-                    {% else %}
+                    {% elif not carrier_shipments and not local_deliveries %}
 
                         <div class="alert alert-light border">
 
@@ -297,8 +297,13 @@
                     </div>
 
                     <div class="d-flex justify-content-between mb-2">
-                        <span>Payment</span>
-                        <span>{{ order.payment_method }}</span>
+                        <span>Payment method</span>
+                        <span>{{ order.get_payment_method_display }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Payment status</span>
+                        <strong{% if order.payment_status == "Paid" %} class="text-success"{% endif %}>{{ order.payment_status }}</strong>
                     </div>
 
                     <div class="d-flex justify-content-between">
