@@ -153,7 +153,7 @@ def finalize_parcel_transaction(payment, provider_payment_id=""):
     )
     for saved in snapshot["items"]:
         variant = sellable_variants(
-            ProductVariant.objects.select_for_update().select_related("product", "product__seller", "color")
+            ProductVariant.objects.select_for_update(of=("self",)).select_related("product", "product__seller", "color")
         ).get(
             pk=saved["variant_id"], product_id=saved["product_id"],
         )
