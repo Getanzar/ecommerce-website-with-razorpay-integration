@@ -214,6 +214,11 @@ class PartnerApiTests(APITestCase):
         from food.models import MenuItem, MenuItemOption
         Restaurant.objects.create(seller=self.seller, name="Kitchen")
         self.login(self.seller_user)
+        editor = self.client.get(self.url("seller/food/products/new/"))
+        section = next(field for field in editor.data["fields"] if field["name"] == "section_name")
+        self.assertEqual(section["type"], "choice")
+        self.assertIn(["Drinks", "Drinks"], section["choices"])
+        self.assertIn(["Beverages", "Beverages"], section["choices"])
         response = self.client.post(self.url("seller/food/products/new/"), {"name": "Dosa", "section_name": "Breakfast", "food_type": "veg", "option_name": "Regular", "option_price": "80.00", "is_available": True}, format="json")
         self.assertEqual(response.status_code, 200, response.data)
         item = MenuItem.objects.get(name="Dosa")

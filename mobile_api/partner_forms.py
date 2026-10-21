@@ -323,13 +323,19 @@ class SellerCategoryView(SellerKindView):
         }, status=201)
 
 class MobileMenuForm(MenuItemForm):
-    section_name = forms.CharField(max_length=100, initial="Menu")
+    section_name = forms.ChoiceField(label="Section", initial="Main Course")
     option_name = forms.CharField(max_length=50, initial="Regular")
     option_price = forms.DecimalField(max_digits=8, decimal_places=2, min_value=0.01)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields.pop("section")
+        sections = self.fields.pop("section").queryset
+        names = list(sections.values_list("name", flat=True))
+        # Preserve older clients that submit a custom section name as text.
+        submitted = str(self.data.get("section_name", "")).strip() if self.is_bound else ""
+        if submitted and len(submitted) <= 100 and submitted not in names:
+            names.append(submitted)
+        self.fields["section_name"].choices = [(name, name) for name in names]
         if self.instance.pk:
             self.initial["section_name"] = self.instance.section.name
             self.fields.pop("option_name")

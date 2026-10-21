@@ -159,7 +159,10 @@ class FoodOrderingTests(TestCase):
 
     def test_seller_save_then_customer_view_and_purchase(self):
         self.client.force_login(self.owner)
-        self.assertEqual(self.client.get(reverse("food_seller_add_item")).status_code, 200)
+        editor = self.client.get(reverse("food_seller_add_item"))
+        self.assertEqual(editor.status_code, 200)
+        for name in ("Starters", "Main Course", "Biryani", "Breads", "Desserts", "Beverages", "Drinks"):
+            self.assertIn(name.casefold(), {section.name.casefold() for section in editor.context["form"].fields["section"].queryset})
         response = self.client.post(reverse("food_seller_add_item"), self.menu_payload())
         self.assertRedirects(response, reverse("food_seller_menu"))
         item = MenuItem.objects.get(name="Paneer meal")

@@ -3,6 +3,7 @@ from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from .models import FoodDeliveryAreaRequest, FoodOrder, MenuItem, MenuItemOption, MenuSection, Restaurant
 from delivery.forms import RequiredGPSMixin
+from .menu_sections import ensure_menu_sections
 
 
 class FoodDeliveryAreaRequestForm(forms.ModelForm):
@@ -45,7 +46,10 @@ class MenuItemForm(forms.ModelForm):
     def __init__(self, *args, restaurant=None, **kwargs):
         super().__init__(*args, **kwargs)
         if restaurant:
+            ensure_menu_sections(restaurant)
             self.fields["section"].queryset = restaurant.sections.all()
+            self.fields["section"].label_from_instance = lambda section: section.name
+            self.fields["section"].help_text = "Choose a menu section, including Drinks or Beverages. You can also add your own section."
 
 
 class MenuOptionForm(forms.ModelForm):
