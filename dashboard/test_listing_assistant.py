@@ -2,6 +2,7 @@ import io
 import base64
 import json
 from unittest.mock import Mock, patch
+import requests
 
 from PIL import Image
 from django.contrib.auth.models import User
@@ -39,6 +40,32 @@ def provider(value=None):
 
 @override_settings(GEMINI_API_KEY="test-key-not-real", SELLER_LISTING_AI_MODEL="gemini-3.1-flash-lite", SELLER_LISTING_AI_DAILY_LIMIT=2)
 class ListingAssistantTests(TestCase):
+    @patch("dashboard.listing_assistant.time.sleep")
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_transient_failure_retries_without_an_extra_seller_attempt(self, post, sleep):
+        post.side_effect = [Mock(ok=False, status_code=503), provider()]
+        result = generate_draft(self.seller, "shop", "", [photo()])
+        self.assertEqual(result["fields"]["name"], "Blue shirt")
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(SellerListingAIUsage.objects.get().attempts, 1)
+
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_image_access_failure_explains_configuration_and_preserves_text(self, post):
+        post.side_effect = [provider(), Mock(ok=False, status_code=403)]
+        result = generate_draft(self.seller, "shop", "", [photo()], enhance_photo=True)
+        self.assertIn("HTTP 403", result["image_warning"])
+        self.assertIn("configuration", result["image_warning"])
+        self.assertEqual(result["fields"]["name"], "Blue shirt")
+        self.assertEqual(post.call_count, 2)
+
+    @patch("dashboard.listing_assistant.requests.post")
+    def test_image_timeout_preserves_text_and_does_not_replay_generation(self, post):
+        post.side_effect = [provider(), requests.Timeout()]
+        result = generate_draft(self.seller, "shop", "", [photo()], enhance_photo=True)
+        self.assertIn("took too long", result["image_warning"])
+        self.assertEqual(result["fields"]["name"], "Blue shirt")
+        self.assertEqual(post.call_count, 2)
+
     @patch("dashboard.listing_assistant.requests.post")
     def test_catalogue_photo_is_validated_and_shared_by_web_and_mobile(self, post):
         image_response = Mock(ok=True)

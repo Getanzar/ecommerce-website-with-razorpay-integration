@@ -77,6 +77,20 @@ Upload the finished AAB to your Play Console testing/release track through the n
 
 ### 6. Troubleshooting
 
+The repository's `gunicorn.conf.py` allows 150 seconds and uses two threads so
+the sequential text (45-second read budget) and image (60-second read budget)
+calls can finish without the default 30-second worker cutoff. Deploy this file
+with the backend. In Render, remove any saved `--timeout 30` or conflicting
+`GUNICORN_CMD_ARGS`; command-line options override this file. Start Gunicorn from
+the repository root, or explicitly pass `--config gunicorn.conf.py`.
+
+Fast HTTP 500/502/503/504 failures are retried once within the stage's read
+budget. Quota/access failures and network timeouts are not replayed. Logs show
+the stage, model, HTTP status and attempt only; no key, photo or seller notes.
+Image failures retain the text draft and now explain quota, configuration or
+timeout problems. A successful metadata check still does not verify image
+generation: check access and billing for `SELLER_LISTING_AI_IMAGE_MODEL` too.
+
 | Symptom | Check |
 | --- | --- |
 | Assistant missing | Verify the deployed Git commit, static build and template; reload the website. Install a recent app build or reload Expo. |
