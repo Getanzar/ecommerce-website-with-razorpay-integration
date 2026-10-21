@@ -269,8 +269,8 @@ class SmallSellerFlowTests(TestCase):
             pricing, quotes = build_parcel_pricing([{ "product": product, "variant": variant, "quantity": 1}], {"pincode": "243638", "latitude": "28.0731", "longitude": "78.7502"}, "cod")
         self.assertEqual(pricing["merchandise_gst"], Decimal("0.00"))
         self.assertEqual(pricing["platform_fee_gst"], Decimal("1.80"))
-        self.assertEqual(pricing["customer_delivery_charge"], Decimal("0.00"))
-        self.assertEqual(pricing["grand_total"], Decimal("111.80"))
+        self.assertEqual(pricing["customer_delivery_charge"], Decimal("30.00"))
+        self.assertEqual(pricing["grand_total"], Decimal("141.80"))
         self.assertEqual(quotes[0]["provider"], "local")
 
     def test_small_seller_cannot_fall_back_to_courier_or_ship_outside_area(self):
@@ -336,15 +336,18 @@ class SmallSellerFlowTests(TestCase):
         buyer = User.objects.create_user("small-local-buyer")
         self.client.force_login(buyer)
         self.client.post(reverse("cart_add", args=[product.pk]), {"variant_id": variant.pk})
+        data = {"full_name": "Local Buyer", "phone": "9999999999", "address": "Local market", "city": "Sahaswan", "state": "Uttar Pradesh", "pincode": "243638", "latitude": "28.073100", "longitude": "78.750200", "gps_accuracy_meters": "10", "gps_captured_at": timezone.now().isoformat(), "payment_method": "cod"}
         with patch("delivery.coverage.has_local_coverage", return_value=True):
-            response = self.client.post(reverse("cod_checkout"), {"full_name": "Local Buyer", "phone": "9999999999", "address": "Local market", "city": "Sahaswan", "state": "Uttar Pradesh", "pincode": "243638", "latitude": "28.073100", "longitude": "78.750200", "gps_accuracy_meters": "10", "gps_captured_at": timezone.now().isoformat(), "payment_method": "cod"})
+            review = self.client.post(reverse("cod_checkout"), data)
+            data["quote_token"] = review.context["quote_token"]
+            response = self.client.post(reverse("cod_checkout"), data)
         self.assertEqual(response.status_code, 302)
         order = Order.objects.get(user=buyer)
-        self.assertEqual(order.total_price, Decimal("111.80"))
+        self.assertEqual(order.total_price, Decimal("141.80"))
         self.assertEqual(order.items.get().product_tax_amount, Decimal("0.00"))
         self.assertEqual(order.items.get().platform_fee_tax_amount, Decimal("1.80"))
         self.assertEqual(order.sellerdeliverycharges.get().provider, "local")
-        self.assertEqual(order.chargebreakdowns.get().customer_delivery_charge, Decimal("0.00"))
+        self.assertEqual(order.chargebreakdowns.get().customer_delivery_charge, Decimal("30.00"))
 
     def test_mobile_small_application_schema_and_submission_match_website(self):
         from rest_framework.test import APIClient

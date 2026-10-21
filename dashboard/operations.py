@@ -510,7 +510,7 @@ def reconcile_delivery_charge(request, charge_id):
     settlement = SellerSettlement.objects.none()
     if charge.parcel_order_id and charge.seller_id:
         settlement = SellerSettlement.objects.filter(order=charge.parcel_order, seller=charge.seller, status__in=("scheduled", "failed", "on_hold"))
-    settlement.update(delivery_charge=final_total)
+    settlement.update(delivery_charge=charge.seller_deduction)
     if charge.parcel_order_id and not charge.parcel_order.sellerdeliverycharges.filter(
         provider="delhivery",
     ).exclude(status="reconciled").exists():

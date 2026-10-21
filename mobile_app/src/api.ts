@@ -525,10 +525,11 @@ export const getCheckoutQuote = (
   kind: "shop" | "food" | "grocery",
   address_id: number,
   location?: { latitude: string; longitude: string; gps_accuracy_meters: number; gps_captured_at: string },
+  payment_method: "cod" | "online" = "online",
 ) =>
   request<CheckoutQuote>(
     `/checkout/${kind}/quote/`,
-    { method: "POST", body: JSON.stringify({ address_id, location }) },
+    { method: "POST", body: JSON.stringify({ address_id, location, payment_method }) },
     token,
   );
 export const checkoutShop = (

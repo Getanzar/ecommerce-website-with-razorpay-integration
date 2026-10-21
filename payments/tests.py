@@ -47,14 +47,15 @@ class PricingPolicyTests(TestCase):
     def test_delhivery_quote_uses_weight_pincodes_and_carrier_tax(self, get):
         response = Mock()
         response.raise_for_status.return_value = None
-        response.json.return_value = [{"total_amount": "100.00"}]
+        response.json.return_value = [{"gross_amount": "100.00", "total_amount": "118.00"}]
         get.return_value = response
 
         quote = quote_delhivery("243638", "110001", 750, "cod")
 
         self.assertEqual(quote["carrier_amount"], Decimal("100.00"))
-        self.assertEqual(quote["tax_amount"], Decimal("18.90"))
-        self.assertEqual(quote["quoted_total"], Decimal("123.90"))
+        self.assertEqual(quote["tax_amount"], Decimal("18.00"))
+        self.assertEqual(quote["handling_fee"], Decimal("0.00"))
+        self.assertEqual(quote["quoted_total"], Decimal("118.00"))
         self.assertEqual(get.call_args.kwargs["params"]["cgm"], 750)
         self.assertEqual(get.call_args.kwargs["params"]["pt"], "COD")
         self.assertEqual(get.call_args.kwargs["params"]["o_pin"], "243638")
@@ -91,8 +92,8 @@ class PricingPolicyTests(TestCase):
         self.assertEqual(len(quotes), 1)
         self.assertIsNone(quotes[0]["seller"])
         self.assertEqual(quotes[0]["provider"], "delhivery")
-        self.assertEqual(pricing["seller_sponsored_delivery"], quotes[0]["quoted_total"])
-        self.assertEqual(pricing["customer_delivery_charge"], Decimal("0.00"))
+        self.assertEqual(pricing["seller_sponsored_delivery"], Decimal("0.00"))
+        self.assertEqual(pricing["customer_delivery_charge"], quotes[0]["quoted_total"])
 
 
 @override_settings(RAZORPAY_WEBHOOK_SECRET="webhook-secret")
@@ -241,7 +242,11 @@ class ParcelCheckoutWorkflowTests(TestCase):
             user=User.objects.create_user("parcel-local-rider"),
             status="approved", pincode="243638", is_online=True,
         )
-        response = self.client.post(reverse("cod_checkout"), self._checkout_data("cod"))
+        data = self._checkout_data("cod")
+        review = self.client.post(reverse("cod_checkout"), data)
+        self.assertEqual(Order.objects.count(), 0)
+        data["quote_token"] = review.context["quote_token"]
+        response = self.client.post(reverse("cod_checkout"), data)
 
         order = Order.objects.get()
         self.assertRedirects(response, reverse("order_success", args=[order.pk]))
@@ -253,7 +258,7 @@ class ParcelCheckoutWorkflowTests(TestCase):
         self.assertEqual(order.payment_status, "Pending")
         self.assertEqual(breakdown.delivery_mode, "local")
         self.assertEqual(breakdown.delivery_gst, Decimal("0.00"))
-        self.assertEqual(breakdown.customer_delivery_charge, Decimal("0.00"))
+        self.assertEqual(breakdown.customer_delivery_charge, delivery_charge.quoted_total)
         self.assertEqual(delivery_charge.tax_amount, Decimal("0.00"))
         self.assertEqual(self.variant.stock, 4)
 
@@ -261,9 +266,12 @@ class ParcelCheckoutWorkflowTests(TestCase):
     def test_parcel_online_payment_verifies_and_finalizes_once(self, razorpay_client):
         razorpay_client.return_value.order.create.return_value = {"id": "order_parcel_test_1"}
 
-        checkout_response = self.client.post(
-            reverse("checkout"), self._checkout_data("online"),
-        )
+        data = self._checkout_data("online")
+        review = self.client.post(reverse("checkout"), data)
+        self.assertEqual(PaymentTransaction.objects.count(), 0)
+        razorpay_client.return_value.order.create.assert_not_called()
+        data["quote_token"] = review.context["quote_token"]
+        checkout_response = self.client.post(reverse("checkout"), data)
         self.assertEqual(checkout_response.status_code, 200)
         payment = PaymentTransaction.objects.get(provider_order_id="order_parcel_test_1")
         self.assertIsNone(payment.parcel_order_id)
@@ -294,6 +302,66 @@ class ParcelCheckoutWorkflowTests(TestCase):
         self.assertEqual(self.variant.stock, 4)
         self.assertEqual(Order.objects.count(), 1)
         self.assertTrue(SellerSettlement.objects.filter(order=order, seller=self.seller).exists())
+        self.assertEqual(order.seller_settlements.get().delivery_charge, Decimal("0.00"))
+        self.assertEqual(payment.amount, order.chargebreakdowns.get().grand_total)
+        self.assertGreater(order.chargebreakdowns.get().customer_delivery_charge, 0)
+
+    @patch("orders.commerce.razorpay.Client")
+    def test_changed_address_requires_new_delivery_review_before_payment(self, client):
+        data = self._checkout_data("online")
+        review = self.client.post(reverse("checkout"), data)
+        token = review.context["quote_token"]
+        data.update(quote_token=token, address="A different street")
+        response = self.client.post(reverse("checkout"), data)
+        self.assertNotEqual(response.context["quote_token"], token)
+        self.assertContains(response, "Review this updated total")
+        client.return_value.order.create.assert_not_called()
+        self.assertFalse(PaymentTransaction.objects.exists())
+
+    @patch("orders.commerce.razorpay.Client")
+    def test_expired_quote_cannot_start_payment(self, client):
+        data = self._checkout_data("online")
+        review = self.client.post(reverse("checkout"), data)
+        data["quote_token"] = review.context["quote_token"]
+        session = self.client.session
+        saved = session["parcel_delivery_quote"]
+        saved["expires_at"] = 0
+        session["parcel_delivery_quote"] = saved
+        session.save()
+        response = self.client.post(reverse("checkout"), data)
+        self.assertNotEqual(response.context["quote_token"], data["quote_token"])
+        client.return_value.order.create.assert_not_called()
+
+    @patch("orders.commerce.razorpay.Client")
+    def test_confirmed_quote_is_locked_and_repeated_submit_reuses_payment(self, client):
+        client.return_value.order.create.return_value = {"id": "order_locked_quote"}
+        data = self._checkout_data("online")
+        review = self.client.post(reverse("checkout"), data)
+        data["quote_token"] = review.context["quote_token"]
+        with patch("orders.commerce._quote_cart", side_effect=AssertionError("Accepted quotes must not be repriced")):
+            for _ in range(2):
+                response = self.client.post(reverse("checkout"), data)
+                self.assertEqual(response.status_code, 200)
+        self.assertEqual(PaymentTransaction.objects.count(), 1)
+        client.return_value.order.create.assert_called_once()
+
+    def test_customer_paid_delivery_is_not_deducted_when_final_bill_changes(self):
+        from orders.settlements import create_settlements_for_order
+        order = Order.objects.create(user=self.customer, total_price="200", payment_method="online", payment_status="Paid", status="Processing")
+        from orders.models import OrderItem
+        OrderItem.objects.create(order=order, product=self.variant.product, variant=self.variant, product_name="Item", quantity=1, price="110", seller_unit_price="100")
+        charge = SellerDeliveryCharge.objects.create(
+            parcel_order=order, seller=self.seller, provider="delhivery", quoted_total="60", final_total="60",
+            quote_payload={"delivery_payer": "customer"},
+        )
+        create_settlements_for_order(order)
+        self.assertEqual(order.seller_settlements.get().delivery_charge, Decimal("0.00"))
+        admin = User.objects.create_superuser("delivery-admin", "admin@example.com", "password")
+        self.client.force_login(admin)
+        self.client.post(reverse("ops_reconcile_delivery_charge", args=[charge.pk]), {"final_total": "80"})
+        charge.refresh_from_db()
+        self.assertEqual(charge.final_total, Decimal("80.00"))
+        self.assertEqual(order.seller_settlements.get().delivery_charge, Decimal("0.00"))
 
 
 @override_settings(ROOT_URLCONF="config.urls", SECURE_SSL_REDIRECT=False)

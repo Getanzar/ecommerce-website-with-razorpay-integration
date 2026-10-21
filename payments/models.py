@@ -175,6 +175,13 @@ class SellerDeliveryCharge(OrderLinkMixin):
     def amount_due(self):
         return self.final_total or self.quoted_total
 
+    @property
+    def seller_deduction(self):
+        # The saved payer policy protects existing orders and quotes.
+        if self.parcel_order_id and self.quote_payload.get("delivery_payer") == "customer":
+            return ZERO
+        return self.amount_due
+
 
 class CODRemittance(OrderLinkMixin):
     STATUS_CHOICES = (

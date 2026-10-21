@@ -16,6 +16,9 @@ ROOT_URLCONF = "config.urls"
 SILENCED_SYSTEM_CHECKS = ["fields.E210"]
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0
+DELHIVERY_API_KEY = ""
+DELHIVERY_REQUIRE_LIVE_QUOTE = False
+PARCEL_CUSTOMER_DELIVERY_LIVE_QUOTES = False
 STORAGES = {
     **STORAGES,  # noqa: F405
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},

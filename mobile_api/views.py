@@ -612,11 +612,14 @@ def _address_for(request):
     return Address.objects.filter(pk=address_id, user=request.user).first()
 
 
-def _quote_data(request, kind, address, location=None):
+def _quote_data(request, kind, address, location=None, payment_method=None):
     from payments.pricing import DeliveryQuoteError, build_food_pricing, build_grocery_pricing, build_parcel_pricing
     from orders.commerce import _json_value
     location = location or {}
     delivery_quotes = []
+    payment_method = payment_method or str(request.data.get("payment_method", "cod")).lower()
+    if payment_method not in {"online", "cod"}:
+        return None, "Choose a valid payment method."
     if kind == "shop":
         cart_rows=list(CartItem.objects.filter(cart__user=request.user).select_related("product__seller","variant","variant__color"))
         if not cart_rows:return None,"Your Shop cart is empty."
@@ -625,7 +628,7 @@ def _quote_data(request, kind, address, location=None):
         local_sellers = [row.product.seller for row in cart_rows if row.product.seller and (row.product.seller.business_pincode or settings.DELHIVERY_ORIGIN_PINCODE) == address.pincode]
         if local_sellers and not location:return None,"Confirm the delivery address GPS location before continuing."
         if any(seller.business_latitude is None or seller.business_longitude is None for seller in local_sellers):return None,"A seller must verify their pickup location before accepting local orders."
-        try: pricing, delivery_quotes=build_parcel_pricing(rows,{"pincode":address.pincode,**location},"cod")
+        try: pricing, delivery_quotes=build_parcel_pricing(rows,{"pincode":address.pincode,**location},payment_method)
         except DeliveryQuoteError as exc:return None,str(exc)
         snapshot=[{"id":row.pk,"variant_id":row.variant_id,"quantity":row.quantity,"price":str(row.variant.customer_price_with_tax)} for row in cart_rows]
         eta="3â€“7 business days"; source="ZIYAMART sellers"
@@ -664,6 +667,8 @@ def _quote_data(request, kind, address, location=None):
     cod_eligible=cod_limit<=0 or total<=cod_limit
     public={"kind":kind,"item_subtotal":str(pricing["grand_total"]-pricing["customer_delivery_charge"]),"delivery_charge":str(pricing["customer_delivery_charge"]),"discount":"0.00","total":str(total),"tax_inclusive":True,"delivery_mode":pricing["delivery_mode"],"eta":eta,"source":source,"cod_eligible":cod_eligible,"cod_unavailable_reason":"" if cod_eligible else f"Cash on delivery is available up to â‚¹{cod_limit}.","address":{"id":address.pk,"label":f"{address.address_line_1}, {address.city} {address.pincode}"}}
     public.update(item_price=str(pricing["merchant_subtotal"] + pricing["platform_fee"]), gst=str(pricing["merchandise_gst"] + pricing["platform_fee_gst"]))
+    if kind == "shop" and "payment_method" in request.data:
+        public["payment_method"] = payment_method
     address_snapshot = {key: getattr(address, key) for key in ("full_name", "phone", "address_line_1", "address_line_2", "city", "state", "pincode")}
     quotes = [_json_value({**{key:value for key,value in row.items() if key != "seller"}, "seller_id": row["seller"].pk if row["seller"] else None}) for row in delivery_quotes]
     fingerprint=hashlib.sha256(json.dumps({"items":snapshot,"address":address_snapshot,"location":location,"pricing":_json_value(pricing)},sort_keys=True).encode()).hexdigest()
@@ -701,10 +706,13 @@ def _checkout_guard(request, kind, payment_method="cod"):
         return None, Response({**payment_payload(_owned_order(request.user, kind, session.order_id), kind), "duplicate": True})
     requested_address_id = integer(request.data.get("address_id"), "address_id")
     if requested_address_id!=session.address_id:return None,Response({"message":"The delivery address changed. Refresh the quote."},status=409)
+    quoted_method = session.quote.get("public", {}).get("payment_method")
+    if kind == "shop" and quoted_method and quoted_method != payment_method:
+        return None, Response({"message": "Payment method changed. Review an updated delivery quote.", "requote_required": True}, status=409)
     if payment_method == "cod" and not session.quote.get("public",{}).get("cod_eligible",True):return None,Response({"message":session.quote["public"].get("cod_unavailable_reason","Cash on delivery is unavailable for this order.")},status=409)
     if session.expires_at<=timezone.now():return None,Response({"message":"This checkout quote expired. Refresh it and review the latest total.","quote_expired":True},status=409)
     address=Address.objects.filter(pk=session.address_id,user=request.user).first()
-    quote,error=_quote_data(request,kind,address,session.quote.get("location")) if address else (None,"The selected address is no longer available.")
+    quote,error=_quote_data(request,kind,address,session.quote.get("location"), quoted_method or "cod") if address else (None,"The selected address is no longer available.")
     if error:return None,Response({"message":error,"requote_required":True},status=409)
     if quote["fingerprint"]!=session.cart_fingerprint or quote["public"]["total"]!=session.quote["public"]["total"]:return None,Response({"message":"Price, stock, or availability changed. Please review a refreshed quote.","requote_required":True},status=409)
     if kind in {"food", "grocery"} and request.data.get("items"):

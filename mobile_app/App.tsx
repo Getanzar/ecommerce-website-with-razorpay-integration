@@ -3387,7 +3387,7 @@ function CheckoutModal({
     setQuoteError("");
     setQuote(null);
     try {
-      const next = await getCheckoutQuote(token, kind, selected, deliveryFix?.addressId === selected ? deliveryFix.location : undefined);
+      const next = await getCheckoutQuote(token, kind, selected, deliveryFix?.addressId === selected ? deliveryFix.location : undefined, paymentMethod);
       if (quoteRequest.current === requestId) setQuote(next);
     } catch (error: any) {
       if (quoteRequest.current === requestId) setQuoteError(error.message);
@@ -3398,7 +3398,7 @@ function CheckoutModal({
   useEffect(() => {
     refreshQuote();
     return () => { quoteRequest.current += 1; };
-  }, [visible, token, selected, kind, items.length, deliveryFix]);
+  }, [visible, token, selected, kind, items.length, deliveryFix, paymentMethod]);
   const captureDeliveryLocation = async () => {
     if (!selected) return;
     const addressId = selected;
@@ -3691,6 +3691,7 @@ function CheckoutModal({
               <View style={s.totalRow}><Text style={s.totalLabel}>{quote.price.item_price !== undefined ? "Item price" : "Items subtotal"}</Text><Text style={s.listPrice}>{money(quote.price.item_price ?? quote.price.item_subtotal)}</Text></View>
               {quote.price.gst !== undefined && <View style={s.totalRow}><Text style={s.totalLabel}>GST</Text><Text style={s.listPrice}>{money(quote.price.gst)}</Text></View>}
               <View style={s.totalRow}><Text style={s.totalLabel}>Delivery</Text><Text style={s.listPrice}>{Number(quote.price.delivery_charge) ? money(quote.price.delivery_charge) : "FREE"}</Text></View>
+              {kind === "shop" && <Text style={s.secureNote}>Delivery is included in your total. Courier charges use Delhivery's estimated rate for your address and packed weight, including tax.</Text>}
               {Number(quote.price.discount) > 0 && <View style={s.totalRow}><Text style={s.totalLabel}>Discount</Text><Text style={s.discountText}>− {money(quote.price.discount)}</Text></View>}
               <View style={s.totalRow}><Text style={s.totalLabel}>Total</Text><Text style={s.totalValue}>{money(quote.price.total)}</Text></View>
               {(quote.price.kind === "food" || quote.price.kind === "grocery") && <Text style={s.secureNote}>Free delivery on orders of ₹200 or more.</Text>}

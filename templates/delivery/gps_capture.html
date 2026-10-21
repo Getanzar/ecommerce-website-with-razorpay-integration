@@ -19,7 +19,12 @@
   const longitude = form.querySelector('[name="longitude"], [name$="_longitude"]');
   const accuracy = form.querySelector('[name="gps_accuracy_meters"], [name$="_gps_accuracy_meters"]');
   const capturedAt = form.querySelector('[name="gps_captured_at"]');
-  if (submit) submit.disabled = true;
+  const savedFixValid = {% if preserve_verified_gps %}Boolean(latitude?.value && longitude?.value && accuracy?.value && capturedAt?.value && Math.abs(Date.now() - Date.parse(capturedAt.value)) <= 300000){% else %}false{% endif %};
+  if (submit) submit.disabled = !savedFixValid;
+  if (savedFixValid) {
+    status.textContent = 'GPS location verified for this delivery quote.';
+    button.textContent = 'Capture again';
+  }
   function capture() {
     if (!navigator.geolocation) { status.textContent = 'GPS is unavailable on this device.'; return; }
     if (!latitude || !longitude || !accuracy || !capturedAt) {
@@ -56,6 +61,7 @@
       longitude.value = position.coords.longitude.toFixed(6);
       accuracy.value = Math.round(position.coords.accuracy);
       capturedAt.value = new Date().toISOString();
+      form.dispatchEvent(new Event('gps:captured', {bubbles: true}));
       status.textContent = `GPS verified · accuracy about ${Math.round(position.coords.accuracy)} m`;
       status.className = 'small mt-2 gps-capture-status text-success fw-semibold';
       button.textContent = 'Capture again'; button.disabled = false;

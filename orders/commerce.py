@@ -1,4 +1,7 @@
 from decimal import Decimal
+import hashlib
+import json
+import secrets
 
 import razorpay
 from django.conf import settings
@@ -225,6 +228,12 @@ def _quote_cart(request, form):
     return items, *build_parcel_pricing(items, destination, form.cleaned_data["payment_method"])
 
 
+def _checkout_fingerprint(items, checkout_data):
+    return hashlib.sha256(json.dumps(
+        _snapshot(items, checkout_data, {}, []), sort_keys=True,
+    ).encode()).hexdigest()
+
+
 @login_required
 def checkout(request):
     cart = Cart(request)
@@ -234,43 +243,67 @@ def checkout(request):
     form = CheckoutForm(request.POST or None, initial={"payment_method": "online"})
     items = list(cart)
     pricing = None
+    quotes = []
+    quote_token = ""
     razorpay_order_id = ""
     if request.method == "POST" and form.is_valid():
-        if form.cleaned_data["payment_method"] == "cod":
-            return redirect("cod_checkout")
         try:
-            items, pricing, quotes = _quote_cart(request, form)
-            provider = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)).order.create({
-                "amount": int(pricing["grand_total"] * 100),
-                "currency": "INR",
-                "receipt": f"parcel-{request.user.pk}-{int(timezone.now().timestamp())}"[:40],
-                "payment_capture": 1,
-                "notes": {"channel": "parcel", "user_id": str(request.user.pk)},
-            })
-            snapshot = _snapshot(items, form.cleaned_data, pricing, quotes)
-            payment = PaymentTransaction.objects.create(
-                user=request.user,
-                channel_name="parcel",
-                provider="razorpay",
-                provider_order_id=provider["id"],
-                amount=pricing["grand_total"],
-                snapshot=snapshot,
+            fingerprint = _checkout_fingerprint(items, form.cleaned_data)
+            saved = request.session.get("parcel_delivery_quote") or {}
+            confirmed = (
+                bool(request.POST.get("quote_token"))
+                and request.POST["quote_token"] == saved.get("token")
+                and saved.get("fingerprint") == fingerprint
+                and saved.get("expires_at", 0) > timezone.now().timestamp()
             )
-            request.session["parcel_payment_transaction"] = payment.pk
-            razorpay_order_id = provider["id"]
+            if not confirmed:
+                items, pricing, quotes = _quote_cart(request, form)
+                quote_token = secrets.token_urlsafe(24)
+                saved = {
+                    "token": quote_token, "fingerprint": fingerprint,
+                    "expires_at": timezone.now().timestamp() + 300,
+                    "snapshot": _snapshot(items, form.cleaned_data, pricing, quotes),
+                }
+                request.session["parcel_delivery_quote"] = saved
+                if request.POST.get("quote_token"):
+                    messages.info(request, "Your checkout changed or the delivery quote expired. Review this updated total before continuing.")
+            else:
+                snapshot = saved["snapshot"]
+                pricing = _pricing_from_snapshot(snapshot)
+                quotes = _quotes_from_snapshot(snapshot)
+                quote_token = saved["token"]
+                method = form.cleaned_data["payment_method"]
+                payment = PaymentTransaction.objects.filter(
+                    pk=saved.get("payment_id"), user=request.user,
+                ).first()
+                if payment is None:
+                    provider_id = ""
+                    if method == "online":
+                        provider = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)).order.create({
+                            "amount": int(pricing["grand_total"] * 100), "currency": "INR",
+                            "receipt": f"parcel-{request.user.pk}-{int(timezone.now().timestamp())}"[:40],
+                            "payment_capture": 1,
+                            "notes": {"channel": "parcel", "user_id": str(request.user.pk)},
+                        })
+                        provider_id = provider["id"]
+                    payment = PaymentTransaction.objects.create(
+                        user=request.user, channel_name="parcel",
+                        provider="cod" if method == "cod" else "razorpay",
+                        provider_order_id=provider_id, amount=pricing["grand_total"], snapshot=snapshot,
+                    )
+                    saved["payment_id"] = payment.pk
+                    request.session["parcel_delivery_quote"] = saved
+                if method == "cod":
+                    order = finalize_parcel_transaction(payment)
+                    cart.clear()
+                    request.session.pop("parcel_delivery_quote", None)
+                    return redirect("order_success", order_id=order.pk)
+                request.session["parcel_payment_transaction"] = payment.pk
+                razorpay_order_id = payment.provider_order_id
         except DeliveryQuoteError as exc:
             form.add_error(None, str(exc))
-    if pricing is None:
-        # The payable total does not include seller-sponsored delivery, so this
-        # preview can use the marketplace origin until an address is submitted.
-        try:
-            pricing, _ = build_parcel_pricing(
-                items,
-                {"pincode": settings.DELHIVERY_ORIGIN_PINCODE, "latitude": None, "longitude": None},
-                "online",
-            )
-        except DeliveryQuoteError:
-            pricing = None
+        except (ValueError, ProductVariant.DoesNotExist) as exc:
+            form.add_error(None, str(exc))
     return render(request, "orders/checkout.html", {
         "form": form,
         "addresses": addresses,
@@ -279,6 +312,8 @@ def checkout(request):
         "shipping": pricing["delivery_fee"] + pricing["delivery_gst"] if pricing else Decimal("0.00"),
         "tax": pricing["merchandise_gst"] + pricing["platform_fee_gst"] if pricing else Decimal("0.00"),
         "pricing": pricing,
+        "seller_quotes": quotes,
+        "quote_token": quote_token,
         "amount_display": f"₹{pricing['grand_total']:.2f}" if pricing else "",
         "total_paise": int(pricing["grand_total"] * 100) if pricing else 0,
         "currency": "INR",
@@ -408,31 +443,7 @@ def payment_success(request):
 @login_required
 @require_POST
 def cod_checkout(request):
-    if len(Cart(request)) == 0:
-        messages.error(request, "Your cart no longer contains an available product.")
-        return redirect("cart_detail")
-    form = CheckoutForm(request.POST)
-    if not form.is_valid():
-        messages.error(request, "Review the address and capture GPS again.")
-        return redirect("checkout")
-    form.cleaned_data["payment_method"] = "cod"
-    try:
-        items, pricing, quotes = _quote_cart(request, form)
-    except DeliveryQuoteError as exc:
-        messages.error(request, str(exc))
-        return redirect("checkout")
-    snapshot = _snapshot(items, form.cleaned_data, pricing, quotes)
-    payment = PaymentTransaction.objects.create(
-        user=request.user,
-        channel_name="parcel",
-        provider="cod",
-        amount=pricing["grand_total"],
-        snapshot=snapshot,
-    )
-    try:
-        order = finalize_parcel_transaction(payment)
-    except (ValueError, ProductVariant.DoesNotExist) as exc:
-        messages.error(request, str(exc))
-        return redirect("cart_detail")
-    Cart(request).clear()
-    return redirect("order_success", order_id=order.pk)
+    # COD must review and accept the same delivery-inclusive quote as online.
+    request.POST = request.POST.copy()
+    request.POST["payment_method"] = "cod"
+    return checkout(request)

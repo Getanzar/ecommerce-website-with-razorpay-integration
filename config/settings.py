@@ -206,7 +206,8 @@ DELHIVERY_RATE_URL = os.getenv(
     "https://track.delhivery.com/api/kinko/v1/invoice/charges/.json",
 )
 DELHIVERY_RATE_TIMEOUT = int(os.getenv("DELHIVERY_RATE_TIMEOUT", "15"))
-DELHIVERY_REQUIRE_LIVE_QUOTE = os.getenv("DELHIVERY_REQUIRE_LIVE_QUOTE", "False").lower() in {"1", "true", "yes", "on"}
+DELHIVERY_REQUIRE_LIVE_QUOTE = os.getenv("DELHIVERY_REQUIRE_LIVE_QUOTE", "True").lower() in {"1", "true", "yes", "on"}
+PARCEL_CUSTOMER_DELIVERY_LIVE_QUOTES = True
 DELHIVERY_FALLBACK_BASE = os.getenv("DELHIVERY_FALLBACK_BASE", "60.00")
 DELHIVERY_FALLBACK_PER_500G = os.getenv("DELHIVERY_FALLBACK_PER_500G", "25.00")
 DELHIVERY_HANDLING_FEE = os.getenv("DELHIVERY_HANDLING_FEE", "5.00")
