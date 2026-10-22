@@ -51,4 +51,11 @@ class Command(BaseCommand):
                 refreshed += 1
             except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as exc:
                 self.stderr.write(f"AWB {charge.awb_number}: {exc}")
+        from orders.pickups import reconcile_pickup
+        from payments.models import DelhiveryPickupRequest
+        for pickup in DelhiveryPickupRequest.objects.filter(status="scheduled"):
+            try:
+                reconcile_pickup(pickup)
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                self.stderr.write(f"Pickup {pickup.pk}: {exc}")
         self.stdout.write(self.style.SUCCESS(f"Refreshed {refreshed} Delhivery shipment(s)."))

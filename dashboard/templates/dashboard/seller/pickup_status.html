@@ -1,0 +1,11 @@
+{% if item.courier_charge %}
+<div class="small mt-2">
+{% with charge=item.courier_charge pickup=item.courier_charge.pickup_request %}
+{% if charge.awb_number %}<div>Delhivery AWB: {{ charge.awb_number }}</div>{% endif %}
+{% if pickup.status == 'scheduled' %}<div>Pickup scheduled: {{ pickup.pickup_date }} at {{ pickup.pickup_time }}. Request {{ pickup.provider_pickup_id }}.</div>
+{% elif pickup.status == 'auto_pickup' %}<div>Delhivery automatic pickup is enabled for this location.</div>
+{% elif pickup %}<div>Pickup: {{ pickup.get_status_display }}</div>
+{% else %}<div>Pickup is requested after all your items in this order are packed.</div>{% endif %}
+{% if charge.pickup_error %}<div class="text-danger">{{ charge.pickup_error }}</div>{% endif %}
+{% if item.fulfillment_status == 'packed' %}<form method="post" action="{% url 'seller_request_pickup' item.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Refresh / retry pickup</button></form>{% endif %}
+{% endwith %}</div>{% endif %}

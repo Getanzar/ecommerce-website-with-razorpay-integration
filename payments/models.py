@@ -152,6 +152,9 @@ class SellerDeliveryCharge(OrderLinkMixin):
     customer_collection_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     awb_number = models.CharField(max_length=100, blank=True)
     carrier_status = models.CharField(max_length=80, blank=True)
+    pickup_location_name = models.CharField(max_length=150, blank=True)
+    pickup_request = models.ForeignKey("DelhiveryPickupRequest", null=True, blank=True, on_delete=models.PROTECT, related_name="shipments")
+    pickup_error = models.TextField(blank=True)
     manifestation_payload = models.JSONField(default=dict, blank=True)
     quote_payload = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="quoted")
@@ -181,6 +184,40 @@ class SellerDeliveryCharge(OrderLinkMixin):
         if self.parcel_order_id and self.quote_payload.get("delivery_payer") == "customer":
             return ZERO
         return self.amount_due
+
+
+class DelhiveryWarehouseRegistration(models.Model):
+    seller = models.ForeignKey("accounts.SellerProfile", on_delete=models.PROTECT, related_name="courier_warehouses")
+    fingerprint = models.CharField(max_length=64)
+    name = models.CharField(max_length=150)
+    status = models.CharField(max_length=20, default="requesting", choices=[(s, s.replace('_', ' ').title()) for s in ("requesting", "registered", "failed", "review")])
+    response_payload = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("seller", "fingerprint"), name="one_courier_warehouse_per_seller_address")]
+
+
+class DelhiveryPickupRequest(models.Model):
+    pickup_location = models.CharField(max_length=150)
+    pickup_date = models.DateField()
+    pickup_time = models.TimeField()
+    expected_package_count = models.PositiveIntegerField(default=1)
+    provider_pickup_id = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=20, default="requesting", choices=[(s, s.replace('_', ' ').title()) for s in ("requesting", "scheduled", "auto_pickup", "failed", "review", "completed", "cancelled")])
+    response_payload = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=("pickup_location",),
+            condition=Q(status__in=("requesting", "scheduled", "auto_pickup", "review")),
+            name="one_active_courier_pickup_per_location",
+        )]
 
 
 class CODRemittance(OrderLinkMixin):

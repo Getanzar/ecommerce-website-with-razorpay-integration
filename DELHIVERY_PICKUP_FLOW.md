@@ -1,0 +1,13 @@
+# Seller courier pickup automation
+
+Paid merchandise orders (or eligible COD orders) are booked against the seller pickup address. An approved courier seller without an existing warehouse gets a deterministic Delhivery warehouse registration using their saved business address, PIN, phone, email and verified GPS. Existing administrator mappings are retained. New address versions receive separate registrations. Customer destination/payment serviceability and seller pickup availability are checked with Delhivery. A changed origin PIN requires quote review before booking.
+
+Seller marks each item packed through web or mobile. After the database transaction commits, the last packed item triggers collection scheduling for that seller parcel. Operations marking the whole order Packed also triggers this flow. Unpaid, closed, empty, partially packed and local delivery parcels are excluded. Sellers must print/attach the shipping label and have the parcel ready for handover.
+
+A pickup belongs to a warehouse, not an AWB. Only one active request per warehouse is allowed in the database. More ready parcels share it. Carrier-confirmed movement of all linked AWBs completes a batch so a later batch can be requested. Default slot: 14:00 Asia/Kolkata, same day before 12:00 and otherwise next day, skipping Sundays; settings DELHIVERY_PICKUP_TIME and DELHIVERY_PICKUP_CUTOFF_HOUR can override. Delhivery serviceability, operating schedules and acceptance still apply.
+
+Seller orders show AWB, request ID/date and errors; customer orders show scheduled pickup once accepted. Carrier movement controls courier shipped status. Mobile APIs expose pickup status/date/ID/error and AWB; client rendering of additional pickup fields requires a mobile app update.
+
+Carrier attempts are persisted before network submission. Lost/invalid/duplicate responses require operations review in Django admin (Delhivery pickup requests / warehouse registrations); do not reset these blindly. Check Delhivery One for the actual warehouse/request and reconcile the existing record. An explicit credential rejection can be retried through the seller button after credentials are fixed. Shipping failures need existing AWB/order reconciliation before changing manifestation status.
+
+Catch-up: python manage.py schedule_delhivery_pickups (optional --retry-failed for confirmed failures). Existing refresh_delhivery_shipments command also reconciles pickup batches and tracking; run it from your existing periodic worker. Packing itself does not require a cron job. No physical pickup is requested just because payment succeeds.

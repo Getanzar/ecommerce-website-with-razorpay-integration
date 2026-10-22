@@ -218,6 +218,17 @@ def seller_toggle_product(request, product_id):
     return redirect("seller_products")
 
 
+@require_POST
+@login_required
+def seller_request_pickup(request, item_id):
+    seller = _merchandise_seller_for(request)
+    item = get_object_or_404(OrderItem, pk=item_id, product__seller=seller)
+    from orders.pickups import queue_order_pickups
+    queue_order_pickups(item.order_id, seller.pk, retry=True)
+    messages.info(request, "Pickup status refreshed. Review the parcel status below; requests needing carrier review are not duplicated.")
+    return redirect("seller_orders")
+
+
 @login_required
 def seller_orders(request):
     seller = _merchandise_seller_for(request)
@@ -228,6 +239,7 @@ def seller_orders(request):
     )
     for item in order_items:
         item.local_delivery = item.order.local_deliveries.filter(parcel_seller=seller).first()
+        item.courier_charge = item.order.sellerdeliverycharges.filter(seller=seller, provider="delhivery").select_related("pickup_request").first()
     return render(
         request,
         "dashboard/seller/orders.html",
@@ -237,10 +249,18 @@ def seller_orders(request):
 
 @require_POST
 @login_required
+@transaction.atomic
 def seller_update_order_item(request, item_id):
     seller = _merchandise_seller_for(request)
     item = get_object_or_404(OrderItem.objects.select_related("order"), id=item_id, product__seller=seller)
     new_status = request.POST.get("status", "")
+    charge = item.order.sellerdeliverycharges.filter(seller=seller, provider="delhivery").first()
+    if item.order.status in {"Cancelled", "Returned", "Delivered"} or (item.order.payment_method != "cod" and item.order.payment_status != "Paid"):
+        messages.error(request, "This order is closed or payment has not been confirmed.")
+        return redirect("seller_orders")
+    if charge and (new_status in {"shipped", "delivered"} or (new_status == "cancelled" and charge.awb_number)):
+        messages.error(request, "Delhivery manages this shipment. Contact support for a booked parcel cancellation.")
+        return redirect("seller_orders")
     transitions = {
         "new": {"accepted", "cancelled"}, "accepted": {"packed", "cancelled"},
         "packed": {"shipped", "cancelled"}, "shipped": {"delivered"},
@@ -265,6 +285,9 @@ def seller_update_order_item(request, item_id):
     if new_status == "delivered":
         item.fulfilled_at = timezone.now()
     item.save()
+    if new_status == "packed":
+        from orders.pickups import queue_order_pickups
+        queue_order_pickups(item.order_id, seller.pk)
     if new_status == "cancelled" and settlement:
         settlement.deductions_amount = min(
             settlement.net_amount, settlement.deductions_amount + item.seller_total
@@ -1873,6 +1896,10 @@ def update_order_status(request, order_id):
     order.payment_status = payment_status
 
     order.save()
+
+    if new_status == "Packed":
+        from orders.pickups import queue_order_pickups
+        queue_order_pickups(order.pk)
 
     from orders.settlements import create_settlements_for_order
     create_settlements_for_order(order)

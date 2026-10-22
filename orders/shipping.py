@@ -5,10 +5,9 @@ from django.conf import settings
 from django.db import transaction
 
 
-@transaction.atomic
 def manifest_delhivery_charge(order, charge):
     """Manifest one seller package and retain the complete provider response."""
-    charge = type(charge).objects.select_for_update().get(pk=charge.pk)
+    charge = type(charge).objects.get(pk=charge.pk)
     if charge.awb_number:
         return charge
     if charge.carrier_status in {"manifestation_failed", "manifestation_pending"}:
@@ -21,12 +20,28 @@ def manifest_delhivery_charge(order, charge):
         charge.carrier_status = "quote_only"
         charge.save(update_fields=["carrier_status"])
         return charge
-    if not pickup_name and charge.origin_pincode == settings.DELHIVERY_ORIGIN_PINCODE:
-        pickup_name = settings.DELHIVERY_PICKUP_LOCATION
-    if not pickup_name:
+    from .pickups import ensure_seller_warehouse, validate_destination
+    try:
+        validate_destination(order)
+        if seller:
+            pickup_name = ensure_seller_warehouse(seller)
+        if not pickup_name:
+            raise ValueError("No registered pickup location is configured.")
+        if seller and seller.business_pincode != charge.origin_pincode:
+            raise ValueError("Seller pickup address changed since checkout. Support must review the shipping quote before booking.")
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        charge.pickup_error = str(exc)[:1000]
         charge.carrier_status = "pickup_registration_required"
-        charge.save(update_fields=["carrier_status"])
+        charge.save(update_fields=["pickup_error", "carrier_status"])
         return charge
+    with transaction.atomic():
+        charge = type(charge).objects.select_for_update().get(pk=charge.pk)
+        if charge.awb_number or charge.carrier_status in {"manifestation_failed", "manifestation_pending"}:
+            return charge
+        charge.pickup_location_name = pickup_name
+        charge.carrier_status = "manifestation_pending"
+        charge.pickup_error = ""
+        charge.save(update_fields=["pickup_location_name", "carrier_status", "pickup_error"])
     items = order.items.filter(product__seller=seller)
     description = ", ".join(f"{item.product_name} x{item.quantity}" for item in items)[:250]
     shipment = {
@@ -61,10 +76,12 @@ def manifest_delhivery_charge(order, charge):
         package = (provider.get("packages") or [{}])[0]
         charge.awb_number = str(package.get("waybill") or package.get("wb") or "")
         charge.carrier_status = "manifested" if charge.awb_number else "manifestation_pending"
+        charge.pickup_error = "" if charge.awb_number else "Shipment booking needs carrier review before pickup can be scheduled."
     except (requests.RequestException, ValueError, TypeError) as exc:
         charge.manifestation_payload = {"error": str(exc)[:500]}
         charge.carrier_status = "manifestation_failed"
-    charge.save(update_fields=["manifestation_payload", "awb_number", "carrier_status"])
+        charge.pickup_error = "Shipment booking response needs carrier review before pickup can be scheduled."
+    charge.save(update_fields=["manifestation_payload", "awb_number", "carrier_status", "pickup_error"])
     return charge
 
 

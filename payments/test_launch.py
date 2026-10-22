@@ -34,8 +34,9 @@ class LaunchRegressionTests(TestCase):
                     capture_browser_payment(self.order, "order_test", "pay_test", "signature")
                 self.assertFalse(self.order.paymenttransactions.exists())
 
+    @patch("orders.pickups.validate_destination")
     @patch("orders.shipping.requests.post")
-    def test_booking_worker_books_paid_mobile_order_once(self, post):
+    def test_booking_worker_books_paid_mobile_order_once(self, post, validate):
         response = Mock()
         response.json.return_value = {"packages": [{"waybill": "123456"}]}
         post.return_value = response

@@ -633,7 +633,7 @@ def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id, user=request.user)
     response = render(request, "orders/order_detail.html", {
         "order": order,
-        "carrier_shipments": order.sellerdeliverycharges.filter(provider="delhivery").select_related("seller"),
+        "carrier_shipments": order.sellerdeliverycharges.filter(provider="delhivery").select_related("seller", "pickup_request"),
         "local_deliveries": order.local_deliveries.select_related("parcel_seller", "agent"),
     })
     response["Cache-Control"] = "private, no-store"

@@ -159,7 +159,7 @@ def order_next(row, kind):
         return None
     if kind == "shop":
         next_status = PARCEL_NEXT.get(row.fulfillment_status)
-        if next_status == "shipped" and order.local_deliveries.filter(parcel_seller_id=row.product.seller_id).exists():
+        if next_status == "shipped" and (order.local_deliveries.filter(parcel_seller_id=row.product.seller_id).exists() or order.sellerdeliverycharges.filter(seller_id=row.product.seller_id, provider="delhivery").exists()):
             return None  # Local rider owns pickup and completion.
         return next_status
     return (FOOD_NEXT if kind == "food" else GROCERY_NEXT).get(order.status)
@@ -168,6 +168,8 @@ def order_next(row, kind):
 def order_data(row, kind):
     order = row.order if kind == "shop" else row
     local = order.local_deliveries.filter(parcel_seller=row.product.seller).first() if kind == "shop" else getattr(order, "local_delivery", None)
+    charge = order.sellerdeliverycharges.filter(provider="delhivery", seller_id=row.product.seller_id).select_related("pickup_request").first() if kind == "shop" else None
+    pickup = charge.pickup_request if charge else None
     items = [{"name": row.product_name, "quantity": row.quantity,
               "variant": " / ".join(filter(None, [row.product_color, row.product_size]))}] if kind == "shop" else [
         {"name": item.item_name if kind == "food" else item.product_name,
@@ -184,8 +186,9 @@ def order_data(row, kind):
                 "shop": {"new", "accepted", "packed"}, "food": {"placed", "accepted"},
                 "grocery": {"placed", "accepted", "packing"},
             }[kind] and order.status.lower() not in {"cancelled", "returned", "delivered"},
-            "courier": row.seller_courier if kind == "shop" else "",
-            "tracking_number": row.seller_tracking_number if kind == "shop" else ""}
+            "pickup": {"status": pickup.status if pickup else "awaiting_packing", "request_id": pickup.provider_pickup_id if pickup else "", "date": pickup.pickup_date if pickup else None, "error": charge.pickup_error} if charge else None,
+            "courier": "Delhivery" if charge else (row.seller_courier if kind == "shop" else ""),
+            "tracking_number": charge.awb_number if charge else (row.seller_tracking_number if kind == "shop" else "")}
 
 
 class SellerOrdersView(SellerKindView):
@@ -232,6 +235,9 @@ class SellerOrderUpdateView(SellerKindView):
                 row.seller_courier, row.seller_tracking_number = courier, tracking
             row.fulfillment_status = target
             row.save(update_fields=["fulfillment_status", "seller_courier", "seller_tracking_number"])
+            if target == "packed":
+                from orders.pickups import queue_order_pickups
+                queue_order_pickups(row.order_id, row.product.seller_id)
         else:
             row.status = target
             row.save(update_fields=["status", "updated_at"])

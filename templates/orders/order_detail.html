@@ -206,7 +206,7 @@
                     {% for shipment in carrier_shipments %}
                         <div class="border rounded-3 p-3 mb-3">
                             <strong>{% if shipment.seller %}{{ shipment.seller.store_name }}{% else %}ZIYAMART direct inventory{% endif %}</strong>
-                            <div class="small text-muted">Delhivery · {% if shipment.carrier_status == "manifested" %}Shipment booked — awaiting pickup{% else %}{{ shipment.carrier_status|default:"Preparing shipment" }}{% endif %}</div>
+                            <div class="small text-muted">Delhivery · {% if shipment.pickup_request.status == "scheduled" and shipment.carrier_status == "manifested" %}Pickup scheduled for {{ shipment.pickup_request.pickup_date }}{% elif shipment.carrier_status == "manifested" %}Shipment booked — awaiting pickup{% else %}{{ shipment.carrier_status|default:"Preparing shipment" }}{% endif %}</div>
                             {% if shipment.awb_number %}<a class="btn btn-sm btn-outline-dark mt-2" target="_blank" rel="noopener" href="https://www.delhivery.com/track/package/{{ shipment.awb_number }}">Track AWB {{ shipment.awb_number }}</a>{% endif %}
                         </div>
                     {% endfor %}
