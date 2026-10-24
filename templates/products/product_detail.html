@@ -31,7 +31,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block content %}{% if product.specifications %}<section class="container my-4"><h2 class="h5">Technical specifications</h2><dl class="row border rounded p-3">{% for label, value in product.specifications.items %}<dt class="col-6">{{ label|title }}</dt><dd class="col-6">{{ value }}</dd>{% endfor %}</dl></section>{% endif %}
 
 <div class="container py-5 product-detail-shell">
 

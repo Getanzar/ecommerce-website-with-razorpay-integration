@@ -8,7 +8,7 @@
     <h1 class="h2 fw-bold">Shop by category</h1>
     <p class="text-muted">Choose a category, then select a subcategory to see its products.</p>
   </div>
-  <div class="row g-4">
+  <a href="{% url 'electronics_page' %}" class="d-flex gap-4 align-items-center p-4 mb-4 rounded-4 text-decoration-none" style="background:#10243d;color:white"><i class="bi bi-cpu display-4" aria-hidden="true"></i><div><h2 class="h4">Electronics</h2><span>Mobiles · TVs · Laptops · Home Appliances · Mobile Accessories</span></div><i class="bi bi-arrow-right ms-auto fs-3"></i></a><div class="row g-4">
     {% for category in categories %}
       <div class="col-6 col-md-4 col-lg-3">
         <a class="card h-100 border-0 shadow-sm text-decoration-none text-dark" href="{% url 'category_page' category.id %}">
@@ -17,7 +17,7 @@
           {% elif category.image %}
             <img class="card-img-top" src="{{ category.image.url }}" alt="" loading="lazy" style="height: 190px; object-fit: cover;">
           {% else %}
-            <div class="d-flex align-items-center justify-content-center bg-light" style="height: 190px;"><i class="bi bi-grid fs-1" aria-hidden="true"></i></div>
+            <div class="d-flex align-items-center justify-content-center bg-light" style="height: 190px;"><i class="bi bi-{% if category.slug == "electronics" %}cpu{% elif "men" in category.slug %}person{% elif "kids" in category.slug %}balloon{% else %}bag{% endif %} fs-1" aria-hidden="true"></i></div>
           {% endif %}
           <div class="card-body text-center">
             <h2 class="h6 fw-semibold mb-2">{{ category.name }}</h2>

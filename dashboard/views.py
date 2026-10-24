@@ -133,7 +133,9 @@ def seller_dashboard(request):
         )
     )["total"] or 0
 
+    from products.electronics import ELECTRONICS
     context = {
+        "electronics_types": ELECTRONICS,
         "seller": seller,
         "order_alerts": request.user.notification_set.filter(title="New seller order", data__kind="shop")[:8],
         "product_count": products.count(),
@@ -176,7 +178,12 @@ def seller_profile_settings(request):
 def seller_edit_product(request, product_id):
     seller = _merchandise_seller_for(request)
     product = get_object_or_404(Product, id=product_id, seller=seller)
-    form = SellerProductEditForm(request.POST or None, request.FILES or None, instance=product)
+    from products.electronics import ELECTRONICS
+    from .electronics import ElectronicsProductForm
+    if product.product_type in ELECTRONICS:
+        form = ElectronicsProductForm(request.POST or None, request.FILES or None, instance=product, kind=product.product_type, seller=seller)
+    else:
+        form = SellerProductEditForm(request.POST or None, request.FILES or None, instance=product, seller=seller)
     if request.method == "POST" and form.is_valid():
         product = form.save(commit=False)
         product.moderation_status = Product.MODERATION_PENDING
@@ -2387,3 +2394,28 @@ def update_support_status(request, ticket_id):
         "support_ticket_detail",
         ticket_id=ticket.id,
     )
+
+
+@login_required
+def seller_add_electronics(request, kind):
+    from products.electronics import ELECTRONICS
+    from .electronics import ElectronicsProductForm
+    if kind not in ELECTRONICS:
+        from django.http import Http404
+        raise Http404
+    seller = _merchandise_seller_for(request)
+    form = ElectronicsProductForm(request.POST or None, request.FILES or None, kind=kind, seller=seller)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            category, _ = Category.objects.get_or_create(slug="electronics", defaults={"name": "Electronics"})
+            subcategory, _ = SubCategory.objects.get_or_create(category=category, name=ELECTRONICS[kind]["name"])
+            product = form.save(commit=False)
+            product.category, product.subcategory, product.seller = category, subcategory, seller
+            product.is_active = False
+            product.moderation_status = Product.MODERATION_PENDING
+            product.save()
+            color = ProductColor.objects.create(product=product, name=form.cleaned_data["color"])
+            ProductVariant.objects.create(product=product, color=color, size="Standard", stock=product.stock)
+        messages.success(request, "Electronics product submitted for marketplace review.")
+        return redirect("seller_products")
+    return render(request, "dashboard/seller/electronics_product.html", {"seller": seller, "form": form, "kind": ELECTRONICS[kind]})

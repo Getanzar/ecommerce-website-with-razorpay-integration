@@ -55,7 +55,11 @@ class Product(models.Model):
         (MODERATION_APPROVED, "Approved"),
         (MODERATION_REJECTED, "Rejected"),
     ]
+    specifications = models.JSONField(default=dict, blank=True)
+
     PRODUCT_TYPES = [
+        ("mobile", "Mobile"), ("tv", "TV"), ("laptop", "Laptop"),
+        ("home_appliance", "Home appliance"), ("mobile_accessory", "Mobile accessory"),
         ("shirt", "Shirt"),
         ("jeans", "Jeans"),
         ("shoes", "Shoes"),

@@ -407,6 +407,8 @@ def categories_page(request):
 
 def category_page(request, category_id):
     category = get_object_or_404(Category, id=category_id)
+    if category.slug == "electronics":
+        return redirect("electronics_page")
     subcategories = category.subcategories.filter(
         products__in=in_stock_products()
     ).distinct()
@@ -565,3 +567,12 @@ def my_reviews(request):
             "reviews": reviews,
         }
     )
+
+
+def electronics_page(request):
+    from .electronics import ELECTRONICS
+    kind = request.GET.get("type", "")
+    products = in_stock_products().filter(category__slug="electronics")
+    if kind in ELECTRONICS:
+        products = products.filter(product_type=kind)
+    return render(request, "products/electronics.html", {"electronics_types": ELECTRONICS, "products": with_storefront_variants(products.select_related("seller", "category")), "selected_type": kind})
