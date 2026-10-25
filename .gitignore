@@ -59,6 +59,7 @@ mobile_app/.eas/
 # Native/generated build files
 mobile_app/android/.gradle/
 mobile_app/android/app/build/
+mobile_app/.cxx/
 mobile_app/ios/Pods/
 
 # ============================================

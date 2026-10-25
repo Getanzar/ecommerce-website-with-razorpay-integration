@@ -21,12 +21,17 @@ This is source review, automated regression testing, dependency auditing and a f
 - A further 59 targeted dashboard/product/API checks passed after adding server-side positive-price, GST-range and positive-package validation; the minimum electronics price uses Decimal arithmetic.
 - 45 app tests passed; TypeScript passed after the compatible dependency overrides.
 - Production `manage.py check --deploy` passed with RENDER=true even when DEBUG=true was supplied. CI now checks production configuration as well as backend tests and both platform exports.
-- Android and iOS production Hermes exports passed (751 modules per platform). No device or emulator was connected. The first native Android build downloaded Gradle and compiled its plugins, then failed resolving Google Maven dependencies; a retry is being attempted. This does not establish a signed, installable release.
+- Android and iOS production Hermes exports passed (751 modules per platform).
+- Windows arm64 Android debug compilation passed. A fresh Expo prebuild and subsequent compilation also passed. The build fixes use pnpm's hoisted layout and a source-controlled Expo config plugin that shortens the Windows CMake staging path. Generated autolinking caches from the old installation were refreshed.
+- EAS signed internal Android build ef374696-5084-41d3-acb6-08fbd07c3147 finished successfully from source commit 8858df1. The APK is 80,955,998 bytes, package in.ziyamart.app, version 1.2.0 / code 2. Android apksigner verification passed; its signing certificate differs from the debug certificate, the APK is not debuggable, and its embedded bundle contains https://www.ziyamart.in/api/v1.
+- APK SHA-256: 8dc52c725e234380004e0b397f36abf499446a49d616cdf5a7ef5759299da0f9. Signing-certificate SHA-256: 0ced1ac716f1fda0e4c90da80d6635e81fcb7e238cdf5d3638f4a3e1f3002676.
+- Internal build page: https://expo.dev/accounts/ziyamart/projects/ziyamart/builds/ef374696-5084-41d3-acb6-08fbd07c3147 . A verified local APK and machine-readable receipt are in the ignored mobile_app/build/ directory. The APK was not published to Google Play.
+- No phone or emulator was connected during verification. Installed-app UI, live/test-provider payment acceptance, actual push receipt and background GPS remain unverified.
 - No real payment, refund, payout, customer order or seller listing was created on production for this review. Public live requests were read-only.
 
 ## Boundaries and remaining work
 
-Native admin mutation screens are not a one-for-one replacement of the website; the app opens the audited web workflows. A signed app and physical-device acceptance are still required. Production payment/webhook/push credentials, scheduled workers, PostgreSQL race behavior, backup restoration and provider-side key rotation cannot be certified by SQLite/mocked tests. The local native Android release configuration uses a debug signing configuration; use the existing EAS production signing workflow for an actual store release, not a locally debug-signed APK.
+Native admin mutation screens are not a one-for-one replacement of the website; the app opens the audited web workflows. The signed internal Android APK is available; physical-device acceptance and any store submission are still required. Production payment/webhook/push credentials, scheduled workers, PostgreSQL race behavior, backup restoration and provider-side key rotation cannot be certified by SQLite/mocked tests. The local native Android release configuration uses a debug signing configuration; use the existing EAS production signing workflow for an actual store release, not a locally debug-signed APK.
 
 ## References
 

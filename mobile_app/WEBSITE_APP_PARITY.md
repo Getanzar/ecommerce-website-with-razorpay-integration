@@ -30,7 +30,7 @@ The website and app use the same Django backend, accounts, sellers, products, va
 ## Release acceptance still required
 
 - Native admin mutations remain website workflows; they are not implemented as separate native screens.
-- No Android device or emulator was connected during this review. An Android Gradle test build was attempted; record the final result in ../SECURITY_REVIEW.md.
+- Android debug compilation and a fresh prebuild followed by compilation passed. A signed, non-debuggable internal APK was built through EAS and verified. No Android device or emulator was connected; see ../SECURITY_REVIEW.md for the artifact and verification receipt.
 - Android/iOS JavaScript exports do not prove native Razorpay, Google handoff, camera, push notifications or background GPS on installed builds.
 - Validate OTP delivery, test-mode payment success/failure/recovery, notifications, rider pickup/completion and cross-platform order visibility on signed internal builds. Verify PostgreSQL concurrency, production workers and backup restore separately.
 - Existing installed apps need a new build containing the UI changes; a Render deployment updates only the backend/website.

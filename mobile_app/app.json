@@ -65,7 +65,8 @@
           "locationAlwaysAndWhenInUsePermission": "Riders can share active delivery location in the background until the job ends or sharing is stopped."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "./plugins/withWindowsCmakeStaging"
     ],
     "extra": {
       "eas": {

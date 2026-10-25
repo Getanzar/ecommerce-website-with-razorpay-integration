@@ -4,7 +4,7 @@ See [the current parity comparison](WEBSITE_APP_PARITY.md) and [the security rev
 
 Current source and automated checks cover customer, seller and rider flows. The app now includes electronics browsing/forms, seller finance summaries, standalone menu sections and a permission-checked administrator overview. Administrative management actions open the authenticated website.
 
-A signed native release, installed-device payment/push/GPS acceptance, provider/worker verification and PostgreSQL concurrency/restore checks are still required. The latest native build attempt and final export results are recorded in the security review. Existing installed apps do not receive UI changes from a Render deployment.
+A signed internal Android APK is now available and verified. Installed-device payment/push/GPS acceptance, provider/worker verification, store submission and PostgreSQL concurrency/restore checks are still required. The latest native build attempt and final export results are recorded in the security review. Existing installed apps do not receive UI changes from a Render deployment.
 
 ---
 
