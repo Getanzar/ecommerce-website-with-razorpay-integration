@@ -18,7 +18,8 @@ class BrowserAuthRateLimitMiddleware(MiddlewareMixin):
         if not login and not (email_action and request.path.startswith("/accounts/")):
             return None
         action = "login" if login else "email"
-        identity = str(request.POST.get("username") or request.POST.get("email") or "").strip().casefold()
+        raw_identity = (request.POST.get("username") or request.POST.get("email")) if login else request.POST.get("email")
+        identity = str(raw_identity or "").strip().casefold()
         # Use the actual peer address. Never trust an arbitrary forwarded header.
         buckets = [("ip", request.META.get("REMOTE_ADDR", "unknown"), 30 if login else 20)]
         if identity:

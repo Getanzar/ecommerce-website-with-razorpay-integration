@@ -1,3 +1,5 @@
+import { categorySymbol } from "./src/catalogIcons";
+import AdminWorkspace from "./src/AdminWorkspace";
 import { KIDS_AGE_OPTIONS } from "./src/kidsAges";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1038,6 +1040,8 @@ function ZiyaApp() {
   const [imageZoomVisible, setImageZoomVisible] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [category, setCategory] = useState<Category | null>(null);
+  const [electronicsType, setElectronicsType] = useState("");
+  const [adminVisible, setAdminVisible] = useState(false);
   const [token, updateToken] = useState<string | null>(null);
   const activeToken = useRef<string | null>(null);
   const sessionVersion = useRef(0);
@@ -1049,6 +1053,7 @@ function ZiyaApp() {
   const catalogParams = tab === "Search" ? { q: query, sort, ...filters } : {
     ...(tab === "Categories" ? { q: query, sort, ...filters } : {}),
     category: category?.slug,
+    ...(category?.slug === "electronics" ? { electronics_type: electronicsType } : {}),
     gender: category?.slug === "kids-wear" ? kidsGender : "",
     kids_age_group: category?.slug === "kids-wear" ? kidsAgeGroup : "",
   };
@@ -1202,7 +1207,7 @@ function ZiyaApp() {
     if (openProfile) { setSelected(null); setTab("Account"); setTimeout(() => setAccountView("profile"), 400); }
   };
   const chooseCategory = (group: Category | null) => {
-    setCategory(group); setQuery(""); setSort("newest"); setKidsGender(""); setKidsAgeGroup("");
+    setElectronicsType(""); setCategory(group); setQuery(""); setSort("newest"); setKidsGender(""); setKidsAgeGroup("");
     setFilters({ subcategory: "", color: "", size: "", seller: "", min_price: "", max_price: "", rating: "" });
     setTab("Categories");
   };
@@ -1772,7 +1777,7 @@ function ZiyaApp() {
                         style={s.categoryImage}
                       />
                     ) : (
-                      <Text style={s.categoryEmoji}>🛍️</Text>
+                      <Text style={s.categoryEmoji}>{categorySymbol(group.name)}</Text>
                     )}
                   </View>
                   <Text style={s.categoryLabel} numberOfLines={2}>
@@ -2093,8 +2098,8 @@ function ZiyaApp() {
                 </View>
                 <View style={s.searchToolbar}><TextInput accessibilityLabel={`Search ${category.name}`} style={[s.searchInput, s.searchGrow]} placeholder={`Search ${category.name.toLowerCase()}`} value={query} onChangeText={setQuery} /><Pressable style={s.filterButton} onPress={() => setFiltersVisible(true)}><Text style={s.filterButtonText}>Filters</Text></Pressable></View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.collectionChips}>
-                  <Pressable style={[s.filterChip, !filters.subcategory && s.filterChipActive]} onPress={() => setFilters({ ...filters, subcategory: "" })}><Text>All {category.name}</Text></Pressable>
-                  {category.subcategories.map(group => <Pressable key={group.id} style={[s.filterChip, filters.subcategory === String(group.id) && s.filterChipActive]} onPress={() => setFilters({ ...filters, subcategory: String(group.id) })}><Text>{group.name}</Text></Pressable>)}
+                  <Pressable style={[s.filterChip, !filters.subcategory && !electronicsType && s.filterChipActive]} onPress={() => { setElectronicsType(""); setFilters({ ...filters, subcategory: "" }); }}><Text>All {category.name}</Text></Pressable>
+                  {category.slug === "electronics" ? (category.electronics_types || []).map(group => <Pressable accessibilityRole="button" accessibilityState={{ selected: electronicsType === group.key }} key={group.key} style={[s.filterChip, electronicsType === group.key && s.filterChipActive]} onPress={() => setElectronicsType(group.key)}><Text>{categorySymbol(group.name)} {group.name}</Text></Pressable>) : category.subcategories.map(group => <Pressable key={group.id} style={[s.filterChip, filters.subcategory === String(group.id) && s.filterChipActive]} onPress={() => setFilters({ ...filters, subcategory: String(group.id) })}><Text>{categorySymbol(group.name)} {group.name}</Text></Pressable>)}
                 </ScrollView>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.collectionChips}>{[["newest", "New arrivals"], ["price_low", "Price: low to high"], ["price_high", "Price: high to low"], ["rating", "Top rated"]].map(([value, label]) => <Pressable key={value} style={[s.filterChip, sort === value && s.filterChipActive]} onPress={() => setSort(value)}><Text>{label}</Text></Pressable>)}</ScrollView>
                 {loading ? <ActivityIndicator color={C.orange} style={s.loader} /> : error && !products.length ? <View style={s.errorBox}><Text style={s.errorText}>{error}</Text><Pressable onPress={load}><Text style={s.retry}>Try again</Text></Pressable></View> : <><View style={s.grid}>{products.map(product => <ProductCard key={product.id} product={product} onOpen={() => openProduct(product)} onWishlist={() => toggleWishlist(product)} />)}</View><CatalogMore catalog={catalog} />{!products.length && <EmptyState icon="🛍️" title="Your next favourite is on its way" copy="No products match these choices. Try another search or explore the full collection." />}</>}
@@ -2160,7 +2165,7 @@ function ZiyaApp() {
                             style={s.categoryImage}
                           />
                         ) : (
-                          <Text style={s.categoryEmoji}>🛍️</Text>
+                          <Text style={s.categoryEmoji}>{categorySymbol(group.name)}</Text>
                         )}
                       </View>
 
@@ -2314,6 +2319,7 @@ function ZiyaApp() {
                 <Text style={s.outlineText}>Sign out</Text>
               </Pressable>
             )}
+            {user?.can_access_operations && <Pressable accessibilityRole="button" style={s.menuItem} onPress={() => setAdminVisible(true)}><Text style={s.menuText}>Operations dashboard →</Text></Pressable>}
             {user && <View style={s.menuItem}>
               <Pressable accessibilityRole="button" onPress={() => setPartnerMode("seller")}><Text style={s.menuText}>Seller Center →</Text></Pressable>
               <Pressable accessibilityRole="button" onPress={() => setPartnerMode("rider")}><Text style={s.menuText}>Rider workspace →</Text></Pressable>
@@ -2373,6 +2379,7 @@ function ZiyaApp() {
         onAuthenticated={authenticate}
       />
       <FilterModal visible={filtersVisible} filters={filters} categories={tab === "Categories" && category ? [category] : categories} onApply={value => { setFilters(value); setFiltersVisible(false); }} onClose={() => setFiltersVisible(false)} />
+      {token && adminVisible && <AdminWorkspace key={token} token={token} onClose={() => setAdminVisible(false)} />}
       {token && partnerMode && <PartnerWorkspace key={`${token}-${partnerMode}-${partnerTarget?.order_id}-${partnerTarget?.delivery_id}`} token={token} mode={partnerMode} target={partnerTarget} onClose={() => { setPartnerMode(null); setPartnerTarget(null); }} />}
       {token && inboxVisible && <NotificationInbox token={token} onOpen={openNotification} onClose={() => setInboxVisible(false)} />}
       {token && notificationOrder && <OrderDetailModal token={token} order={notificationOrder} onClose={() => setNotificationOrder(null)} onChanged={async () => { const rows = await getOrders(token); setNotificationOrder(rows.find(o => o.id === notificationOrder.id && o.kind === notificationOrder.kind) || null); }} />}

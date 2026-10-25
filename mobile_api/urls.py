@@ -2,11 +2,13 @@ from django.urls import include, path
 
 from . import views, customer_parity
 from . import customer_orders
+from .admin_workspace import AdminWorkspaceView
 from .payment_api import NativePaymentView
 from .operations_api import InboxView, SessionsView, RiderEvidenceView, SellerCasesView
 
 
 urlpatterns = [
+    path("operations/", AdminWorkspaceView.as_view(), name="mobile-operations"),
     path("auth/google/start/", customer_parity.GoogleMobileStart.as_view(), name="mobile-google-start"),
     path("auth/google/browser/", customer_parity.google_browser, name="mobile-google-browser"),
     path("auth/google/exchange/", customer_parity.GoogleMobileExchange.as_view(), name="mobile-google-exchange"),

@@ -14,7 +14,7 @@ class ProductAudienceMixin:
 
     def clean(self):
         cleaned = super().clean()
-        category = cleaned.get("category") or (self.instance.category if self.instance.category_id else None)
+        category = cleaned.get("category") or (self.instance.category if self.instance.pk and self.instance.category_id else None)
         if category and category.slug == "kids-wear":
             for field, label in (("gender", "gender"), ("kids_age_group", "age group")):
                 if not cleaned.get(field):
@@ -73,6 +73,9 @@ class SellerProductForm(ProductAudienceMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from products.electronics import ELECTRONICS
+        # Electronics use their specification forms, not the clothing builder.
+        self.fields["product_type"].choices = [(key, label) for key, label in Product.PRODUCT_TYPES if key not in ELECTRONICS]
         self.fields["subcategory"].required = False
         self.fields["subcategory"].queryset = self.fields[
             "subcategory"

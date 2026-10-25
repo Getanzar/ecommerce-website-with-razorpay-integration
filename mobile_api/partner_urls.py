@@ -4,6 +4,8 @@ from . import partner_forms as forms
 from dashboard.listing_views import SellerListingDraftView
 
 urlpatterns = [
+    path("seller/<str:kind>/sections/new/", forms.MenuSectionFormView.as_view()),
+    path("seller/electronics/<str:product_kind>/new/", forms.ElectronicsProductFormView.as_view()),
     path("seller/listing-assistant/", SellerListingDraftView.as_view()),
     path("seller/profile/", forms.SellerProfileFormView.as_view()),
     path("applications/<str:role>/", forms.ApplicationView.as_view()),

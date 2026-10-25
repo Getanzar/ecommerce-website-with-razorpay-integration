@@ -13,6 +13,7 @@ assertSafeProductionApiUrl(configuredApiUrl, isProductionBuild);
 export const API_URL = `${configuredApiUrl.replace(/\/$/, "").replace(/\/api\/v1$/i, "")}/api/v1`;
 
 export type User = {
+  can_access_operations?: boolean;
   id: number;
   username: string;
   first_name: string;
@@ -25,12 +26,14 @@ export type User = {
   profile_picture_url: string | null;
 };
 export type Category = {
+  icon?: string;
+  electronics_types?: { key: string; name: string; icon: string }[];
   id: number;
   name: string;
   slug: string;
   image_url: string | null;
   background_image_url: string | null;
-  subcategories: { id: number; name: string }[];
+  subcategories: { id: number; name: string; icon?: string }[];
 };
 export type Color = {
   id: number;
@@ -288,6 +291,7 @@ export async function getProducts(
   params: {
     q?: string;
     category?: string;
+    electronics_type?: string;
     subcategory?: string;
     gender?: string;
     kids_age_group?: string;

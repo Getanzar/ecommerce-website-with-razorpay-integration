@@ -1,86 +1,36 @@
-# Website and app comparison
+# Website and app parity — 25 October 2026
 
-Reviewed 15 September 2026 against the current local workspace, including existing uncommitted work. This is a source review and automated verification, not a certification of the deployed website or an installed Android/iOS release.
+The website and app use the same Django backend, accounts, sellers, products, variants, stock, orders, settlements, and delivery records. Browser sessions and mobile device sessions are separate. Equivalent workflows do not mean identical layouts, and automated tests do not establish physical-device readiness.
 
-## Requested features
+## Current comparison
 
-| Feature | App status | Evidence / limits |
+| Area | Website | App |
 | --- | --- | --- |
-| Online payment: merchandise | Implemented; automated checks pass | Checkout calls native Razorpay; backend verifies signature, captured status, amount and ownership. Pending orders support retry/recovery. |
-| Online payment: food and grocery | Implemented; automated checks pass | Same native checkout entry point, service-specific order endpoints and shared payment records. Added tests exercise capture, recovery and foreign-user rejection for both services. |
-| Admin dashboard | Missing from native app | Website has operations and management screens. App workspace modes are only seller and rider; there are no corresponding native admin screens or full admin API. |
-| Merchandise seller dashboard | Core workflows implemented; partial website parity | Orders, fulfilment/tracking, catalog, inventory, product forms, existing-color variants, payout setup/history and seller cases. Missing items below. |
-| Grocery seller dashboard | Core workflows implemented; partial website parity | Seller Center → Grocery: store setup, opening switch, products, stock, orders and payouts. Added checks cover reading sections, changing stock, pausing store and preventing unpaid fulfilment. |
-| Restaurant owner dashboard | Core workflows implemented; partial website parity | Seller Center → Food: restaurant setup, opening switch, menu items/options, orders and payouts. Existing tests cover menu creation, option editing, accepting orders and availability. |
+| Accounts | Email OTP, login/recovery, Google, profile | Native equivalents using shared validators and backend |
+| Categories | Category/subcategory images and icons | Native category symbols, subcategory chips, same catalog |
+| Electronics | Five types, existing accessory categories, technical specifications | Electronics category and five filters, same legacy-category matching and specifications |
+| Merchandise sellers | Business-specific dashboard, forms, approval, inventory, orders | Business-specific electronics choices/forms, shared approval and inventory, grouped orders |
+| Food/grocery sellers | Store settings, menu/catalog, variants, availability, orders | Native shared-schema forms and APIs; standalone menu-section creation added |
+| Seller finance | Sales/order summaries and settlement breakdown | Sales/order summaries, scheduled/processing/paid/on-hold/failed balances and deduction/delivery/TCS detail |
+| Catalog tools | Categories/subcategories, photos, variants, listing assistant | Existing native taxonomy/color/variant tools and assistant; electronics uses the same assistant |
+| Customer purchase | Carts, quotes, COD, Razorpay, orders, invoices, reviews, returns and support | Existing native flows, using shared payment and order services |
+| Rider work | Assignment, pickup, collection, OTP, evidence, tracking, earnings | Existing native workspace and scoped background tracking |
+| Administration | Full operations and Django admin workflows | Permission-checked native overview and review queue; management actions open the secure website with separate administrator login |
 
-The three seller businesses share Seller Center. They are not three separate app dashboards. Approved seller accounts are required; staff status alone does not provide a native administrator workspace.
+## Changes in this review
 
-## Remaining app work, in priority order
+- Public category API includes icons, Electronics even when empty, and the five electronics type definitions.
+- Electronics queries include existing Mobile accessories/Home appliances categories. Out-of-stock, pending, suspended-seller and inactive listings remain excluded.
+- New native electronics product schema endpoints reuse the website ElectronicsProductForm. Fields are category-specific; existing electronics edits preserve specifications and cannot change stock through disabled quantity fields.
+- Seller workspace returns only that seller's electronics choices, sales/order metrics and settlement balances. Food/grocery access remains controlled by the approved business segment.
+- Standalone food menu sections reuse the website form and are restricted to food sellers.
+- Native administrator overview requires the same explicit operations permission as the website. Staff status alone is insufficient. No device token is passed to the browser or placed in a URL.
+- Production debug/rate-limit configuration and vulnerable dependencies were addressed; see ../SECURITY_REVIEW.md.
 
-### 1. Build the native admin workspace and permission-checked APIs
+## Release acceptance still required
 
-Port the website capabilities in `dashboard/urls.py`:
-
-- Operations overview, unified order search/detail and order actions.
-- Seller approval/suspension and payout verification; customer and rider management.
-- Product moderation, catalog/category/subcategory management, inventory and review moderation.
-- Delivery assignment/reassignment, exceptions and private proof images.
-- Payout management, COD remittance confirmation, shipping reconciliation and service zones.
-- Returns, support ticket replies/status, analytics and audit history.
-- Administrative seller-case/refund and account-deletion review/execution currently provided through Django admin (`mobile_api/admin.py`). The app exposes customer/seller requests, not administrative execution.
-
-### 2. Complete seller dashboard summaries and finance detail
-
-- Add counts, sales/open-order summaries and available/paid balances comparable to the website seller home screens. The app currently opens lists of orders, catalog or payouts.
-- Add aggregate scheduled/processing/paid/on-hold totals and the detailed settlement breakdown shown on the website. The mobile payout endpoint currently returns order, amount, status, schedule and failure reason.
-- Surface the seller payout-notification read workflow alongside the existing mobile notification inbox and outstanding return balance.
-
-### 3. Complete merchandise listing creation and catalog workflows
-
-- Add category/subcategory request submission and status history (website `seller/catalog-requests/`).
-- Add creation of multiple colors, color images and multiple variants in the listing flow. Mobile creation currently creates one color and one variant; later variant forms can select existing colors but cannot create a new color or upload its image. The website creation flow accepts multiple colors and variants.
-- Add the website's AI copy generation, image enhancement, credit purchase and payment-confirmation flow. These do not exist in the mobile partner API/UI.
-
-### 4. Improve business-specific entry and restaurant menu organization
-
-- Completed 20 September: Seller Center selects and displays only the registered segment, with API authorization. Free-text category normalization remains a production-readiness task; see `PRODUCTION_READINESS.md`.
-- Add standalone restaurant menu-section creation if matching the website's separate section workflow is required. Mobile can already create/reuse a section by entering its name while editing a menu item.
-
-### 5. Finish release configuration and device verification
-
-These are deployment/testing tasks, not absent payment implementations:
-
-- Test Razorpay success, failure, dismissal, backgrounding, force-close and delayed webhook recovery in installed Android and iOS builds using test-mode credentials.
-- Verify the installed app targets the deployed backend and that migrations, webhook configuration and notification workers are deployed.
-- Verify store signing, push credentials/delivery, camera/location permissions and accessibility on devices. Connect the provided crash-reporting hook to the chosen production service.
-
-Native Razorpay requires a development/release build; Expo Go and a successful JavaScript export do not verify native checkout. See `RELEASE.md` for the existing rollout checklist.
-
-## Product gallery correction
-
-### App (`App.tsx`)
-
-- Root cause: thumbnail/color/size presses changed `selectedImage`, but the horizontal gallery never scrolled to that image. Variant/color images could also be absent from the slide list.
-- Gallery now includes deduplicated product, extra, color and variant images.
-- Selection scrolls to the corresponding slide; swipe selection, thumbnail highlight and full-screen preview use the same selected image.
-- Slide width comes from the actual gallery layout, including layout changes, instead of relying only on the initial screen width.
-- Full product images use contain sizing to avoid cropping. Thumbnail buttons announce selection to accessibility tools.
-
-### Website (`templates/products/product_detail.html`)
-
-- Main images use contain sizing to display the complete product.
-- Thumbnail, color and size changes use one selection function that updates the image and thumbnail state together.
-- When the main product image is missing, the first available gallery image is selected instead of leaving the placeholder visible.
-
-Physical-device gallery checks remain: thumbnail taps, swiping, color/size selection, full-screen preview, rotation and a product with no main image.
-
-## Verification
-
-- Existing backend suite: 122 tests passed across mobile API, products, dashboard, food, groceries and payments using isolated SQLite test databases.
-- Both added tests in `mobile_api/test_parity.py` passed: food/grocery payment capture, recovery and ownership; grocery workspace stock, availability and paid-order/access guards (124 backend tests passed across the two runs).
-- Mobile TypeScript check passed.
-- All 11 existing mobile tests passed (payment recovery, verification, cancellation, network retries and background tracking).
-- Android JavaScript export passed (704 modules). This does not compile the native SDK or install the app.
-- Provider calls in automated payment tests are mocked; no real payment or payout was initiated.
-
-Primary source files: `mobile_app/App.tsx`, `mobile_app/src/PartnerWorkspace.tsx`, `mobile_app/src/PartnerForm.tsx`, `mobile_app/src/nativePayments.ts`, `mobile_api/urls.py`, `mobile_api/partner_urls.py`, `mobile_api/partners.py`, `mobile_api/partner_forms.py`, `mobile_api/payment_api.py`, `dashboard/urls.py`, `dashboard/views.py`, `food/urls.py`, `groceries/urls.py`.
+- Native admin mutations remain website workflows; they are not implemented as separate native screens.
+- No Android device or emulator was connected during this review. An Android Gradle test build was attempted; record the final result in ../SECURITY_REVIEW.md.
+- Android/iOS JavaScript exports do not prove native Razorpay, Google handoff, camera, push notifications or background GPS on installed builds.
+- Validate OTP delivery, test-mode payment success/failure/recovery, notifications, rider pickup/completion and cross-platform order visibility on signed internal builds. Verify PostgreSQL concurrency, production workers and backup restore separately.
+- Existing installed apps need a new build containing the UI changes; a Render deployment updates only the backend/website.

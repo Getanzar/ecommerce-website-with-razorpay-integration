@@ -39,7 +39,7 @@ class MerchandiseUploadTests(APITestCase):
             "package_width_cm": "15", "package_height_cm": "5", "product_type": "regular",
             "image": self.photo("front.jpg"), "back_image": self.photo("back.jpg"),
         }
-        data["product_type"] = Product._meta.get_field("product_type").choices[0][0]
+        data["product_type"] = "shirt"
         if variants is not None:
             data["variants"] = json.dumps(variants)
         else:

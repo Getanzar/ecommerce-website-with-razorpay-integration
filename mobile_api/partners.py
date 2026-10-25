@@ -2,7 +2,8 @@
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F, DecimalField, ExpressionWrapper, Value
+from django.db.models.functions import Greatest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers
@@ -108,7 +109,23 @@ class SellerWorkspaceView(PartnerView):
                 metrics["open_orders"] = orders.exclude(order__status__in=["Cancelled", "Returned", "Delivered"]).exclude(fulfillment_status__in=["delivered", "cancelled"]).values("order_id").distinct().count()
             else:
                 metrics["open_orders"] = orders.exclude(status__in=["delivered", "cancelled"]).count()
+        from products.electronics import seller_electronics_types
+        finance = {}
+        if seller_kinds(seller):
+            model = {"shop": SellerSettlement, "food": FoodSellerSettlement, "grocery": GrocerySellerSettlement}[seller.business_segment]
+            amount = Greatest(ExpressionWrapper(F("net_amount") - F("deductions_amount") - F("delivery_charge") - F("tcs_amount"), output_field=DecimalField(max_digits=12, decimal_places=2)), Value(Decimal("0")))
+            finance = {row["status"]: str(row["total"]) for row in model.objects.filter(seller=seller).values("status").annotate(total=Sum(amount))}
+            metrics["live_count"] = {"shop": Product, "food": MenuItem, "grocery": GroceryProduct}[seller.business_segment].objects.filter(**{lookup: seller, "is_available" if kind == "food" else "is_active": True}).count()
+            if kind == "shop":
+                metrics["order_count"] = orders.values("order_id").distinct().count()
+                sales = orders.filter(order__payment_status="Paid").exclude(order__status__in=["Cancelled", "Returned"])
+                metrics["paid_sales"] = str(sales.aggregate(total=Sum(ExpressionWrapper(F("price") * F("quantity"), output_field=DecimalField(max_digits=12, decimal_places=2))))["total"] or 0)
+            else:
+                metrics["order_count"] = orders.count()
+                metrics["paid_sales"] = str(orders.filter(payment_status="Paid").exclude(status="cancelled").aggregate(total=Sum("subtotal"))["total"] or 0)
         return Response({"name": seller.store_name, "stores": stores,
+                         "electronics_types": [{"key": key, "name": item["name"], "icon": item["icon"]} for key, item in seller_electronics_types(seller).items()],
+                         "finance": finance,
                          "description": seller.description, "pincode": seller.business_pincode,
                          "logo_url": absolute_url(request, seller.logo), "cover_url": absolute_url(request, seller.cover_image),
                          "metrics": metrics,
@@ -352,6 +369,9 @@ class SellerPayoutsView(SellerKindView):
             "id": row.pk, "order_id": row.order_id, "status": row.status,
             "amount": str(row.payout_amount), "scheduled_for": row.scheduled_for,
             "failure_reason": row.failure_reason,
+            "gross": str(row.gross_amount), "fee": str(row.commission_amount),
+            "deductions": str(row.deductions_amount), "delivery_charge": str(row.delivery_charge),
+            "tcs": str(row.tcs_amount),
         })
 
 

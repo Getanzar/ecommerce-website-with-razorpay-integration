@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from accounts.forms import SellerApplicationForm, SellerPayoutSetupForm, SmallSellerApplicationForm
 from accounts.models import SellerProfile
 from dashboard.forms import SellerProductEditForm, SellerProductForm
+from dashboard.electronics import ElectronicsProductForm
+from products.electronics import ELECTRONICS, seller_electronics_types
 from delivery.forms import DeliveryAgentRegistrationForm
 from delivery.models import DeliveryAgentProfile
 from products.models import (
@@ -22,7 +24,7 @@ from products.models import (
     ProductVariant,
 )
 from .partners import PartnerView, SellerKindView, seller_for
-from food.forms import RestaurantForm, MenuItemForm
+from food.forms import RestaurantForm, MenuItemForm, MenuSectionForm
 from food.models import Restaurant, MenuItem, MenuSection, MenuItemOption
 from groceries.forms import GroceryStoreForm, GroceryProductForm
 from groceries.models import GroceryStore, GroceryProduct
@@ -84,7 +86,7 @@ def schema(form, request=None):
                 "number" if isinstance(field, (forms.IntegerField, forms.DecimalField)) else
                 "multiline" if isinstance(field.widget, forms.Textarea) else "text")
         fields.append({"name": name, "label": field.label or name.replace("_", " ").capitalize(),
-                       "required": field.required, "type": kind,
+                       "required": field.required, "disabled": field.disabled, "type": kind,
                        "value": ",".join(str(v.pk if hasattr(v, "pk") else v) for v in value) if kind == "multiple" and value is not None else "" if value is None or is_image or kind == "password" else str(value),
                        "choices": [[str(key), str(title)] for key, title in field.choices] if hasattr(field, "choices") else [],
                        "preview_url": request.build_absolute_uri(value.url) if is_image and value and request else None,
@@ -179,6 +181,8 @@ class ProductFormView(SellerKindView):
     def form(self, request, pk=None, submitted=False):
         seller = seller_for(request.user)
         instance = get_object_or_404(Product, pk=pk, seller=seller) if pk else None
+        if instance and instance.category.slug == "electronics" and instance.product_type in ELECTRONICS:
+            return ElectronicsProductForm(request.data if submitted else None, request.FILES if submitted else None, instance=instance, seller=seller, kind=instance.product_type)
         cls = SellerProductEditForm if instance else MobileProductForm
         return cls(request.data if submitted else None, request.FILES if submitted else None, instance=instance, seller=seller)
 
@@ -208,6 +212,52 @@ class ProductFormView(SellerKindView):
                 ProductVariant.objects.create(product=product, color=colors[key], size=variant["size"], stock=variant["stock"])
             ProductImage.objects.create(product=product, image=form.cleaned_data["back_image"])
         return Response({"message": "Product submitted for catalog review.", "id": product.pk}, status=200 if pk else 201)
+
+
+class ElectronicsProductFormView(SellerKindView):
+    def form(self, request, product_kind, submitted=False):
+        seller = seller_for(request.user)
+        if product_kind not in seller_electronics_types(seller):
+            raise PermissionDenied("This product category is not part of your seller catalog.")
+        return ElectronicsProductForm(request.data if submitted else None, request.FILES if submitted else None, kind=product_kind, seller=seller)
+
+    def get(self, request, product_kind):
+        return Response(schema(self.form(request, product_kind), request))
+
+    @transaction.atomic
+    def post(self, request, product_kind):
+        seller = seller_for(request.user)
+        form = self.form(request, product_kind, True)
+        validate(form)
+        category, _ = Category.objects.get_or_create(slug="electronics", defaults={"name": "Electronics"})
+        subcategory, _ = SubCategory.objects.get_or_create(category=category, name=ELECTRONICS[product_kind]["name"])
+        product = form.save(commit=False)
+        product.seller, product.category, product.subcategory = seller, category, subcategory
+        product.moderation_status = Product.MODERATION_PENDING
+        product.is_active = False
+        product.save()
+        color = ProductColor.objects.create(product=product, name=form.cleaned_data["color"])
+        ProductVariant.objects.create(product=product, color=color, size="Standard", stock=product.stock)
+        return Response({"id": product.pk, "message": "Product submitted for marketplace review."}, status=201)
+
+
+class MenuSectionFormView(SellerKindView):
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if kwargs.get("kind") != "food":
+            raise PermissionDenied("Menu sections are only available to food sellers.")
+
+    def get(self, request, kind):
+        get_object_or_404(Restaurant, seller=seller_for(request.user))
+        return Response(schema(MenuSectionForm(), request))
+
+    @transaction.atomic
+    def post(self, request, kind):
+        restaurant = get_object_or_404(Restaurant.objects.select_for_update(), seller=seller_for(request.user))
+        form = MenuSectionForm(request.data)
+        validate(form)
+        section, created = MenuSection.objects.get_or_create(restaurant=restaurant, name=form.cleaned_data["name"], defaults={"display_order": form.cleaned_data["display_order"]})
+        return Response({"id": section.pk, "message": "Menu section created." if created else "This menu section already exists."}, status=201 if created else 200)
 
 class SellerCategoryView(SellerKindView):
 

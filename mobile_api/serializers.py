@@ -18,6 +18,12 @@ def absolute_url(request, image):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    can_access_operations = serializers.SerializerMethodField()
+
+    def get_can_access_operations(self, obj):
+        from dashboard.security import can_access_operations
+        return can_access_operations(obj)
+
     phone = serializers.CharField(source="profile.phone", allow_blank=True, required=False)
     gender = serializers.ChoiceField(source="profile.gender", choices=["", "Male", "Female", "Other", "Prefer not to say"], required=False)
     date_of_birth = serializers.DateField(source="profile.date_of_birth", allow_null=True, required=False)
@@ -48,7 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "first_name", "last_name", "email", "phone", "email_verified", "gender", "date_of_birth", "profile_picture", "profile_picture_url")
+        fields = ("id", "username", "first_name", "last_name", "email", "phone", "email_verified", "gender", "date_of_birth", "profile_picture", "profile_picture_url", "can_access_operations")
         read_only_fields = ("id", "email", "email_verified")
 
     @transaction.atomic
@@ -65,13 +71,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    icon = serializers.CharField(read_only=True)
+    electronics_types = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     background_image_url = serializers.SerializerMethodField()
     subcategories = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ("id", "name", "slug", "image_url", "background_image_url", "subcategories")
+        fields = ("id", "name", "slug", "icon", "image_url", "background_image_url", "subcategories", "electronics_types")
+
+    def get_electronics_types(self, obj):
+        from products.electronics import ELECTRONICS
+        return [{"key": key, "name": item["name"], "icon": item["icon"]} for key, item in ELECTRONICS.items()] if obj.slug == "electronics" else []
 
     def get_image_url(self, obj):
         return absolute_url(self.context.get("request"), obj.image)
@@ -80,7 +92,7 @@ class CategorySerializer(serializers.ModelSerializer):
         return absolute_url(self.context.get("request"), obj.background_image)
 
     def get_subcategories(self, obj):
-        return [{"id": row.id, "name": row.name} for row in obj.subcategories.all()]
+        return [{"id": row.id, "name": row.name, "icon": row.icon} for row in obj.subcategories.all()]
 
 
 class ColorSerializer(serializers.ModelSerializer):

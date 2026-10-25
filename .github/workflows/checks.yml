@@ -21,6 +21,11 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python manage.py check --settings=config.test_settings
+      - name: Production security configuration
+        env:
+          RENDER: 'true'
+          SECRET_KEY: ci-only-placeholder-72f5b829c6e04dc1a8b73d519ef0624a-configuration-check
+        run: python manage.py check --deploy --fail-level WARNING
       - run: python manage.py makemigrations --check --dry-run --settings=config.test_settings
       - run: python manage.py test --settings=config.test_settings --noinput
   mobile:
@@ -40,3 +45,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm verify:android
+      - run: pnpm exec expo export --platform ios --output-dir dist-ios-check

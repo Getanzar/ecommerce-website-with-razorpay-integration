@@ -1,3 +1,4 @@
+import { categorySymbol } from "./catalogIcons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Image, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,7 +24,7 @@ function Input({ title, value, onChange, numeric = false }: { title: string; val
 }
 
 function PayoutCard({ row }: { row: Payout }) {
-  return <View style={s.card}><Text style={s.cardTitle}>{row.order_id ? `Order #${row.order_id}` : `Delivery #${row.delivery_id}`}</Text><Text style={s.amount}>{money(row.amount)}</Text><Text style={s.badge}>{label(row.status)}</Text>{row.gross && <Text style={s.muted}>Gross {money(row.gross)} · Platform fee {money(row.fee || "0")}</Text>}{row.scheduled_for && <Text style={s.muted}>Scheduled: {new Date(row.scheduled_for).toLocaleString()}</Text>}{!!row.failure_reason && <Text style={s.error}>{row.failure_reason}</Text>}</View>;
+  return <View style={s.card}><Text style={s.cardTitle}>{row.order_id ? `Order #${row.order_id}` : `Delivery #${row.delivery_id}`}</Text><Text style={s.amount}>{money(row.amount)}</Text><Text style={s.badge}>{label(row.status)}</Text>{row.gross && <Text style={s.muted}>Gross {money(row.gross)} · Platform fee {money(row.fee || "0")}</Text>}{row.deductions !== undefined && <Text style={s.muted}>Deductions {money(row.deductions)} · Delivery {money(row.delivery_charge || "0")} · TCS {money(row.tcs || "0")}</Text>}{row.scheduled_for && <Text style={s.muted}>Scheduled: {new Date(row.scheduled_for).toLocaleString()}</Text>}{!!row.failure_reason && <Text style={s.error}>{row.failure_reason}</Text>}</View>;
 }
 
 function ListingCard({
@@ -215,7 +216,7 @@ return (
           categoryReady &&
           mode === "seller" &&
           section === "catalog" && (
-            <Button
+            (kind === "shop" && !!workspace?.electronics_types?.length ? <View style={s.card}><Text style={s.cardTitle}>Add a product in your category</Text>{workspace.electronics_types.map(item => <Button key={item.key} title={`${categorySymbol(item.name)} ${item.name}`} onPress={() => setForm({ path: `seller/electronics/${item.key}/new/`, title: `Add ${item.name}` })} />)}</View> : <Button
               title="Add product"
               onPress={() =>
                 setForm({
@@ -226,8 +227,10 @@ return (
                   title: "New product",
                 })
               }
-            />
+            />)
           )}
+
+        {approved && categoryReady && mode === "seller" && kind === "food" && section === "catalog" && <Button secondary title="Add menu section" onPress={() => setForm({ path: "seller/food/sections/new/", title: "New menu section" })} />}
 
         {!!error && (
           <View style={s.card}>
@@ -370,14 +373,16 @@ return (
               ))}
             </View>
 
+            {mode === "seller" && (section === "overview" || section === "payouts") && workspace && <View style={s.card}><Text style={s.cardTitle}>Your settlement balance</Text>{["scheduled", "processing", "paid", "on_hold", "failed"].map(status => <View style={s.row} key={status}><Text style={s.muted}>{label(status)}</Text><Text style={s.body}>{money(workspace.finance?.[status] || "0")}</Text></View>)}</View>}
             {mode === "seller" && section === "overview" && workspace && <>
+              <View style={s.row}><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Paid sales</Text><Text style={s.amount}>{money(workspace.metrics?.paid_sales || "0")}</Text></View><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Total orders</Text><Text style={s.amount}>{workspace.metrics?.order_count ?? 0}</Text></View></View>
               <View style={s.row}><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Catalog items</Text><Text style={s.amount}>{workspace.metrics?.catalog_count ?? 0}</Text></View><View style={[s.card, { flex: 1 }]}><Text style={s.muted}>Open orders</Text><Text style={s.amount}>{workspace.metrics?.open_orders ?? 0}</Text></View></View>
               <View style={s.card}><Text style={s.cardTitle}>Ready for your next order</Text><Text style={s.muted}>Manage listings and photos from Catalog, prepare purchases from Orders, and track settlements from Payouts.</Text><Button title={kind === "food" ? "Manage your menu" : "Manage products"} onPress={() => setSection("catalog")} /><Button secondary title="View orders" onPress={() => setSection("orders")} /></View>
             </>}
 
             {!loading &&
               !error &&
-              rows.length === 0 && (
+              rows.length === 0 && section !== "overview" && (
                 <View style={s.card}>
                   <Text style={s.cardTitle}>
                     No {label(section)} to show

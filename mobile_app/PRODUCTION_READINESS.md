@@ -1,3 +1,13 @@
+# Current readiness — 25 October 2026
+
+See [the current parity comparison](WEBSITE_APP_PARITY.md) and [the security review](../SECURITY_REVIEW.md) for this workspace. The September review below is historical; its old claims about ignored source folders, missing EAS project IDs and free-text segment inference no longer describe the current configuration.
+
+Current source and automated checks cover customer, seller and rider flows. The app now includes electronics browsing/forms, seller finance summaries, standalone menu sections and a permission-checked administrator overview. Administrative management actions open the authenticated website.
+
+A signed native release, installed-device payment/push/GPS acceptance, provider/worker verification and PostgreSQL concurrency/restore checks are still required. The latest native build attempt and final export results are recorded in the security review. Existing installed apps do not receive UI changes from a Render deployment.
+
+---
+
 # Production readiness — 20 September 2026
 
 Status: local implementation and automated checks passed; not yet verified for production release. External production accounts, credentials, workers and store configuration were not audited during this review.

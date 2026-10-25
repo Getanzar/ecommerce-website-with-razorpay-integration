@@ -281,7 +281,7 @@ class CategoryListView(generics.ListAPIView):
     serializer_class = CategorySerializer
     pagination_class = None
     def get_queryset(self):
-        return Category.objects.filter(products__in=in_stock_products()).prefetch_related("subcategories").distinct().order_by("name")
+        return Category.objects.filter(Q(products__in=in_stock_products()) | Q(slug="electronics")).prefetch_related("subcategories").distinct().order_by("name")
 
 
 class ProductListView(generics.ListAPIView):
@@ -306,7 +306,10 @@ class ProductListView(generics.ListAPIView):
         ordering = self.request.query_params.get("sort", "newest").strip()
         if query: rows = rows.filter(Q(name__icontains=query) | Q(description__icontains=query))
         if category:
-            if category.isdigit():
+            if category == "electronics":
+                from products.electronics import electronics_filter
+                rows = rows.filter(electronics_filter(self.request.query_params.get("electronics_type")))
+            elif category.isdigit():
                 rows = rows.filter(category_id=integer(category, "category"))
             else:
                 rows = rows.filter(category__slug=category)

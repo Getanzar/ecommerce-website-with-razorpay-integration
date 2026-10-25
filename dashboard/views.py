@@ -180,7 +180,7 @@ def seller_edit_product(request, product_id):
     product = get_object_or_404(Product, id=product_id, seller=seller)
     from products.electronics import ELECTRONICS
     from .electronics import ElectronicsProductForm
-    if product.product_type in ELECTRONICS:
+    if product.category.slug == "electronics" and product.product_type in ELECTRONICS:
         form = ElectronicsProductForm(request.POST or None, request.FILES or None, instance=product, kind=product.product_type, seller=seller)
     else:
         form = SellerProductEditForm(request.POST or None, request.FILES or None, instance=product, seller=seller)
