@@ -30,6 +30,11 @@ class Category(models.Model):
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
 
+    @property
+    def icon(self):
+        from .electronics import catalog_icon
+        return catalog_icon(self.name)
+
     def __str__(self):
         return self.name
 
@@ -41,6 +46,11 @@ class SubCategory(models.Model):
         on_delete=models.CASCADE,
         related_name="subcategories"
     )
+
+    @property
+    def icon(self):
+        from .electronics import catalog_icon
+        return catalog_icon(self.name)
 
     def __str__(self):
         return f"{self.category.name} - {self.name}"

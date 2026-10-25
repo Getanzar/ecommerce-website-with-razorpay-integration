@@ -570,9 +570,7 @@ def my_reviews(request):
 
 
 def electronics_page(request):
-    from .electronics import ELECTRONICS
+    from .electronics import ELECTRONICS, electronics_filter
     kind = request.GET.get("type", "")
-    products = in_stock_products().filter(category__slug="electronics")
-    if kind in ELECTRONICS:
-        products = products.filter(product_type=kind)
+    products = in_stock_products().filter(electronics_filter(kind)).distinct()
     return render(request, "products/electronics.html", {"electronics_types": ELECTRONICS, "products": with_storefront_variants(products.select_related("seller", "category")), "selected_type": kind})

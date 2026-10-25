@@ -64,3 +64,24 @@ class ElectronicsTests(TestCase):
         self.assertEqual(product.variants.get().stock, 4)
         self.assertEqual(product.specifications["brand"], "Test")
         self.assertNotContains(self.client.get(reverse("electronics_page")), "Test phone")
+
+    def test_legacy_accessory_shows_in_electronics(self):
+        from products.models import ProductColor, ProductVariant, SubCategory
+        category = Category.objects.create(name="Mobile accessories", slug="mobile-accessories")
+        sub = SubCategory.objects.create(category=category, name="Mobile cover")
+        product = Product.objects.create(category=category, subcategory=sub, name="Legacy phone case", price=100, product_type="accessory")
+        color = ProductColor.objects.create(product=product, name="Black")
+        variant = ProductVariant.objects.create(product=product, color=color, size="Standard", stock=2)
+        for params in ({}, {"type": "mobile_accessory"}):
+            self.assertContains(self.client.get(reverse("electronics_page"), params), "Legacy phone case")
+        self.assertNotContains(self.client.get(reverse("electronics_page"), {"type": "laptop"}), "Legacy phone case")
+        self.assertContains(self.client.get(reverse("category_page", args=[category.pk])), "bi-headphones")
+        self.assertEqual(sub.icon, "headphones")
+        variant.stock = 0
+        variant.save()
+        self.assertNotContains(self.client.get(reverse("electronics_page")), "Legacy phone case")
+        variant.stock = 2
+        variant.save()
+        product.moderation_status = "pending"
+        product.save()
+        self.assertNotContains(self.client.get(reverse("electronics_page")), "Legacy phone case")
