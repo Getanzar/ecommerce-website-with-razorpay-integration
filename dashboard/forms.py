@@ -14,6 +14,13 @@ class ProductAudienceMixin:
 
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get("price") is not None and cleaned["price"] <= 0:
+            self.add_error("price", "Enter a selling price greater than zero.")
+        if cleaned.get("gst_rate") is not None and not 0 <= cleaned["gst_rate"] <= 100:
+            self.add_error("gst_rate", "GST percentage must be between 0 and 100.")
+        for name in ("package_weight_grams", "package_length_cm", "package_width_cm", "package_height_cm"):
+            if cleaned.get(name) is not None and cleaned[name] <= 0:
+                self.add_error(name, "Enter a package measurement greater than zero.")
         category = cleaned.get("category") or (self.instance.category if self.instance.pk and self.instance.category_id else None)
         if category and category.slug == "kids-wear":
             for field, label in (("gender", "gender"), ("kids_age_group", "age group")):

@@ -1,4 +1,5 @@
 from django import forms
+from decimal import Decimal
 from django.core.validators import MinValueValidator
 from products.models import Product
 from products.electronics import ELECTRONICS
@@ -22,8 +23,8 @@ class ElectronicsProductForm(ProductAudienceMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["image"].required = not self.instance.pk
         self.fields["description"].required = True
-        self.fields["price"].min_value = 0.01
-        self.fields["price"].validators.append(MinValueValidator(0.01))
+        self.fields["price"].min_value = Decimal("0.01")
+        self.fields["price"].validators.append(MinValueValidator(Decimal("0.01")))
         if not self.instance.pk and "gst_rate" in self.fields:
             self.fields["gst_rate"].initial = None
         for name in ("package_weight_grams", "package_length_cm", "package_width_cm", "package_height_cm"):

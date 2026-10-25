@@ -1084,7 +1084,7 @@ function ZiyaApp() {
   const [inboxVisible, setInboxVisible] = useState(false);
   const [notificationOrder, setNotificationOrder] = useState<Order | null>(null);
   const [partnerTarget, setPartnerTarget] = useState<NotificationTarget | null>(null);
-  useEffect(() => { setNotificationOrder(null); setPartnerTarget(null); }, [token]);
+  useEffect(() => { setNotificationOrder(null); setPartnerTarget(null); setAdminVisible(false); }, [token]);
   const openNotification = async (data: NotificationTarget = {}) => {
     if (!token) return;
     setInboxVisible(false);

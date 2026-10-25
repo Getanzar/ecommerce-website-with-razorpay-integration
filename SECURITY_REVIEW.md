@@ -18,6 +18,7 @@ This is source review, automated regression testing, dependency auditing and a f
 ## Validation
 
 - 452 backend tests passed on isolated SQLite, including payments, authentication, ownership, orders, sellers, delivery, catalog and new electronics/admin/finance coverage. Payment/provider failures in logs were intentional mocked regression scenarios.
+- A further 59 targeted dashboard/product/API checks passed after adding server-side positive-price, GST-range and positive-package validation; the minimum electronics price uses Decimal arithmetic.
 - 45 app tests passed; TypeScript passed after the compatible dependency overrides.
 - Production `manage.py check --deploy` passed with RENDER=true even when DEBUG=true was supplied. CI now checks production configuration as well as backend tests and both platform exports.
 - Android and iOS production Hermes exports passed (751 modules per platform). No device or emulator was connected. The first native Android build downloaded Gradle and compiled its plugins, then failed resolving Google Maven dependencies; a retry is being attempted. This does not establish a signed, installable release.

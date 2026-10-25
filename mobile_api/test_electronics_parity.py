@@ -66,6 +66,18 @@ class ElectronicsParityTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("category", response.data)
 
+    def test_merchandise_financial_and_package_inputs_validated_server_side(self):
+        from dashboard.forms import SellerProductEditForm
+        category = Category.objects.get(slug="electronics")
+        product = Product.objects.create(category=category, seller=self.seller, name="Existing item", price=10)
+        data = {"name": "Existing item", "description": "Item", "price": "-10", "gst_rate": "101", "package_weight_grams": 10, "package_length_cm": "-1", "package_width_cm": 10, "package_height_cm": 2}
+        form = SellerProductEditForm(data, instance=product, seller=self.seller)
+        self.assertFalse(form.is_valid())
+        for name in ("price", "gst_rate", "package_length_cm"):
+            self.assertIn(name, form.errors)
+        data.update(price="0.01", gst_rate="0", package_length_cm="1")
+        self.assertTrue(SellerProductEditForm(data, instance=product, seller=self.seller).is_valid())
+
     @override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.InMemoryStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
     def test_upload_and_edit_use_same_model_specs_and_review_as_website(self):
         self.client.force_authenticate(self.user)
