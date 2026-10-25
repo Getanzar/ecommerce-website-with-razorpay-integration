@@ -1,6 +1,9 @@
 packages:
   - .
 
+# Keep Android CMake/Ninja paths short enough on Windows.
+nodeLinker: hoisted
+
 overrides:
   "shell-quote@>=1.8.4 <1.11.0": "1.11.0"
   "compression@<1.8.2": "1.8.2"
