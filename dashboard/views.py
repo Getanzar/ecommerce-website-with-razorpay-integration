@@ -133,9 +133,9 @@ def seller_dashboard(request):
         )
     )["total"] or 0
 
-    from products.electronics import ELECTRONICS
+    from products.electronics import seller_electronics_types
     context = {
-        "electronics_types": ELECTRONICS,
+        "electronics_types": seller_electronics_types(seller),
         "seller": seller,
         "order_alerts": request.user.notification_set.filter(title="New seller order", data__kind="shop")[:8],
         "product_count": products.count(),
@@ -346,6 +346,13 @@ def seller_add_product(request):
     if seller.business_segment == "food":
         return redirect("food_seller_add_item")
 
+    from products.electronics import seller_electronics_types
+    electronics_types = seller_electronics_types(seller)
+    if request.method == "GET" and electronics_types:
+        if len(electronics_types) == 1:
+            return redirect("seller_add_electronics", kind=next(iter(electronics_types)))
+        return render(request, "dashboard/seller/electronics_categories.html", {"seller": seller, "electronics_types": electronics_types})
+
     if request.method == "POST":
         form = SellerProductForm(request.POST, request.FILES, seller=seller)
         variants_data = None
@@ -402,10 +409,12 @@ def seller_add_product(request):
     else:
         form = SellerProductForm(seller=seller)
 
+    from products.electronics import seller_electronics_types
     return render(
         request,
         "dashboard/seller/add_product.html",
         {
+            "electronics_types": seller_electronics_types(seller),
             "seller": seller,
             "form": form,
         },
@@ -2404,6 +2413,9 @@ def seller_add_electronics(request, kind):
         from django.http import Http404
         raise Http404
     seller = _merchandise_seller_for(request)
+    from products.electronics import seller_electronics_types
+    if kind not in seller_electronics_types(seller):
+        raise PermissionDenied("This product category is not part of your seller catalog.")
     form = ElectronicsProductForm(request.POST or None, request.FILES or None, kind=kind, seller=seller)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():

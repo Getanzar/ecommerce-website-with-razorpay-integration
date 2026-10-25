@@ -45,7 +45,7 @@ class ElectronicsTests(TestCase):
         from PIL import Image
         from io import BytesIO
         user = get_user_model().objects.create_user("electronics-seller")
-        seller = SellerProfile.objects.create(user=user, store_name="Mobile store", business_segment="shop", status="approved")
+        seller = SellerProfile.objects.create(user=user, store_name="Mobile store", business_category="Electronics", business_segment="shop", status="approved")
         self.client.force_login(user)
         for kind in ELECTRONICS:
             self.assertEqual(self.client.get(reverse("seller_add_electronics", args=[kind])).status_code, 200)
@@ -85,3 +85,39 @@ class ElectronicsTests(TestCase):
         product.moderation_status = "pending"
         product.save()
         self.assertNotContains(self.client.get(reverse("electronics_page")), "Legacy phone case")
+
+    def test_workspace_only_shows_sellers_own_electronics_fields(self):
+        from django.contrib.auth import get_user_model
+        from accounts.models import SellerProfile
+        user = get_user_model().objects.create_user("fashion-seller")
+        seller = SellerProfile.objects.create(user=user, store_name="Fashion store", business_category="Clothing", business_segment="shop", status="approved")
+        self.client.force_login(user)
+        for page in ("seller_dashboard", "seller_add_product"):
+            response = self.client.get(reverse(page))
+            self.assertEqual(response.status_code, 200)
+            self.assertNotContains(response, reverse("seller_add_electronics", args=["mobile"]))
+            self.assertNotContains(response, "Your electronics workspace")
+        self.assertEqual(self.client.get(reverse("seller_add_electronics", args=["mobile"])).status_code, 403)
+        seller.business_category = "Mobile accessories"
+        seller.save()
+        response = self.client.get(reverse("seller_dashboard"))
+        self.assertContains(response, reverse("seller_add_electronics", args=["mobile_accessory"]))
+        self.assertNotContains(response, reverse("seller_add_electronics", args=["mobile"]))
+        self.assertNotContains(response, reverse("seller_add_electronics", args=["laptop"]))
+        self.assertEqual(self.client.get(reverse("seller_add_electronics", args=["mobile_accessory"])).status_code, 200)
+        self.assertRedirects(self.client.get(reverse("seller_add_product")), reverse("seller_add_electronics", args=["mobile_accessory"]))
+        seller.business_category = "Electronics"
+        seller.save()
+        response = self.client.get(reverse("seller_add_product"))
+        self.assertTemplateUsed(response, "dashboard/seller/electronics_categories.html")
+        self.assertNotContains(response, "Colors and sizes")
+
+    def test_existing_accessory_catalog_personalizes_workspace(self):
+        from django.contrib.auth import get_user_model
+        from accounts.models import SellerProfile
+        from products.electronics import seller_electronics_types
+        user = get_user_model().objects.create_user("legacy-accessory-seller")
+        seller = SellerProfile.objects.create(user=user, store_name="Legacy accessories", business_segment="shop", status="approved")
+        category = Category.objects.create(name="Mobile accessories", slug="mobile-accessories")
+        Product.objects.create(seller=seller, category=category, name="Case", price=100, product_type="accessory")
+        self.assertEqual(list(seller_electronics_types(seller)), ["mobile_accessory"])

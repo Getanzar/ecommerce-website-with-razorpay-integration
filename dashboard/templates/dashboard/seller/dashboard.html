@@ -3,7 +3,7 @@
 {% block title %}{{ seller.store_name }} | Seller Center{% endblock %}
 
 {% block content %}
-<section class="p-4 p-lg-5 rounded-4 mb-4" style="background:linear-gradient(120deg,#10243d,#24576b);color:white"><span class="small text-uppercase">Your electronics workspace</span><h2 class="display-6 fw-bold mt-2">Power up your business.</h2><p>List your next bestseller. Your existing inventory, orders and payouts are all connected.</p><div class="d-flex flex-wrap gap-2">{% for key, item in electronics_types.items %}<a class="btn btn-light" href="{% url 'seller_add_electronics' key %}"><i class="bi bi-{{ item.icon }} me-2" aria-hidden="true"></i>{{ item.name }}</a>{% endfor %}</div></section>
+{% if electronics_types %}<section class="p-4 p-lg-5 rounded-4 mb-4" style="background:linear-gradient(120deg,#10243d,#24576b);color:white"><span class="small text-uppercase">Your electronics workspace</span><h2 class="display-6 fw-bold mt-2">Power up your business.</h2><p>List your next bestseller. Your existing inventory, orders and payouts are all connected.</p><div class="d-flex flex-wrap gap-2">{% for key, item in electronics_types.items %}<a class="btn btn-light" href="{% url 'seller_add_electronics' key %}"><i class="bi bi-{{ item.icon }} me-2" aria-hidden="true"></i>{{ item.name }}</a>{% endfor %}</div></section>{% endif %}
 <div class="alert alert-light border">Create listings faster with the photo-to-listing assistant inside Add product. Review and apply suggestions before submitting.</div>{% include 'dashboard/seller/includes/identity.html' %}
 {% if order_alerts %}
 <div class="card mb-4"><div class="card-header"><strong>New order notifications</strong></div><div class="list-group list-group-flush">

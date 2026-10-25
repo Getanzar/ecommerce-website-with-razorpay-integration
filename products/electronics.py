@@ -39,3 +39,28 @@ def electronics_filter(kind=None):
         for alias in ELECTRONICS_ALIASES[key]:
             query |= Q(category__slug=slugify(alias)) | Q(category__name__iexact=alias) | Q(subcategory__name__iexact=alias)
     return query
+
+
+def seller_electronics_types(seller):
+    """Personalize merchandise tools using the seller's business and own catalog."""
+    if seller.business_segment != "shop":
+        return {}
+    from django.utils.text import slugify
+    descriptors = [seller.business_category]
+    kinds = set()
+    for product_type, category, subcategory in seller.products.values_list("product_type", "category__name", "subcategory__name").distinct():
+        if product_type in ELECTRONICS:
+            kinds.add(product_type)
+        if product_type not in ELECTRONICS:
+            descriptors.append(category)
+        descriptors.append(subcategory)
+    aliases = sorted(((slugify(alias), kind) for kind, names in ELECTRONICS_ALIASES.items() for alias in names), key=lambda pair: len(pair[0]), reverse=True)
+    for descriptor in descriptors:
+        text = slugify(descriptor or "")
+        if text in ("electronics", "consumer-electronics"):
+            return dict(ELECTRONICS)
+        for alias, kind in aliases:
+            if text == alias or ("-" + alias + "-") in ("-" + text + "-"):
+                kinds.add(kind)
+                break
+    return {kind: details for kind, details in ELECTRONICS.items() if kind in kinds}
