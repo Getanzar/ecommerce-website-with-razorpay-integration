@@ -7,6 +7,7 @@ from orders.models import OrderItem
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import generics
+from rest_framework.permissions import AllowAny
 from django.core.paginator import Paginator
 from django.templatetags.static import static
 from django.views.decorators.http import require_POST
@@ -379,12 +380,14 @@ def product_detail_page(request, slug):
 # ----------------------
 
 class ProductList(generics.ListAPIView):
+    permission_classes = [AllowAny]
     serializer_class = ProductSerializer
 
     def get_queryset(self):
         return with_storefront_variants(in_stock_products().select_related("seller"))
 
 class ProductDetail(generics.RetrieveAPIView):
+    permission_classes = [AllowAny]
     serializer_class = ProductSerializer
     lookup_field = 'slug'
 

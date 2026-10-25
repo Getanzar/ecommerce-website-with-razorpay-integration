@@ -40,7 +40,8 @@ BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL") or parseaddr(
 BREVO_API_TIMEOUT = int(os.getenv("BREVO_API_TIMEOUT", "15"))
 
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "on"}
+IS_HOSTED_PRODUCTION = os.getenv("RENDER", "").lower() == "true" or os.getenv("DJANGO_ENV", "").lower() == "production"
+DEBUG = not IS_HOSTED_PRODUCTION and os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "on"}
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
@@ -92,6 +93,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.security.BrowserAuthRateLimitMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -159,7 +161,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # DRF (optional)
-CACHE_TABLE = os.getenv("DJANGO_CACHE_TABLE", "").strip()
+CACHE_TABLE = os.getenv("DJANGO_CACHE_TABLE", "" if DEBUG else "ziyamart_cache").strip()
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache" if CACHE_TABLE else "django.core.cache.backends.locmem.LocMemCache",
@@ -172,7 +174,7 @@ REST_FRAMEWORK = {
         'mobile_api.authentication.DeviceAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     # Trust REMOTE_ADDR by default. Only change after configuring a trusted
     # reverse proxy to strip client-supplied forwarded headers.
     'NUM_PROXIES': int(os.getenv('DJANGO_TRUSTED_PROXY_COUNT', '0')),
