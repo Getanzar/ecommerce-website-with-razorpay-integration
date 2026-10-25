@@ -1,0 +1,9 @@
+{% with name=item.name|lower %}
+{% if 'shoe' in name or 'footwear' in name %}
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17c4 3 7 3 10-1l5 6c4 4 8 5 14 6 4 1 6 4 6 8H6c-2-6-2-13 1-19Z"/><path d="M6 36v4h36v-4M21 22l-4 4m9 0-4 4M8 20l1 9h8"/></svg>
+{% elif 'women' in name or 'dress' in name or 'suit' in name %}
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m18 6-5 4 4 11L8 40c10 4 22 4 32 0L31 21l4-11-5-4c0 8-12 8-12 0Z"/><path d="M17 21h14M20 25l-4 13m12-13 4 13"/></svg>
+{% elif 'clean' in name or 'bathroom' in name %}
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8h17v6H17v8l7 9v11H7V31l5-9V14m10 0 4 7M7 32h17M29 8l5-2m-5 7 6 2"/><path d="m37 22 2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z"/></svg>
+{% else %}<i class="bi bi-{{ item.icon }}" aria-hidden="true"></i>{% endif %}
+{% endwith %}

@@ -17,7 +17,7 @@
           {% elif category.image %}
             <img class="card-img-top" src="{{ category.image.url }}" alt="" loading="lazy" style="height: 190px; object-fit: cover;">
           {% else %}
-            <div class="d-flex align-items-center justify-content-center bg-light" style="height: 190px;"><i class="bi bi-{{ category.icon }} fs-1" aria-hidden="true"></i></div>
+            <div class="d-flex align-items-center justify-content-center bg-light" style="height: 190px;"><span class="fs-1">{% include "products/_category_icon.html" with item=category %}</span></div>
           {% endif %}
           <div class="card-body text-center">
             <h2 class="h6 fw-semibold mb-2">{{ category.name }}</h2>
